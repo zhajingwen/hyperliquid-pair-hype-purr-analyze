@@ -28,7 +28,8 @@ def setup_logging(log_file="hyperliquid.log", level=logging.DEBUG):
     Returns:
         配置好的 logger 实例
     """
-    log = logging.getLogger(__name__)
+    # 使用固定的 logger 名称，而不是 __name__，避免在主模块中变成 __main__
+    log = logging.getLogger('HyperliquidAnalyzer')
     
     # 避免重复添加 handlers：检查是否已有相同类型的handler
     has_console_handler = any(
@@ -50,8 +51,9 @@ def setup_logging(log_file="hyperliquid.log", level=logging.DEBUG):
     root_logger = logging.getLogger()
     root_has_handlers = len(root_logger.handlers) > 0
     
+    # 增强日志格式：添加函数名和行号，便于调试
     formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        '%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d:%(funcName)s] - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
     
@@ -125,12 +127,12 @@ class DelayCorrelationAnalyzer:
 
     # 异常模式检测阈值
     # 长期相关系数阈值，目标需要在下面这两个值的范围内，否则不告警
-    LONG_TERM_CORR_THRESHOLD = 0.6
+    LONG_TERM_CORR_THRESHOLD = 0.4
     # 短期相关系数阈值，
-    SHORT_TERM_CORR_THRESHOLD = 0.4  
+    SHORT_TERM_CORR_THRESHOLD = 0.2  
 
     # 相关系数差值阈值，如果小于这个值就不告警
-    CORR_DIFF_THRESHOLD = 0.38
+    CORR_DIFF_THRESHOLD = 0.2
 
     # ========== 新增：异常值处理配置 ==========
     # Winsorization 分位数配置
@@ -148,7 +150,7 @@ class DelayCorrelationAnalyzer:
     MIN_POINTS_FOR_BETA_CALC = 10
     # 平均 Beta 收益率系数阈值：低于此值不发送告警（确保有足够的套利空间）
     # β < 1.0 表示波动幅度小于基准币种，套利空间受限
-    AVG_BETA_THRESHOLD = 1
+    AVG_BETA_THRESHOLD = 0.4
     
     # ========== 新增：Z-score 配置 ==========
     # 是否启用 Z-score 检查（默认启用）
@@ -186,7 +188,7 @@ class DelayCorrelationAnalyzer:
         Args:
             exchange_name: 交易所名称，支持ccxt库支持的所有交易所
             timeout: 请求超时时间（毫秒）
-            default_combinations: K线组合列表，如 [("5m", "7d"), ("1m", "1d")]
+            default_combinations: K线组合列表，如 [("5m", "7d"), ("1h", "30d")]
         """
         self.exchange_name = exchange_name
         self.exchange = getattr(ccxt, exchange_name)({
@@ -194,8 +196,9 @@ class DelayCorrelationAnalyzer:
             "enableRateLimit": True,
             "rateLimit": 1500
         })
-        # 只保留两个组合：5分钟K线7天，1分钟K线1天
-        self.combinations = default_combinations or [("5m", "7d"), ("1m", "1d")]
+        # 保留双周期组合用于相关性对比：5分钟K线7天，1小时K线30天
+        # 但Beta/协整/ADF检验将使用长周期(1h/30d)数据计算
+        self.combinations = default_combinations or [("5m", "7d"), ("1h", "30d")]
         # 基准币种交易对：作为参考基准，用于计算与其他山寨币的相关系数和Beta系数
         # 当前使用 HYPE/USDC:USDC 作为基准币种
         self.base_symbol = "HYPE/USDC:USDC"
@@ -463,7 +466,7 @@ class DelayCorrelationAnalyzer:
 
         except Exception as e:
             coin_info = f" | 币种: {coin}" if coin else ""
-            logger.warning(f"Beta 计算异常：{type(e).__name__}: {str(e)}{coin_info}")
+            logger.warning(f"Beta 计算异常：{type(e).__name__}: {str(e)}{coin_info}", exc_info=True)
             return np.nan
 
     @staticmethod
@@ -521,7 +524,7 @@ class DelayCorrelationAnalyzer:
             }
         except Exception as e:
             coin_info = f" | 币种: {coin}" if coin else ""
-            logger.debug(f"OLS协整参数计算失败：{type(e).__name__}: {str(e)}{coin_info}")
+            logger.debug(f"OLS协整参数计算失败：{type(e).__name__}: {str(e)}{coin_info}", exc_info=True)
             return None
 
     @staticmethod
@@ -602,7 +605,7 @@ class DelayCorrelationAnalyzer:
 
         except Exception as e:
             coin_info = f" | 币种: {coin}" if coin else ""
-            logger.warning(f"价格 Beta 计算异常：{type(e).__name__}: {str(e)}{coin_info}")
+            logger.warning(f"价格 Beta 计算异常：{type(e).__name__}: {str(e)}{coin_info}", exc_info=True)
             return None
 
     @staticmethod
@@ -688,7 +691,7 @@ class DelayCorrelationAnalyzer:
 
         except Exception as e:
             coin_info = f" | 币种: {coin}" if coin else ""
-            logger.warning(f"滚动 Beta 计算异常：{type(e).__name__}: {str(e)}{coin_info}")
+            logger.warning(f"滚动 Beta 计算异常：{type(e).__name__}: {str(e)}{coin_info}", exc_info=True)
             return None
 
     @staticmethod
@@ -784,18 +787,21 @@ class DelayCorrelationAnalyzer:
                 logger.debug(f"Z-score 计算失败：Beta 计算失败{coin_info}")
                 return None
 
-            # 6. 价差构建（短窗口）
-            # 取最近 zscore_window 期数据，使用长窗口计算的 Beta 构建对数价差
+            # 6. 价差构建（用于平稳性检验：使用更长窗口确保统计有效性）
+            # 平稳性检验需要足够的样本量（建议至少50-100个数据点），
+            # 因此使用 beta_window 的数据构建价差序列进行检验
             # 价差公式：spread = log(ALT) - β × log(BASE)
-            recent_base = recent_base_full.iloc[-zscore_window:]
-            recent_alt = recent_alt_full.iloc[-zscore_window:]
-            log_base = np.log(recent_base)
-            log_alt = np.log(recent_alt)
-            spread = log_alt - rolling_beta * log_base
+            stationarity_base = recent_base_full.iloc[-beta_window:]
+            stationarity_alt = recent_alt_full.iloc[-beta_window:]
+            log_base_stationarity = np.log(stationarity_base)
+            log_alt_stationarity = np.log(stationarity_alt)
+            spread_for_stationarity = log_alt_stationarity - rolling_beta * log_base_stationarity
 
             # ========== 新增：分级平稳性检验 ==========
             if check_stationarity:
-                stationarity_level, p_value = DelayCorrelationAnalyzer._check_spread_stationarity(spread, coin=coin)
+                stationarity_level, p_value = DelayCorrelationAnalyzer._check_spread_stationarity(
+                    spread_for_stationarity, coin=coin
+                )
 
                 # 非平稳：直接返回 None
                 if stationarity_level == StationarityLevel.NON_STATIONARY:
@@ -817,28 +823,36 @@ class DelayCorrelationAnalyzer:
                     )
             # =====================================
 
-            # 6. 计算统计量（修复样本偏差：使用前window-1期数据，排除当前值）
+            # 7. 价差构建（用于Z-score计算：使用短窗口保持敏感度）
+            # 取最近 zscore_window 期数据，使用长窗口计算的 Beta 构建对数价差
+            recent_base = recent_base_full.iloc[-zscore_window:]
+            recent_alt = recent_alt_full.iloc[-zscore_window:]
+            log_base = np.log(recent_base)
+            log_alt = np.log(recent_alt)
+            spread = log_alt - rolling_beta * log_base
+
+            # 8. 计算统计量（修复样本偏差：使用前window-1期数据，排除当前值）
             # 避免"用样本测试样本本身"的问题，防止Z-score被系统性低估
             spread_mean = spread.iloc[:-1].mean()
             spread_std = spread.iloc[:-1].std()
 
-            # 7. 检查统计量有效性
+            # 9. 检查统计量有效性
             if pd.isna(spread_mean) or pd.isna(spread_std):
                 coin_info = f" | 币种: {coin}" if coin else ""
                 logger.debug(f"Z-score 计算失败：统计量包含 NaN{coin_info}")
                 return None
 
-            # 8. 检查标准差是否为 0（避免除以 0）
+            # 10. 检查标准差是否为 0（避免除以 0）
             if spread_std == 0 or np.isnan(spread_std):
                 coin_info = f" | 币种: {coin}" if coin else ""
                 logger.debug(f"Z-score 计算失败：价差序列标准差为 0 或 NaN{coin_info}")
                 return None
 
-            # 9. 计算当前 Z-score（修复：使用当前窗口的最后一个价差值）
+            # 11. 计算当前 Z-score（修复：使用当前窗口的最后一个价差值）
             current_spread = spread.iloc[-1]
             zscore = (current_spread - spread_mean) / spread_std
 
-            # 10. 检查结果有效性
+            # 12. 检查结果有效性
             if np.isnan(zscore) or np.isinf(zscore):
                 coin_info = f" | 币种: {coin}" if coin else ""
                 logger.debug(f"Z-score 计算失败：结果为 NaN 或 Inf | Z-score: {zscore}{coin_info}")
@@ -848,7 +862,7 @@ class DelayCorrelationAnalyzer:
 
         except Exception as e:
             coin_info = f" | 币种: {coin}" if coin else ""
-            logger.warning(f"Z-score 计算异常：{type(e).__name__}: {str(e)}{coin_info}")
+            logger.warning(f"Z-score 计算异常：{type(e).__name__}: {str(e)}{coin_info}", exc_info=True)
             return None
 
     @staticmethod
@@ -932,21 +946,30 @@ class DelayCorrelationAnalyzer:
             if rolling_beta is None:
                 return None, None, None
 
-            # 6. 价差构建（短窗口）
-            # 取最近 zscore_window 期数据，使用长窗口计算的 Beta 构建对数价差
+            # 6. 价差构建（用于平稳性检验：使用更长窗口确保统计有效性）
+            # 平稳性检验需要足够的样本量（建议至少50-100个数据点），
+            # 因此使用 beta_window 的数据构建价差序列进行检验
             # 价差公式：spread = log(ALT) - β × log(BASE)
+            stationarity_base = recent_base_full.iloc[-beta_window:]
+            stationarity_alt = recent_alt_full.iloc[-beta_window:]
+            log_base_stationarity = np.log(stationarity_base)
+            log_alt_stationarity = np.log(stationarity_alt)
+            spread_for_stationarity = log_alt_stationarity - rolling_beta * log_base_stationarity
+
+            # 7. 执行分级平稳性检验（使用更长窗口的价差序列）
+            stationarity_level, p_value = DelayCorrelationAnalyzer._check_spread_stationarity(
+                spread_for_stationarity, coin=coin
+            )
+
+            # 8. 价差构建（用于Z-score计算：使用短窗口保持敏感度）
+            # 取最近 zscore_window 期数据，使用长窗口计算的 Beta 构建对数价差
             recent_base = recent_base_full.iloc[-zscore_window:]
             recent_alt = recent_alt_full.iloc[-zscore_window:]
             log_base = np.log(recent_base)
             log_alt = np.log(recent_alt)
             spread = log_alt - rolling_beta * log_base
 
-            # 7. 执行分级平稳性检验
-            stationarity_level, p_value = DelayCorrelationAnalyzer._check_spread_stationarity(
-                spread, coin=coin
-            )
-
-            # 4. 非平稳：终止计算
+            # 9. 非平稳：终止计算
             if stationarity_level == StationarityLevel.NON_STATIONARY:
                 coin_info = f" | 币种: {coin}" if coin else ""
                 logger.info(
@@ -956,7 +979,7 @@ class DelayCorrelationAnalyzer:
                 )
                 return None, stationarity_level, p_value
 
-            # 5. 弱平稳：发出警告但继续计算
+            # 10. 弱平稳：发出警告但继续计算
             if stationarity_level == StationarityLevel.WEAK:
                 coin_info = f" | 币种: {coin}" if coin else ""
                 logger.info(
@@ -965,19 +988,19 @@ class DelayCorrelationAnalyzer:
                     f"{coin_info}"
                 )
 
-            # 6. 计算统计量（修复样本偏差：使用前window-1期数据，排除当前值）
+            # 11. 计算统计量（修复样本偏差：使用前window-1期数据，排除当前值）
             # 避免"用样本测试样本本身"的问题，防止Z-score被系统性低估
             spread_mean = spread.iloc[:-1].mean()
             spread_std = spread.iloc[:-1].std()
 
-            # 7. 检查统计量有效性
+            # 12. 检查统计量有效性
             if pd.isna(spread_mean) or pd.isna(spread_std):
                 return None, stationarity_level, p_value
 
             if spread_std == 0 or np.isnan(spread_std):
                 return None, stationarity_level, p_value
 
-            # 8. 计算当前 Z-score（修复：使用当前窗口的最后一个价差值）
+            # 13. 计算当前 Z-score（修复：使用当前窗口的最后一个价差值）
             current_spread = spread.iloc[-1]
             zscore = (current_spread - spread_mean) / spread_std
 
@@ -988,7 +1011,7 @@ class DelayCorrelationAnalyzer:
 
         except Exception as e:
             coin_info = f" | 币种: {coin}" if coin else ""
-            logger.warning(f"Z-score 计算异常：{type(e).__name__}: {str(e)}{coin_info}")
+            logger.warning(f"Z-score 计算异常：{type(e).__name__}: {str(e)}{coin_info}", exc_info=True)
             return None, None, None
 
     @staticmethod
@@ -1078,7 +1101,7 @@ class DelayCorrelationAnalyzer:
 
         except Exception as e:
             coin_info = f" | 币种: {coin}" if coin else ""
-            logger.warning(f"平稳性检验异常：{type(e).__name__}: {str(e)}{coin_info}")
+            logger.warning(f"平稳性检验异常：{type(e).__name__}: {str(e)}{coin_info}", exc_info=True)
             return StationarityLevel.NON_STATIONARY, 1.0
 
     @staticmethod
@@ -1233,8 +1256,8 @@ class DelayCorrelationAnalyzer:
         基准币种数据用于与所有山寨币进行相关性分析和Beta系数计算。
         
         Args:
-            timeframe: K线时间周期（如 "5m", "1m"）
-            period: 数据周期（如 "7d", "1d"）
+            timeframe: K线时间周期（如 "5m", "1h"）
+            period: 数据周期（如 "7d", "30d"）
         
         Returns:
             包含OHLCV数据的DataFrame，失败返回None
@@ -1312,7 +1335,8 @@ class DelayCorrelationAnalyzer:
             return func(*args, **kwargs)
         except Exception as e:
             if log_error and error_msg:
-                logger.warning(f"{error_msg} | {type(e).__name__}: {str(e)}")
+                # 使用 exc_info=True 记录完整的异常堆栈跟踪
+                logger.warning(f"{error_msg} | {type(e).__name__}: {str(e)}", exc_info=True)
             return None
     
     def _align_and_validate_data(self, base_df: pd.DataFrame, alt_df: pd.DataFrame, 
@@ -1411,11 +1435,11 @@ class DelayCorrelationAnalyzer:
         检测异常模式：短期低相关但长期高相关（增强版：包含协整验证）
 
         异常模式判断阈值：
-        - 长期相关系数 > LONG_TERM_CORR_THRESHOLD：长期与基准币种有较强跟随性（7d对应5m）
-        - 短期相关系数 < SHORT_TERM_CORR_THRESHOLD：短期存在明显滞后（1d对应1m）
+        - 长期相关系数 > LONG_TERM_CORR_THRESHOLD：长期与基准币种有较强跟随性（30d对应1h）
+        - 短期相关系数 < SHORT_TERM_CORR_THRESHOLD：短期存在明显滞后（7d对应5m）
         - 差值 > CORR_DIFF_THRESHOLD：短期和长期差异足够显著
-        - 平均Beta系数 >= AVG_BETA_THRESHOLD：波动幅度需满足阈值要求
-        - 协整检验 ADF p-value < 0.05：价差平稳，适合配对交易（新增）
+        - 平均Beta系数 >= AVG_BETA_THRESHOLD：波动幅度需满足阈值要求（基于长周期数据计算）
+        - 协整检验 ADF p-value < 0.05：价差平稳，适合配对交易（基于长周期30d数据）
 
         Args:
             results: 分析结果列表，包含相关系数、时间周期、延迟等信息
@@ -1428,8 +1452,8 @@ class DelayCorrelationAnalyzer:
             (is_anomaly, diff_amount, min_short_corr, max_long_corr): 是否异常模式、相关系数差值、短期最小相关系数、长期最大相关系数
         """
         # ========== 先提取相关系数 ==========
-        short_periods = ['1d']
-        long_periods = ['7d']
+        short_periods = ['7d']
+        long_periods = ['30d']
         
         # 使用索引访问，添加长度检查以确保安全（兼容4元组和5元组格式）
         short_term_corrs = [x[0] for x in results if len(x) >= 3 and x[2] in short_periods]
@@ -1440,6 +1464,8 @@ class DelayCorrelationAnalyzer:
         
         min_short_corr = min(short_term_corrs)
         max_long_corr = max(long_term_corrs)
+        # 计算相关系数差值（长期最大相关系数 - 短期最小相关系数）
+        diff_amount = max_long_corr - min_short_corr
         
         # ========== Beta 收益率系数检查 ==========
         # 从 results 中提取所有有效的 Beta 收益率系数值
@@ -1468,8 +1494,6 @@ class DelayCorrelationAnalyzer:
                 )
                 return False, 0, min_short_corr, max_long_corr
         
-        # 计算相关系数差值（长期最大相关系数 - 短期最小相关系数）
-        diff_amount = max_long_corr - min_short_corr
         is_anomaly = False
         
         # 长期相关系数大于阈值，且短期相关系数小于阈值的时候，才计算差值
@@ -1480,15 +1504,16 @@ class DelayCorrelationAnalyzer:
         # 长期相关系数大于阈值，且短期存在明显滞后时，则认为存在套利机会
         if max_long_corr > self.LONG_TERM_CORR_THRESHOLD:
             # x[3] 是最优延迟，x[2] 是数据周期
-            if any((x[3] > 0) for x in results if len(x) >= 4 and x[2] == '1d'):
+            if any((x[3] > 0) for x in results if len(x) >= 4 and x[2] == '7d'):
                 is_anomaly = True
 
-        # ========== 新增：协整验证（论文方法）==========
+        # ========== 新增：协整验证（论文方法）- 使用长周期数据 ==========
         if is_anomaly and price_data_cache is not None:
-            # 使用1d数据进行协整检验
+            # 使用长周期数据（30d）进行协整检验，提高统计可靠性
+            # 优点：长周期数据样本量更大，协整关系更稳定，减少虚假信号
             cointegration_key = None
             for tf, p in price_data_cache.keys():
-                if p == '1d':
+                if p == '30d':  # 改为使用长周期数据
                     cointegration_key = (tf, p)
                     break
 
@@ -1497,7 +1522,7 @@ class DelayCorrelationAnalyzer:
                 base_prices = price_data['base_prices']
                 alt_prices = price_data['alt_prices']
 
-                # 协整检验
+                # 协整检验（基于长周期数据）
                 ols_params = self._calculate_cointegration_params(
                     base_prices, alt_prices, coin=coin
                 )
@@ -1506,7 +1531,7 @@ class DelayCorrelationAnalyzer:
                     coin_info = f" | 币种: {coin}" if coin else ""
                     adf_pvalue_str = f"{ols_params['adf_pvalue']:.4f}" if ols_params else 'N/A'
                     logger.info(
-                        f"协整检验未通过，过滤信号 | "
+                        f"协整检验未通过（基于长周期数据），过滤信号 | "
                         f"相关系数: {max_long_corr:.4f} | "
                         f"ADF p-value: {adf_pvalue_str} >= 0.05 | "
                         f"原因: 价差非平稳，不适合配对交易"
@@ -1517,7 +1542,7 @@ class DelayCorrelationAnalyzer:
                     # 协整检验通过，输出详细信息
                     coin_info = f" | 币种: {coin}" if coin else ""
                     logger.info(
-                        f"✅ 协整检验通过 | "
+                        f"✅ 协整检验通过（基于长周期数据） | "
                         f"α={ols_params['alpha']:.4f}, β={ols_params['beta']:.4f}, "
                         f"ADF p-value={ols_params['adf_pvalue']:.4f} < 0.05"
                         f"{coin_info}"
@@ -1695,7 +1720,8 @@ class DelayCorrelationAnalyzer:
         # 格式: {(timeframe, period): {'base_prices': pd.Series, 'alt_prices': pd.Series}}
         price_data_cache = {}
 
-        # 直接遍历预定义的组合列表：5m/7d 和 1m/1d
+        # 直接遍历预定义的组合列表：5m/7d 和 1h/30d
+        # 注意：虽然遍历两种周期获取数据，但统计检验（Beta/协整/ADF）仅使用长周期数据
         for timeframe, period in self.combinations:
             # 获取当前组合的数据，检查是否为空
             current_alt_df = self._get_alt_data(coin, period, timeframe, coin)
@@ -1772,20 +1798,22 @@ class DelayCorrelationAnalyzer:
         stationarity_level_result = None  # 新增：保存平稳性等级
         p_value_result = None  # 新增：保存p-value
         if self.ENABLE_ZSCORE_CHECK:
-            # 优先使用短期数据（1m/1d）计算 Z-score，因为这是检测异常的主要周期
-            
-            # 尝试从短期数据计算 Z-score
-            short_term_key = None
+            # 使用长周期数据（1h/30d）计算 Z-score、Beta系数和ADF平稳性检验
+            # 优点：长周期数据更稳定，减少噪音干扰，提高统计检验可靠性
+
+            # 获取长周期数据的缓存key
+            long_term_key = None
             for tf, p in self.combinations:
-                if p == '1d':  # 短期周期
-                    short_term_key = (tf, p)
+                if p == '30d':  # 长周期组合（1h/30d）
+                    long_term_key = (tf, p)
                     break
-            
-            if short_term_key and short_term_key in price_data_cache:
-                price_data = price_data_cache[short_term_key]
+
+            if long_term_key and long_term_key in price_data_cache:
+                price_data = price_data_cache[long_term_key]
 
                 # 使用增强版函数，同时获取 Z-score、平稳性等级和 p-value
                 # 双窗口策略：Beta（基于对数价格）使用长窗口（BETA_WINDOW）构建价差，统计量使用短窗口（ZSCORE_WINDOW）
+                # 重要：所有统计检验（Beta/ADF）均基于长周期数据，确保统计有效性
                 zscore_result, stationarity_level_result, p_value_result = self._calculate_zscore_with_level(
                     price_data['base_prices'],
                     price_data['alt_prices'],
