@@ -181,6 +181,10 @@ class DelayCorrelationAnalyzer:
     # 向后兼容：保留原变量名
     STATIONARITY_SIGNIFICANCE_LEVEL = STATIONARITY_STRONG_THRESHOLD
 
+    # ========== 统计检验周期配置 ==========
+    # 统计检验使用的数据周期（Beta系数、Z-score、协整检验、ADF检验）
+    STATS_PERIOD = '30d'  # 可选值: '30d'（长周期）或 '7d'（短周期）
+
     def __init__(self, exchange_name="kucoin", timeout=30000, default_combinations=None):
         """
         初始化分析器
@@ -197,7 +201,7 @@ class DelayCorrelationAnalyzer:
             "rateLimit": 1500
         })
         # 保留双周期组合用于相关性对比：5分钟K线7天，1小时K线30天
-        # 但Beta/协整/ADF检验将使用长周期(1h/30d)数据计算
+        # Beta/协整/ADF检验将使用配置周期(STATS_PERIOD)数据计算
         self.combinations = default_combinations or [("5m", "7d"), ("1h", "30d")]
         # 基准币种交易对：作为参考基准，用于计算与其他山寨币的相关系数和Beta系数
         # 当前使用 HYPE/USDC:USDC 作为基准币种
@@ -1438,8 +1442,8 @@ class DelayCorrelationAnalyzer:
         - 长期相关系数 > LONG_TERM_CORR_THRESHOLD：长期与基准币种有较强跟随性（30d对应1h）
         - 短期相关系数 < SHORT_TERM_CORR_THRESHOLD：短期存在明显滞后（7d对应5m）
         - 差值 > CORR_DIFF_THRESHOLD：短期和长期差异足够显著
-        - 平均Beta系数 >= AVG_BETA_THRESHOLD：波动幅度需满足阈值要求（基于长周期数据计算）
-        - 协整检验 ADF p-value < 0.05：价差平稳，适合配对交易（基于长周期30d数据）
+        - 平均Beta系数 >= AVG_BETA_THRESHOLD：波动幅度需满足阈值要求（基于配置周期数据计算）
+        - 协整检验 ADF p-value < 0.05：价差平稳，适合配对交易（基于配置周期STATS_PERIOD数据）
 
         Args:
             results: 分析结果列表，包含相关系数、时间周期、延迟等信息
@@ -1507,13 +1511,13 @@ class DelayCorrelationAnalyzer:
             if any((x[3] > 0) for x in results if len(x) >= 4 and x[2] == '7d'):
                 is_anomaly = True
 
-        # ========== 新增：协整验证（论文方法）- 使用长周期数据 ==========
+        # ========== 新增：协整验证（论文方法）- 使用配置周期数据 ==========
         if is_anomaly and price_data_cache is not None:
-            # 使用长周期数据（30d）进行协整检验，提高统计可靠性
-            # 优点：长周期数据样本量更大，协整关系更稳定，减少虚假信号
+            # 使用配置周期数据（STATS_PERIOD）进行协整检验，提高统计可靠性
+            # 优点：配置周期数据样本量足够时，协整关系更稳定，减少虚假信号
             cointegration_key = None
             for tf, p in price_data_cache.keys():
-                if p == '30d':  # 改为使用长周期数据
+                if p == self.STATS_PERIOD:  # 使用配置的统计检验周期
                     cointegration_key = (tf, p)
                     break
 
@@ -1522,7 +1526,7 @@ class DelayCorrelationAnalyzer:
                 base_prices = price_data['base_prices']
                 alt_prices = price_data['alt_prices']
 
-                # 协整检验（基于长周期数据）
+                # 协整检验（基于配置周期数据）
                 ols_params = self._calculate_cointegration_params(
                     base_prices, alt_prices, coin=coin
                 )
@@ -1531,7 +1535,7 @@ class DelayCorrelationAnalyzer:
                     coin_info = f" | 币种: {coin}" if coin else ""
                     adf_pvalue_str = f"{ols_params['adf_pvalue']:.4f}" if ols_params else 'N/A'
                     logger.info(
-                        f"协整检验未通过（基于长周期数据），过滤信号 | "
+                        f"协整检验未通过（基于{self.STATS_PERIOD}周期数据），过滤信号 | "
                         f"相关系数: {max_long_corr:.4f} | "
                         f"ADF p-value: {adf_pvalue_str} >= 0.05 | "
                         f"原因: 价差非平稳，不适合配对交易"
@@ -1542,7 +1546,7 @@ class DelayCorrelationAnalyzer:
                     # 协整检验通过，输出详细信息
                     coin_info = f" | 币种: {coin}" if coin else ""
                     logger.info(
-                        f"✅ 协整检验通过（基于长周期数据） | "
+                        f"✅ 协整检验通过（基于{self.STATS_PERIOD}周期数据） | "
                         f"α={ols_params['alpha']:.4f}, β={ols_params['beta']:.4f}, "
                         f"ADF p-value={ols_params['adf_pvalue']:.4f} < 0.05"
                         f"{coin_info}"
@@ -1721,7 +1725,7 @@ class DelayCorrelationAnalyzer:
         price_data_cache = {}
 
         # 直接遍历预定义的组合列表：5m/7d 和 1h/30d
-        # 注意：虽然遍历两种周期获取数据，但统计检验（Beta/协整/ADF）仅使用长周期数据
+        # 注意：虽然遍历两种周期获取数据，但统计检验（Beta/协整/ADF）使用配置周期(STATS_PERIOD)数据
         for timeframe, period in self.combinations:
             # 获取当前组合的数据，检查是否为空
             current_alt_df = self._get_alt_data(coin, period, timeframe, coin)
@@ -1798,22 +1802,22 @@ class DelayCorrelationAnalyzer:
         stationarity_level_result = None  # 新增：保存平稳性等级
         p_value_result = None  # 新增：保存p-value
         if self.ENABLE_ZSCORE_CHECK:
-            # 使用长周期数据（1h/30d）计算 Z-score、Beta系数和ADF平稳性检验
-            # 优点：长周期数据更稳定，减少噪音干扰，提高统计检验可靠性
+            # 使用配置周期数据（STATS_PERIOD）计算 Z-score、Beta系数和ADF平稳性检验
+            # 优点：配置周期数据更稳定，减少噪音干扰，提高统计检验可靠性
 
-            # 获取长周期数据的缓存key
-            long_term_key = None
+            # 获取配置周期数据的缓存key
+            stats_period_key = None
             for tf, p in self.combinations:
-                if p == '30d':  # 长周期组合（1h/30d）
-                    long_term_key = (tf, p)
+                if p == self.STATS_PERIOD:  # 使用配置的统计检验周期
+                    stats_period_key = (tf, p)
                     break
 
-            if long_term_key and long_term_key in price_data_cache:
-                price_data = price_data_cache[long_term_key]
+            if stats_period_key and stats_period_key in price_data_cache:
+                price_data = price_data_cache[stats_period_key]
 
                 # 使用增强版函数，同时获取 Z-score、平稳性等级和 p-value
                 # 双窗口策略：Beta（基于对数价格）使用长窗口（BETA_WINDOW）构建价差，统计量使用短窗口（ZSCORE_WINDOW）
-                # 重要：所有统计检验（Beta/ADF）均基于长周期数据，确保统计有效性
+                # 重要：所有统计检验（Beta/ADF）均基于配置周期数据，确保统计有效性
                 zscore_result, stationarity_level_result, p_value_result = self._calculate_zscore_with_level(
                     price_data['base_prices'],
                     price_data['alt_prices'],
