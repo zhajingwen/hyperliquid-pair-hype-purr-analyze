@@ -1,5 +1,6 @@
-# 功能：分析山寨币与BTC的皮尔逊相关系数，识别存在时间差套利空间的异常币种
+# 功能：分析山寨币与基准币种的皮尔逊相关系数，识别存在时间差套利空间的异常币种
 # 原理：通过计算不同时间周期和延迟下的相关系数，找出短期低相关但长期高相关的币种
+# 基准币种：当前使用 HYPE/USDC:USDC 作为参考基准，用于计算相关系数、Beta系数和Z-score
 
 import ccxt
 import time
@@ -106,9 +107,16 @@ class StationarityLevel(Enum):
 
 class DelayCorrelationAnalyzer:
     """
-    山寨币与BTC相关系数分析器
+    山寨币与基准币种相关系数分析器
 
+    通过分析山寨币与基准币种（当前为 HYPE/USDC:USDC）的相关系数，
     识别短期低相关但长期高相关的异常币种，这类币种存在时间差套利机会。
+    
+    核心功能：
+    - 计算不同时间周期和延迟下的相关系数
+    - 计算Beta系数衡量波动幅度关系
+    - 计算Z-score识别价差偏离
+    - 进行协整检验验证价差平稳性
     """
     # 相关系数计算所需的最小数据点数
     MIN_POINTS_FOR_CORR_CALC = 10
@@ -133,13 +141,13 @@ class DelayCorrelationAnalyzer:
 
     # ========== 新增：Beta 收益率系数配置 ==========
     # 是否计算 Beta 收益率系数（默认启用）
-    # Beta 收益率系数：基于 BTC 和山寨币收益率计算，衡量山寨币相对 BTC 的波动幅度
-    # 公式：β = Cov(BTC_returns, ALT_returns) / Var(BTC_returns)
+    # Beta 收益率系数：基于基准币种和山寨币收益率计算，衡量山寨币相对基准币种的波动幅度
+    # 公式：β = Cov(BASE_returns, ALT_returns) / Var(BASE_returns)
     ENABLE_BETA_CALCULATION = True
     # Beta 收益率系数计算所需的最小数据点（与相关系数要求相同）
     MIN_POINTS_FOR_BETA_CALC = 10
     # 平均 Beta 收益率系数阈值：低于此值不发送告警（确保有足够的套利空间）
-    # β < 1.0 表示波动幅度小于BTC，套利空间受限
+    # β < 1.0 表示波动幅度小于基准币种，套利空间受限
     AVG_BETA_THRESHOLD = 1
     
     # ========== 新增：Z-score 配置 ==========
@@ -150,8 +158,8 @@ class DelayCorrelationAnalyzer:
 
     # ========== 双窗口策略配置 ==========
     # Beta 系数计算窗口（长期关系窗口，用于 Z-score 价差构建）
-    # 目的：使用更长窗口计算基于对数价格的 Beta，捕捉稳定的 BTC-ALT 价格关系
-    # 用于构建价差序列：spread = log(ALT) - β × log(BTC)
+    # 目的：使用更长窗口计算基于对数价格的 Beta，捕捉稳定的基准币种-ALT 价格关系
+    # 用于构建价差序列：spread = log(ALT) - β × log(BASE)
     # 测试验证：窗口=100 时 Beta 标准差从 0.29 降至 0.20，稳定性提升 45%
     BETA_WINDOW = 100  # 建议值：80-120，平衡稳定性与响应性
 
@@ -188,9 +196,13 @@ class DelayCorrelationAnalyzer:
         })
         # 只保留两个组合：5分钟K线7天，1分钟K线1天
         self.combinations = default_combinations or [("5m", "7d"), ("1m", "1d")]
-        self.btc_symbol = "BTC/USDC:USDC"
-        self.btc_df_cache = {}
-        self.alt_df_cache = {}  # 山寨币数据缓存
+        # 基准币种交易对：作为参考基准，用于计算与其他山寨币的相关系数和Beta系数
+        # 当前使用 HYPE/USDC:USDC 作为基准币种
+        self.base_symbol = "HYPE/USDC:USDC"
+        # 基准币种数据缓存：缓存不同时间周期和周期的基准币种K线数据
+        self.base_df_cache = {}
+        # 山寨币数据缓存：缓存不同山寨币的K线数据
+        self.alt_df_cache = {}
 
         # ========== 新增：平稳性统计变量 ==========
         self.strong_signal_count = 0  # 强平稳信号数量
@@ -277,7 +289,7 @@ class DelayCorrelationAnalyzer:
         从交易所下载OHLCV历史数据
         
         Args:
-            symbol: 交易对名称，如 "BTC/USDC"
+            symbol: 交易对名称，如 "BASE/USDC"
             period: 数据周期，如 "30d"
             timeframe: K线时间周期，如 "5m"
         
@@ -380,66 +392,66 @@ class DelayCorrelationAnalyzer:
         return winsorized
 
     @staticmethod
-    def _calculate_beta(btc_ret, alt_ret, coin: str = None):
+    def _calculate_beta(base_ret, alt_ret, coin: str = None):
         """
         计算 Beta 收益率系数
 
-        基于收益率序列计算 Beta 系数，衡量山寨币收益率相对 BTC 收益率的波动幅度。
-        公式：β = Cov(BTC_returns, ALT_returns) / Var(BTC_returns)
+        基于收益率序列计算 Beta 系数，衡量山寨币收益率相对基准币种收益率的波动幅度。
+        公式：β = Cov(BASE_returns, ALT_returns) / Var(BASE_returns)
 
         应用场景：
-        - 波动率分析：评估山寨币相对 BTC 的风险暴露
+        - 波动率分析：评估山寨币相对基准币种的风险暴露
         - 对冲比例：β 值可作为对冲策略的参考比例
         - 风险筛选：过滤低波动性资产（β < 阈值）
 
         Args:
-            btc_ret: BTC 收益率数组（numpy array）
+            base_ret: 基准币种收益率数组（numpy array）
             alt_ret: 山寨币收益率数组（numpy array）
             coin: 币种名称（可选，用于日志）
 
         Returns:
             float: Beta 收益率系数值
-                - Beta > 1.0: ALT 波动幅度大于 BTC（高波动）
-                - Beta = 1.0: ALT 与 BTC 同步波动
-                - Beta < 1.0: ALT 波动幅度小于 BTC（低波动）
-                - Beta < 0: ALT 与 BTC 反向波动（罕见，可能存在对冲机会）
+                - Beta > 1.0: ALT 波动幅度大于基准币种（高波动）
+                - Beta = 1.0: ALT 与基准币种同步波动
+                - Beta < 1.0: ALT 波动幅度小于基准币种（低波动）
+                - Beta < 0: ALT 与基准币种反向波动（罕见，可能存在对冲机会）
                 - 如果数据不足或计算失败，返回 np.nan
 
         Note:
             - Beta 系数需要至少 MIN_POINTS_FOR_BETA_CALC 个数据点
-            - 如果 BTC 收益率方差为 0，返回 np.nan
+            - 如果基准币种收益率方差为 0，返回 np.nan
             - 此函数用于收益率数据，与基于价格的 _calculate_beta_from_prices() 不同
         """
         # 1. 数据长度检查
-        if len(btc_ret) != len(alt_ret):
+        if len(base_ret) != len(alt_ret):
             coin_info = f" | 币种: {coin}" if coin else ""
-            logger.warning(f"Beta 计算失败：BTC 和 ALT 数据长度不一致 | "
-                          f"BTC: {len(btc_ret)}, ALT: {len(alt_ret)}"
+            logger.warning(f"Beta 计算失败：基准币种和 ALT 数据长度不一致 | "
+                          f"基准币种: {len(base_ret)}, ALT: {len(alt_ret)}"
                           f"{coin_info}")
             return np.nan
 
         # 2. 最小数据点检查
-        if len(btc_ret) < DelayCorrelationAnalyzer.MIN_POINTS_FOR_BETA_CALC:
+        if len(base_ret) < DelayCorrelationAnalyzer.MIN_POINTS_FOR_BETA_CALC:
             return np.nan
 
         # 3. 计算协方差和方差
         try:
             # 使用 numpy 的 cov 函数计算协方差矩阵
-            # cov_matrix[0, 1] 是 BTC 和 ALT 的协方差
-            # cov_matrix[0, 0] 是 BTC 的方差
-            cov_matrix = np.cov(btc_ret, alt_ret)
+            # cov_matrix[0, 1] 是基准币种和 ALT 的协方差
+            # cov_matrix[0, 0] 是基准币种的方差
+            cov_matrix = np.cov(base_ret, alt_ret)
             covariance = cov_matrix[0, 1]
-            btc_variance = cov_matrix[0, 0]
+            base_variance = cov_matrix[0, 0]
 
-            # 4. 检查 BTC 方差是否为 0（避免除以 0）
-            if btc_variance == 0 or np.isnan(btc_variance):
+            # 4. 检查基准币种方差是否为 0（避免除以 0）
+            if base_variance == 0 or np.isnan(base_variance):
                 coin_info = f" | 币种: {coin}" if coin else ""
-                logger.debug(f"Beta 计算失败：BTC 收益率方差为 0 或 NaN{coin_info}")
+                logger.debug(f"Beta 计算失败：基准币种收益率方差为 0 或 NaN{coin_info}")
                 return np.nan
 
             # 5. 计算 Beta 收益率系数
-            # β = Cov(BTC_returns, ALT_returns) / Var(BTC_returns)
-            beta = covariance / btc_variance
+            # β = Cov(BASE_returns, ALT_returns) / Var(BASE_returns)
+            beta = covariance / base_variance
 
             # 6. 检查结果有效性
             if np.isnan(beta) or np.isinf(beta):
@@ -455,7 +467,7 @@ class DelayCorrelationAnalyzer:
             return np.nan
 
     @staticmethod
-    def _calculate_cointegration_params(btc_prices: pd.Series, alt_prices: pd.Series,
+    def _calculate_cointegration_params(base_prices: pd.Series, alt_prices: pd.Series,
                                         coin: str = None) -> Optional[dict]:
         """
         使用OLS回归计算协整参数（验证性函数）
@@ -464,7 +476,7 @@ class DelayCorrelationAnalyzer:
         这是协整检验的标准方法（Engle-Granger两步法）。
 
         Args:
-            btc_prices: BTC价格序列（pandas Series）
+            base_prices: 基准币种价格序列（pandas Series）
             alt_prices: 山寨币价格序列（pandas Series）
             coin: 币种名称（可选，用于日志）
 
@@ -484,18 +496,18 @@ class DelayCorrelationAnalyzer:
         """
         try:
             # 1. 计算对数价格
-            log_btc = np.log(btc_prices).values.reshape(-1, 1)
+            log_base = np.log(base_prices).values.reshape(-1, 1)
             log_alt = np.log(alt_prices).values
 
-            # 2. OLS回归：log_alt = α + β * log_btc + ε
+            # 2. OLS回归：log_alt = α + β * log_base + ε
             model = LinearRegression()
-            model.fit(log_btc, log_alt)
+            model.fit(log_base, log_alt)
 
             alpha = model.intercept_
             beta = model.coef_[0]
 
             # 3. 计算OLS价差（残差）
-            spread_ols = log_alt - (alpha + beta * log_btc.flatten())
+            spread_ols = log_alt - (alpha + beta * log_base.flatten())
 
             # 4. ADF检验价差平稳性
             adf_result = adfuller(spread_ols, autolag='AIC')
@@ -513,12 +525,12 @@ class DelayCorrelationAnalyzer:
             return None
 
     @staticmethod
-    def _calculate_beta_from_prices(btc_prices: pd.Series, alt_prices: pd.Series, coin: str = None) -> Optional[float]:
+    def _calculate_beta_from_prices(base_prices: pd.Series, alt_prices: pd.Series, coin: str = None) -> Optional[float]:
         """
         基于对数价格计算 Beta 系数（全样本计算）
 
         本函数通过对数价格的协方差和方差计算 Beta 系数，适用于价差序列构建和 Z-score 计算。
-        公式：β = Cov(log_BTC_prices, log_ALT_prices) / Var(log_BTC_prices)
+        公式：β = Cov(log_BASE_prices, log_ALT_prices) / Var(log_BASE_prices)
 
         与 _calculate_beta() 的区别：
         - _calculate_beta()：基于收益率序列，用于波动率分析和风险评估
@@ -529,12 +541,12 @@ class DelayCorrelationAnalyzer:
         - _calculate_rolling_beta_from_prices()：从传入序列的最后 window 个点计算 Beta（滚动窗口）
 
         应用场景：
-        - Z-score 计算：用于构建对数价差序列 spread = log(ALT) - β × log(BTC)
+        - Z-score 计算：用于构建对数价差序列 spread = log(ALT) - β × log(BASE)
         - 协整分析：评估价格序列的长期均衡关系
         - 对冲比例：β 值反映价格层面的对冲比例
 
         Args:
-            btc_prices: BTC 价格序列（pandas Series）
+            base_prices: 基准币种价格序列（pandas Series）
             alt_prices: 山寨币价格序列（pandas Series）
             coin: 币种名称（可选，用于日志）
 
@@ -543,42 +555,42 @@ class DelayCorrelationAnalyzer:
             None: 如果计算失败
 
         Note:
-            - 使用对数价格可以消除价格量级差异（BTC 50000 vs ALT 0.01）
+            - 使用对数价格可以消除价格量级差异（基准币种 50000 vs ALT 0.01）
             - 对数价格的线性关系更稳定，符合协整理论和配对交易实践
             - Z-score 计算使用此函数（数据已预先截取为 window-1 个点，无需滚动窗口函数）
             - 对数变换后 Beta 不等同于收益率 Beta，两者衡量不同维度的关系
         """
         # 1. 数据长度检查
-        if len(btc_prices) != len(alt_prices):
+        if len(base_prices) != len(alt_prices):
             coin_info = f" | 币种: {coin}" if coin else ""
-            logger.warning(f"价格 Beta 计算失败：BTC 和 ALT 数据长度不一致 | "
-                          f"BTC: {len(btc_prices)}, ALT: {len(alt_prices)}"
+            logger.warning(f"价格 Beta 计算失败：基准币种和 ALT 数据长度不一致 | "
+                          f"基准币种: {len(base_prices)}, ALT: {len(alt_prices)}"
                           f"{coin_info}")
             return None
 
         # 2. 最小数据点检查
-        if len(btc_prices) < DelayCorrelationAnalyzer.MIN_POINTS_FOR_BETA_CALC:
+        if len(base_prices) < DelayCorrelationAnalyzer.MIN_POINTS_FOR_BETA_CALC:
             return None
 
         try:
             # 3. 计算对数价格
-            log_btc = np.log(btc_prices)
+            log_base = np.log(base_prices)
             log_alt = np.log(alt_prices)
 
             # 4. 计算协方差矩阵
-            cov_matrix = np.cov(log_btc, log_alt)
+            cov_matrix = np.cov(log_base, log_alt)
             covariance = cov_matrix[0, 1]
-            btc_variance = cov_matrix[0, 0]
+            base_variance = cov_matrix[0, 0]
 
-            # 5. 检查 BTC 方差是否为 0
-            if btc_variance == 0 or np.isnan(btc_variance):
+            # 5. 检查基准币种方差是否为 0
+            if base_variance == 0 or np.isnan(base_variance):
                 coin_info = f" | 币种: {coin}" if coin else ""
-                logger.debug(f"价格 Beta 计算失败：BTC 对数价格方差为 0 或 NaN{coin_info}")
+                logger.debug(f"价格 Beta 计算失败：基准币种对数价格方差为 0 或 NaN{coin_info}")
                 return None
 
             # 6. 计算 Beta 系数（基于对数价格）
-            # β = Cov(log_BTC, log_ALT) / Var(log_BTC)
-            beta = covariance / btc_variance
+            # β = Cov(log_BASE, log_ALT) / Var(log_BASE)
+            beta = covariance / base_variance
 
             # 7. 检查结果有效性
             if np.isnan(beta) or np.isinf(beta):
@@ -594,14 +606,14 @@ class DelayCorrelationAnalyzer:
             return None
 
     @staticmethod
-    def _calculate_rolling_beta_from_prices(btc_prices: pd.Series, alt_prices: pd.Series,
+    def _calculate_rolling_beta_from_prices(base_prices: pd.Series, alt_prices: pd.Series,
                                              window: int, coin: str = None) -> Optional[float]:
         """
         基于滚动窗口计算 Beta 系数（用于动态 Z-score 计算）
 
         使用最近 window 个数据点的对数价格计算 Beta 系数，与 Z-score 的均值和标准差
         计算窗口保持一致，确保统计一致性和响应性。
-        公式：β = Cov(log_BTC[-window:], log_ALT[-window:]) / Var(log_BTC[-window:])
+        公式：β = Cov(log_BASE[-window:], log_ALT[-window:]) / Var(log_BASE[-window:])
 
         与 _calculate_beta_from_prices() 的区别：
         - _calculate_beta_from_prices()：使用传入数据的全样本计算 Beta（适合已截取数据）
@@ -613,7 +625,7 @@ class DelayCorrelationAnalyzer:
         - 实时监控：传入完整历史序列，自动提取最新窗口计算
 
         Args:
-            btc_prices: BTC 价格序列（pandas Series，完整历史数据）
+            base_prices: 基准币种价格序列（pandas Series，完整历史数据）
             alt_prices: 山寨币价格序列（pandas Series，完整历史数据）
             window: 滚动窗口大小（应与 Z-score 窗口相同，通常 20-100）
             coin: 币种名称（可选，用于日志）
@@ -629,42 +641,42 @@ class DelayCorrelationAnalyzer:
             - 性能优化：如果数据已经预先截取为所需窗口大小，应使用 _calculate_beta_from_prices() 避免冗余的窗口截取
         """
         # 1. 数据长度检查
-        if len(btc_prices) != len(alt_prices):
+        if len(base_prices) != len(alt_prices):
             coin_info = f" | 币种: {coin}" if coin else ""
-            logger.warning(f"滚动 Beta 计算失败：BTC 和 ALT 数据长度不一致 | "
-                          f"BTC: {len(btc_prices)}, ALT: {len(alt_prices)}"
+            logger.warning(f"滚动 Beta 计算失败：基准币种和 ALT 数据长度不一致 | "
+                          f"基准币种: {len(base_prices)}, ALT: {len(alt_prices)}"
                           f"{coin_info}")
             return None
 
         # 2. 最小数据点检查
-        if len(btc_prices) < window:
+        if len(base_prices) < window:
             coin_info = f" | 币种: {coin}" if coin else ""
-            logger.debug(f"滚动 Beta 计算失败：数据点不足 | 需要: {window}, 实际: {len(btc_prices)}{coin_info}")
+            logger.debug(f"滚动 Beta 计算失败：数据点不足 | 需要: {window}, 实际: {len(base_prices)}{coin_info}")
             return None
 
         try:
             # 3. 取最后 window 个数据点
-            btc_window = btc_prices.iloc[-window:]
+            base_window = base_prices.iloc[-window:]
             alt_window = alt_prices.iloc[-window:]
 
             # 4. 计算对数价格
-            log_btc = np.log(btc_window)
+            log_base = np.log(base_window)
             log_alt = np.log(alt_window)
 
             # 5. 计算协方差矩阵
-            cov_matrix = np.cov(log_btc, log_alt)
+            cov_matrix = np.cov(log_base, log_alt)
             covariance = cov_matrix[0, 1]
-            btc_variance = cov_matrix[0, 0]
+            base_variance = cov_matrix[0, 0]
 
-            # 6. 检查 BTC 方差是否为 0
-            if btc_variance == 0 or np.isnan(btc_variance):
+            # 6. 检查基准币种方差是否为 0
+            if base_variance == 0 or np.isnan(base_variance):
                 coin_info = f" | 币种: {coin}" if coin else ""
-                logger.debug(f"滚动 Beta 计算失败：BTC 对数价格方差为 0 或 NaN{coin_info}")
+                logger.debug(f"滚动 Beta 计算失败：基准币种对数价格方差为 0 或 NaN{coin_info}")
                 return None
 
             # 7. 计算 Beta 系数（基于滚动窗口的对数价格）
-            # β = Cov(log_BTC[-window:], log_ALT[-window:]) / Var(log_BTC[-window:])
-            beta = covariance / btc_variance
+            # β = Cov(log_BASE[-window:], log_ALT[-window:]) / Var(log_BASE[-window:])
+            beta = covariance / base_variance
 
             # 8. 检查结果有效性
             if np.isnan(beta) or np.isinf(beta):
@@ -680,7 +692,7 @@ class DelayCorrelationAnalyzer:
             return None
 
     @staticmethod
-    def _calculate_zscore(btc_prices: pd.Series, alt_prices: pd.Series,
+    def _calculate_zscore(base_prices: pd.Series, alt_prices: pd.Series,
                           window: int = 20,
                           beta_window: int = None,
                           check_stationarity: bool = True, coin: str = None) -> Optional[float]:
@@ -688,13 +700,13 @@ class DelayCorrelationAnalyzer:
         计算价差的 Z-score（双窗口增强版：Beta 使用长窗口，统计量使用短窗口）
 
         双窗口策略解决了单窗口的统计概念混淆问题：
-        - Beta 窗口（长）：捕捉稳定的 BTC-ALT 长期价格关系，减少 Beta 波动
+        - Beta 窗口（长）：捕捉稳定的基准币种-ALT 长期价格关系，减少 Beta 波动
         - 统计量窗口（短）：检测短期价差偏离，提高交易信号敏感度
 
         测试验证：beta_window=100 时 Beta 标准差从 0.29 降至 0.20，稳定性提升 45%
 
         Args:
-            btc_prices: BTC 价格序列（pandas Series）
+            base_prices: 基准币种价格序列（pandas Series）
             alt_prices: 山寨币价格序列（pandas Series）
             window: 统计量窗口大小（默认 20），实际使用 ZSCORE_WINDOW
             beta_window: Beta 窗口大小（可选，默认 None 使用 BETA_WINDOW 类属性）
@@ -728,44 +740,44 @@ class DelayCorrelationAnalyzer:
         zscore_window = window
 
         # 2. 数据长度检查
-        if len(btc_prices) != len(alt_prices):
+        if len(base_prices) != len(alt_prices):
             coin_info = f" | 币种: {coin}" if coin else ""
-            logger.warning(f"Z-score 计算失败：BTC 和 ALT 数据长度不一致 | "
-                          f"BTC: {len(btc_prices)}, ALT: {len(alt_prices)}"
+            logger.warning(f"Z-score 计算失败：基准币种和 ALT 数据长度不一致 | "
+                          f"基准币种: {len(base_prices)}, ALT: {len(alt_prices)}"
                           f"{coin_info}")
             return None
 
         # 3. 数据验证与降级策略
         required_points = max(beta_window, zscore_window)
-        if len(btc_prices) < required_points:
+        if len(base_prices) < required_points:
             # 降级策略：数据足够 zscore 但不足 beta → 使用 zscore 窗口
-            if len(btc_prices) >= zscore_window:
+            if len(base_prices) >= zscore_window:
                 coin_info = f" | 币种: {coin}" if coin else ""
                 logger.warning(
                     f"Z-score 降级为单窗口模式 | 数据不足 beta_window | "
-                    f"需要: {required_points}, 实际: {len(btc_prices)} | "
+                    f"需要: {required_points}, 实际: {len(base_prices)} | "
                     f"使用 zscore_window={zscore_window} 替代{coin_info}"
                 )
                 beta_window = zscore_window
             else:
                 coin_info = f" | 币种: {coin}" if coin else ""
-                logger.debug(f"Z-score 计算失败：数据点不足 | 需要: {zscore_window}, 实际: {len(btc_prices)}{coin_info}")
+                logger.debug(f"Z-score 计算失败：数据点不足 | 需要: {zscore_window}, 实际: {len(base_prices)}{coin_info}")
                 return None
 
         try:
             # 4. 数据切片：取足够计算 Beta 和统计量的数据
             data_window = max(beta_window, zscore_window)
-            recent_btc_full = btc_prices.iloc[-data_window:]
+            recent_base_full = base_prices.iloc[-data_window:]
             recent_alt_full = alt_prices.iloc[-data_window:]
 
             # 5. Beta 系数计算（长窗口，基于对数价格）
             # 使用前 beta_window-1 个点计算 Beta（避免 look-ahead bias）
-            # 公式：β = Cov(log_BTC, log_ALT) / Var(log_BTC)
-            # 用途：构建价差序列 spread = log(ALT) - β × log(BTC)
-            beta_btc = recent_btc_full.iloc[:-1]
+            # 公式：β = Cov(log_BASE, log_ALT) / Var(log_BASE)
+            # 用途：构建价差序列 spread = log(ALT) - β × log(BASE)
+            beta_base = recent_base_full.iloc[:-1]
             beta_alt = recent_alt_full.iloc[:-1]
             rolling_beta = DelayCorrelationAnalyzer._calculate_beta_from_prices(
-                beta_btc, beta_alt, coin=coin
+                beta_base, beta_alt, coin=coin
             )
             if rolling_beta is None:
                 coin_info = f" | 币种: {coin}" if coin else ""
@@ -774,12 +786,12 @@ class DelayCorrelationAnalyzer:
 
             # 6. 价差构建（短窗口）
             # 取最近 zscore_window 期数据，使用长窗口计算的 Beta 构建对数价差
-            # 价差公式：spread = log(ALT) - β × log(BTC)
-            recent_btc = recent_btc_full.iloc[-zscore_window:]
+            # 价差公式：spread = log(ALT) - β × log(BASE)
+            recent_base = recent_base_full.iloc[-zscore_window:]
             recent_alt = recent_alt_full.iloc[-zscore_window:]
-            log_btc = np.log(recent_btc)
+            log_base = np.log(recent_base)
             log_alt = np.log(recent_alt)
-            spread = log_alt - rolling_beta * log_btc
+            spread = log_alt - rolling_beta * log_base
 
             # ========== 新增：分级平稳性检验 ==========
             if check_stationarity:
@@ -841,7 +853,7 @@ class DelayCorrelationAnalyzer:
 
     @staticmethod
     def _calculate_zscore_with_level(
-        btc_prices: pd.Series,
+        base_prices: pd.Series,
         alt_prices: pd.Series,
         window: int = 20,
         beta_window: int = None,
@@ -856,7 +868,7 @@ class DelayCorrelationAnalyzer:
         双窗口策略：Beta 使用长窗口（稳定），统计量使用短窗口（敏感）。
 
         Args:
-            btc_prices: BTC 价格序列
+            base_prices: 基准币种价格序列
             alt_prices: 山寨币价格序列
             window: 统计量窗口大小（默认 20），实际使用 ZSCORE_WINDOW
             beta_window: Beta 窗口大小（可选，默认 None 使用 BETA_WINDOW 类属性）
@@ -884,18 +896,18 @@ class DelayCorrelationAnalyzer:
         zscore_window = window
 
         # 2. 数据验证
-        if len(btc_prices) != len(alt_prices):
+        if len(base_prices) != len(alt_prices):
             return None, None, None
 
         # 3. 数据验证与降级策略
         required_points = max(beta_window, zscore_window)
-        if len(btc_prices) < required_points:
+        if len(base_prices) < required_points:
             # 降级策略：数据足够 zscore 但不足 beta → 使用 zscore 窗口
-            if len(btc_prices) >= zscore_window:
+            if len(base_prices) >= zscore_window:
                 coin_info = f" | 币种: {coin}" if coin else ""
                 logger.warning(
                     f"Z-score 降级为单窗口模式 | 数据不足 beta_window | "
-                    f"需要: {required_points}, 实际: {len(btc_prices)} | "
+                    f"需要: {required_points}, 实际: {len(base_prices)} | "
                     f"使用 zscore_window={zscore_window} 替代{coin_info}"
                 )
                 beta_window = zscore_window
@@ -905,29 +917,29 @@ class DelayCorrelationAnalyzer:
         try:
             # 4. 数据切片：取足够计算 Beta 和统计量的数据
             data_window = max(beta_window, zscore_window)
-            recent_btc_full = btc_prices.iloc[-data_window:]
+            recent_base_full = base_prices.iloc[-data_window:]
             recent_alt_full = alt_prices.iloc[-data_window:]
 
             # 5. Beta 系数计算（长窗口，基于对数价格）
             # 使用前 beta_window-1 个点计算 Beta（避免 look-ahead bias）
-            # 公式：β = Cov(log_BTC, log_ALT) / Var(log_BTC)
-            # 用途：构建价差序列 spread = log(ALT) - β × log(BTC)
-            beta_btc = recent_btc_full.iloc[:-1]
+            # 公式：β = Cov(log_BASE, log_ALT) / Var(log_BASE)
+            # 用途：构建价差序列 spread = log(ALT) - β × log(BASE)
+            beta_base = recent_base_full.iloc[:-1]
             beta_alt = recent_alt_full.iloc[:-1]
             rolling_beta = DelayCorrelationAnalyzer._calculate_beta_from_prices(
-                beta_btc, beta_alt, coin=coin
+                beta_base, beta_alt, coin=coin
             )
             if rolling_beta is None:
                 return None, None, None
 
             # 6. 价差构建（短窗口）
             # 取最近 zscore_window 期数据，使用长窗口计算的 Beta 构建对数价差
-            # 价差公式：spread = log(ALT) - β × log(BTC)
-            recent_btc = recent_btc_full.iloc[-zscore_window:]
+            # 价差公式：spread = log(ALT) - β × log(BASE)
+            recent_base = recent_base_full.iloc[-zscore_window:]
             recent_alt = recent_alt_full.iloc[-zscore_window:]
-            log_btc = np.log(recent_btc)
+            log_base = np.log(recent_base)
             log_alt = np.log(recent_alt)
-            spread = log_alt - rolling_beta * log_btc
+            spread = log_alt - rolling_beta * log_base
 
             # 7. 执行分级平稳性检验
             stationarity_level, p_value = DelayCorrelationAnalyzer._check_spread_stationarity(
@@ -1074,38 +1086,45 @@ class DelayCorrelationAnalyzer:
         """
         根据 Z-score 获取交易方向
         
+        基于价差的Z-score值判断交易方向：
+        - Z-score > 0: 价差偏高，预期回归 → 做空山寨币/做多基准币种
+        - Z-score < 0: 价差偏低，预期回归 → 做多山寨币/做空基准币种
+        
         Args:
-            zscore: Z-score 值（可正可负）
+            zscore: Z-score 值（可正可负），表示当前价差相对于历史均值的偏离程度
             coin: 币种名称（如 "AR/USDC:USDC"）
         
         Returns:
             tuple: (方向描述, 方向代码)
-                - 方向描述: "做空AR/做多BTC" 或 "做多AR/做空BTC"
-                - 方向代码: "short_alt_long_btc" 或 "long_alt_short_btc"
+                - 方向描述: "做空AR/做多基准币种" 或 "做多AR/做空基准币种"
+                - 方向代码: "short_alt_long_base" 或 "long_alt_short_base"
+        
+        Note:
+            基准币种由 self.base_symbol 指定，当前为 HYPE/USDC:USDC
         """
         if zscore > 0:
-            # 价差偏高，预期回归 → 做空山寨币，做多 BTC
+            # 价差偏高，预期回归 → 做空山寨币，做多基准币种
             coin_symbol = coin.split('/')[0]  # 提取币种符号，如 "AR"
-            return f"做空{coin_symbol}/做多BTC", "short_alt_long_btc"
+            return f"做空{coin_symbol}/做多基准币种", "short_alt_long_base"
         elif zscore < 0:
-            # 价差偏低，预期回归 → 做多山寨币，做空 BTC
+            # 价差偏低，预期回归 → 做多山寨币，做空基准币种
             coin_symbol = coin.split('/')[0]
-            return f"做多{coin_symbol}/做空BTC", "long_alt_short_btc"
+            return f"做多{coin_symbol}/做空基准币种", "long_alt_short_base"
         else:
             return "无方向（Z-score=0）", "neutral"
 
     @staticmethod
-    def find_optimal_delay(btc_ret, alt_ret, max_lag=3,
+    def find_optimal_delay(base_ret, alt_ret, max_lag=3,
                            enable_outlier_treatment=None,
                            enable_beta_calc=None, coin: str = None):
         """
         寻找最优延迟 τ*（增强版：支持异常值处理和 Beta 系数计算）
 
-        通过计算不同延迟下BTC和山寨币收益率的相关系数，找出使相关系数最大的延迟值。
-        tau_star > 0 表示山寨币滞后于BTC，存在时间差套利机会。
+        通过计算不同延迟下基准币种和山寨币收益率的相关系数，找出使相关系数最大的延迟值。
+        tau_star > 0 表示山寨币滞后于基准币种，存在时间差套利机会。
 
         Args:
-            btc_ret: BTC收益率数组
+            base_ret: 基准币种收益率数组
             alt_ret: 山寨币收益率数组
             max_lag: 最大延迟值（默认 3）
             enable_outlier_treatment: 是否启用异常值处理（None 时使用类常量）
@@ -1127,20 +1146,20 @@ class DelayCorrelationAnalyzer:
 
         # ========== 2. 异常值处理（如果启用）==========
         if enable_outlier_treatment:
-            btc_ret_processed = DelayCorrelationAnalyzer._winsorize_returns(
-                btc_ret, coin="BTC (参考币种)"
+            base_ret_processed = DelayCorrelationAnalyzer._winsorize_returns(
+                base_ret, coin="基准币种 (参考币种)"
             )
             alt_ret_processed = DelayCorrelationAnalyzer._winsorize_returns(
                 alt_ret, coin=f"{coin} (目标币种)"
             )
         else:
-            btc_ret_processed = btc_ret
+            base_ret_processed = base_ret
             alt_ret_processed = alt_ret
 
         # ========== 3. 原有逻辑：计算相关系数和最优延迟 ==========
         corrs = []
         lags = list(range(0, max_lag + 1))
-        arr_len = len(btc_ret_processed)
+        arr_len = len(base_ret_processed)
 
         for lag in lags:
             # 检查 lag 是否超过数组长度，避免空数组切片
@@ -1149,11 +1168,11 @@ class DelayCorrelationAnalyzer:
                 continue
 
             if lag > 0:
-                # ALT滞后BTC: 比较 BTC[t] 与 ALT[t+lag]
-                x = btc_ret_processed[:-lag]
+                # ALT滞后基准币种: 比较 BASE[t] 与 ALT[t+lag]
+                x = base_ret_processed[:-lag]
                 y = alt_ret_processed[lag:]
             else:
-                x = btc_ret_processed
+                x = base_ret_processed
                 y = alt_ret_processed
 
             m = min(len(x), len(y))
@@ -1178,8 +1197,8 @@ class DelayCorrelationAnalyzer:
             max_related_matrix = np.nan
 
         # ========== 4. 计算 Beta 收益率系数（如果启用）==========
-        # 基于收益率序列计算 Beta，衡量山寨币相对 BTC 的波动幅度
-        # 公式：β = Cov(BTC_returns, ALT_returns) / Var(BTC_returns)
+        # 基于收益率序列计算 Beta，衡量山寨币相对基准币种的波动幅度
+        # 公式：β = Cov(BASE_returns, ALT_returns) / Var(BASE_returns)
         beta = None
         if enable_beta_calc:
             # 根据最优延迟选择数据对齐方式计算 Beta
@@ -1187,38 +1206,50 @@ class DelayCorrelationAnalyzer:
             # 如果最优延迟 > 0，使用延迟对齐后的数据
             # 如果最优延迟 = 0，使用同期数据
             if tau_star > 0:
-                # 使用最优延迟对齐后的数据：BTC[t] 与 ALT[t+tau_star]
+                # 使用最优延迟对齐后的数据：BASE[t] 与 ALT[t+tau_star]
                 # 对齐后计算的 Beta 反映考虑延迟的真实波动关系
-                btc_beta = btc_ret_processed[:-tau_star]
+                base_beta = base_ret_processed[:-tau_star]
                 alt_beta = alt_ret_processed[tau_star:]
             else:
-                # 使用同期数据：BTC[t] 与 ALT[t]
-                btc_beta = btc_ret_processed
+                # 使用同期数据：BASE[t] 与 ALT[t]
+                base_beta = base_ret_processed
                 alt_beta = alt_ret_processed
             
-            m_beta = min(len(btc_beta), len(alt_beta))
+            m_beta = min(len(base_beta), len(alt_beta))
             if m_beta >= DelayCorrelationAnalyzer.MIN_POINTS_FOR_BETA_CALC:
                 beta = DelayCorrelationAnalyzer._calculate_beta(
-                    btc_beta[:m_beta],
+                    base_beta[:m_beta],
                     alt_beta[:m_beta],
                     coin=coin
                 )
 
         return tau_star, corrs, max_related_matrix, beta
     
-    def _get_btc_data(self, timeframe: str, period: str) -> Optional[pd.DataFrame]:
-        """获取BTC数据（带缓存）"""
-        cache_key = (timeframe, period)
-        if cache_key in self.btc_df_cache:
-            logger.debug(f"BTC数据缓存命中 | {timeframe}/{period}")
-            return self.btc_df_cache[cache_key].copy()
+    def _get_base_data(self, timeframe: str, period: str) -> Optional[pd.DataFrame]:
+        """
+        获取基准币种数据（带缓存）
         
-        logger.debug(f"BTC数据缓存未命中，开始下载 | {timeframe}/{period}")
-        btc_df = self._safe_download(self.btc_symbol, period, timeframe)
-        if btc_df is None:
+        从交易所下载基准币种（base_symbol）的K线数据，并缓存结果以提高性能。
+        基准币种数据用于与所有山寨币进行相关性分析和Beta系数计算。
+        
+        Args:
+            timeframe: K线时间周期（如 "5m", "1m"）
+            period: 数据周期（如 "7d", "1d"）
+        
+        Returns:
+            包含OHLCV数据的DataFrame，失败返回None
+        """
+        cache_key = (timeframe, period)
+        if cache_key in self.base_df_cache:
+            logger.debug(f"基准币种数据缓存命中 | {timeframe}/{period}")
+            return self.base_df_cache[cache_key].copy()
+        
+        logger.debug(f"基准币种数据缓存未命中，开始下载 | 基准币种: {self.base_symbol} | {timeframe}/{period}")
+        base_df = self._safe_download(self.base_symbol, period, timeframe)
+        if base_df is None:
             return None
-        self.btc_df_cache[cache_key] = btc_df
-        return btc_df.copy()
+        self.base_df_cache[cache_key] = base_df
+        return base_df.copy()
     
     def _get_alt_data(self, symbol: str, period: str, timeframe: str, coin: str = None) -> Optional[pd.DataFrame]:
         """
@@ -1284,20 +1315,20 @@ class DelayCorrelationAnalyzer:
                 logger.warning(f"{error_msg} | {type(e).__name__}: {str(e)}")
             return None
     
-    def _align_and_validate_data(self, btc_df: pd.DataFrame, alt_df: pd.DataFrame, 
+    def _align_and_validate_data(self, base_df: pd.DataFrame, alt_df: pd.DataFrame, 
                                   coin: str, timeframe: str, period: str) -> Optional[Tuple[pd.DataFrame, pd.DataFrame]]:
         """
-        对齐和验证BTC与山寨币数据
+        对齐和验证基准币种与山寨币数据
         
         Args:
-            btc_df: BTC数据DataFrame
+            base_df: 基准币种数据DataFrame
             alt_df: 山寨币数据DataFrame
             coin: 币种名称（用于日志）
             timeframe: 时间周期
             period: 数据周期
         
         Returns:
-            成功返回对齐后的 (btc_df, alt_df)，失败返回 None
+            成功返回对齐后的 (base_df, alt_df)，失败返回 None
         """
         # 检查数据是否存在（区分"数据不存在"和"数据量不足"）
         if alt_df.empty or len(alt_df) == 0:
@@ -1305,20 +1336,20 @@ class DelayCorrelationAnalyzer:
             return None
         
         # 对齐时间索引
-        common_idx = btc_df.index.intersection(alt_df.index)
-        btc_df_aligned = btc_df.loc[common_idx]
+        common_idx = base_df.index.intersection(alt_df.index)
+        base_df_aligned = base_df.loc[common_idx]
         alt_df_aligned = alt_df.loc[common_idx]
         
         # 数据验证：检查数据量（数据存在但不足）
-        if len(btc_df_aligned) < self.MIN_DATA_POINTS_FOR_ANALYSIS or len(alt_df_aligned) < self.MIN_DATA_POINTS_FOR_ANALYSIS:
-            logger.warning(f"数据量不足，跳过 | 币种: {coin} | {timeframe}/{period} | BTC数据量: {len(btc_df_aligned)} | 山寨币数据量: {len(alt_df_aligned)}")
-            logger.debug(f"币种: {coin} | {timeframe}/{period} 数据详情 | BTC: {btc_df.head()}, length: {len(btc_df)} | 山寨币: {alt_df.head()}, length: {len(alt_df)}")
+        if len(base_df_aligned) < self.MIN_DATA_POINTS_FOR_ANALYSIS or len(alt_df_aligned) < self.MIN_DATA_POINTS_FOR_ANALYSIS:
+            logger.warning(f"数据量不足，跳过 | 币种: {coin} | {timeframe}/{period} | 基准币种数据量: {len(base_df_aligned)} | 山寨币数据量: {len(alt_df_aligned)}")
+            logger.debug(f"币种: {coin} | {timeframe}/{period} 数据详情 | 基准币种: {base_df.head()}, length: {len(base_df)} | 山寨币: {alt_df.head()}, length: {len(alt_df)}")
             return None
         
-        return btc_df_aligned, alt_df_aligned
+        return base_df_aligned, alt_df_aligned
     
     def _analyze_single_combination(self, coin: str, timeframe: str, period: str, alt_df: Optional[pd.DataFrame] = None, 
-                                     btc_df_aligned: Optional[pd.DataFrame] = None, alt_df_aligned: Optional[pd.DataFrame] = None) -> Optional[tuple]:
+                                     base_df_aligned: Optional[pd.DataFrame] = None, alt_df_aligned: Optional[pd.DataFrame] = None) -> Optional[tuple]:
         """
         分析单个 timeframe/period 组合（增强版：支持 Beta 系数）
 
@@ -1327,7 +1358,7 @@ class DelayCorrelationAnalyzer:
             timeframe: K线时间周期
             period: 数据周期
             alt_df: 可选的预获取的山寨币数据，如果提供则直接使用，否则调用 _get_alt_data 获取
-            btc_df_aligned: 可选的对齐后的BTC数据，如果提供则直接使用，跳过数据获取和对齐步骤
+            base_df_aligned: 可选的对齐后的基准币种数据，如果提供则直接使用，跳过数据获取和对齐步骤
             alt_df_aligned: 可选的对齐后的山寨币数据，如果提供则直接使用，跳过数据获取和对齐步骤
 
         Returns:
@@ -1335,10 +1366,10 @@ class DelayCorrelationAnalyzer:
             注意：beta 可能为 None（如果计算失败或禁用）
         """
         # 如果未提供已对齐的数据，则获取并对齐数据
-        if btc_df_aligned is None or alt_df_aligned is None:
+        if base_df_aligned is None or alt_df_aligned is None:
             # 原有的数据获取和对齐逻辑（向后兼容）
-            btc_df = self._get_btc_data(timeframe, period)
-            if btc_df is None:
+            base_df = self._get_base_data(timeframe, period)
+            if base_df is None:
                 return None
 
             # 如果提供了预获取的数据，直接使用；否则调用 _get_alt_data 获取
@@ -1348,14 +1379,14 @@ class DelayCorrelationAnalyzer:
                 return None
 
             # 对齐和验证数据
-            aligned_data = self._align_and_validate_data(btc_df, alt_df, coin, timeframe, period)
+            aligned_data = self._align_and_validate_data(base_df, alt_df, coin, timeframe, period)
             if aligned_data is None:
                 return None
-            btc_df_aligned, alt_df_aligned = aligned_data
+            base_df_aligned, alt_df_aligned = aligned_data
 
         # 调用增强版的 find_optimal_delay（现在返回 4 个值）
         tau_star, _, related_matrix, beta = self.find_optimal_delay(
-            btc_df_aligned['return'].values,
+            base_df_aligned['return'].values,
             alt_df_aligned['return'].values,
             coin=coin
         )
@@ -1380,15 +1411,17 @@ class DelayCorrelationAnalyzer:
         检测异常模式：短期低相关但长期高相关（增强版：包含协整验证）
 
         异常模式判断阈值：
-        - 长期相关系数 > LONG_TERM_CORR_THRESHOLD：长期与BTC有较强跟随性（7d对应5m）
+        - 长期相关系数 > LONG_TERM_CORR_THRESHOLD：长期与基准币种有较强跟随性（7d对应5m）
         - 短期相关系数 < SHORT_TERM_CORR_THRESHOLD：短期存在明显滞后（1d对应1m）
         - 差值 > CORR_DIFF_THRESHOLD：短期和长期差异足够显著
         - 平均Beta系数 >= AVG_BETA_THRESHOLD：波动幅度需满足阈值要求
         - 协整检验 ADF p-value < 0.05：价差平稳，适合配对交易（新增）
 
         Args:
-            results: 分析结果列表
-            price_data_cache: 价格数据缓存字典 {(timeframe, period): {'btc_prices': ..., 'alt_prices': ...}}
+            results: 分析结果列表，包含相关系数、时间周期、延迟等信息
+            price_data_cache: 价格数据缓存字典，格式为 {(timeframe, period): {'base_prices': pd.Series, 'alt_prices': pd.Series}}
+                - base_prices: 基准币种价格序列（用于协整检验）
+                - alt_prices: 山寨币价格序列（用于协整检验）
             coin: 币种名称（可选，用于日志）
 
         Returns:
@@ -1410,7 +1443,7 @@ class DelayCorrelationAnalyzer:
         
         # ========== Beta 收益率系数检查 ==========
         # 从 results 中提取所有有效的 Beta 收益率系数值
-        # Beta 收益率系数：基于收益率计算，衡量山寨币相对 BTC 的波动幅度
+        # Beta 收益率系数：基于收益率计算，衡量山寨币相对基准币种的波动幅度
         # 用于过滤波动不足的交易对（β < 阈值），确保有足够套利空间
         valid_betas = []
         for result in results:
@@ -1426,7 +1459,7 @@ class DelayCorrelationAnalyzer:
         # 如果启用了 Beta 计算且有有效的 Beta 值，进行阈值检查
         if self.ENABLE_BETA_CALCULATION and valid_betas:
             avg_beta = np.mean(valid_betas)
-            # β < 1.0 表示波动小于 BTC，套利空间受限，过滤该币种
+            # β < 1.0 表示波动小于基准币种，套利空间受限，过滤该币种
             if avg_beta < self.AVG_BETA_THRESHOLD:
                 coin_info = f" | 币种: {coin}" if coin else ""
                 logger.info(
@@ -1461,12 +1494,12 @@ class DelayCorrelationAnalyzer:
 
             if cointegration_key and cointegration_key in price_data_cache:
                 price_data = price_data_cache[cointegration_key]
-                btc_prices = price_data['btc_prices']
+                base_prices = price_data['base_prices']
                 alt_prices = price_data['alt_prices']
 
                 # 协整检验
                 ols_params = self._calculate_cointegration_params(
-                    btc_prices, alt_prices, coin=coin
+                    base_prices, alt_prices, coin=coin
                 )
 
                 if ols_params is None or ols_params['adf_pvalue'] >= 0.05:
@@ -1550,7 +1583,7 @@ class DelayCorrelationAnalyzer:
         if has_beta:
             avg_beta = df_results['Beta收益率系数'].mean() if 'Beta收益率系数' in df_results.columns else None
             if avg_beta is not None and avg_beta > 1.5:
-                content += f"\n⚠️ 高波动风险：平均Beta={avg_beta:.2f}（波动幅度是BTC的{avg_beta:.1f}倍）"
+                content += f"\n⚠️ 高波动风险：平均Beta={avg_beta:.2f}（波动幅度是基准币种的{avg_beta:.1f}倍）"
             elif avg_beta is not None and avg_beta > 1.2:
                 content += f"\n⚠️ 中等波动：平均Beta={avg_beta:.2f}"
             else:
@@ -1645,17 +1678,22 @@ class DelayCorrelationAnalyzer:
     
     def one_coin_analysis(self, coin: str) -> bool:
         """
-        分析单个币种与BTC的相关系数，识别异常模式（增强版：支持 Z-score 验证）
+        分析单个币种与基准币种的相关系数，识别异常模式（增强版：支持 Z-score 验证）
+
+        对指定的山寨币与基准币种（base_symbol，当前为 HYPE/USDC:USDC）进行相关性分析，
+        包括相关系数计算、Beta系数计算、Z-score计算和平稳性检验。
 
         Args:
             coin: 币种交易对名称，如 "ETH/USDC:USDC"
 
         Returns:
-            是否发现异常模式
+            bool: 是否发现异常模式（短期低相关但长期高相关，且满足其他阈值条件）
         """
         results = []
-        current_alt_df = None  # 当前组合获取的数据
-        price_data_cache = {}  # 缓存价格数据，用于 Z-score 计算
+        current_alt_df = None  # 当前组合获取的山寨币数据
+        # 缓存价格数据，用于 Z-score 计算和平稳性检验
+        # 格式: {(timeframe, period): {'base_prices': pd.Series, 'alt_prices': pd.Series}}
+        price_data_cache = {}
 
         # 直接遍历预定义的组合列表：5m/7d 和 1m/1d
         for timeframe, period in self.combinations:
@@ -1666,24 +1704,24 @@ class DelayCorrelationAnalyzer:
                 logger.warning(f"币种数据不存在，跳过后续所有组合 | 币种: {coin} | {timeframe}/{period}")
                 return False
             
-            # 获取BTC数据并对齐（一次性完成，避免重复调用）
-            btc_df = self._get_btc_data(timeframe, period)
-            if btc_df is None:
-                # BTC数据获取失败，跳过该组合
-                logger.warning(f"BTC数据获取失败，跳过组合 | 币种: {coin} | {timeframe}/{period}")
+            # 获取基准币种数据并对齐（一次性完成，避免重复调用）
+            base_df = self._get_base_data(timeframe, period)
+            if base_df is None:
+                # 基准币种数据获取失败，跳过该组合
+                logger.warning(f"基准币种数据获取失败，跳过组合 | 币种: {coin} | {timeframe}/{period}")
                 continue
             
             # 对齐和验证数据（一次性完成，结果传递给 _analyze_single_combination 复用）
-            aligned_data = self._align_and_validate_data(btc_df, current_alt_df, coin, timeframe, period)
+            aligned_data = self._align_and_validate_data(base_df, current_alt_df, coin, timeframe, period)
             if aligned_data is None:
                 # 数据对齐失败，跳过该组合
                 continue
             
-            btc_aligned, alt_aligned = aligned_data
+            base_aligned, alt_aligned = aligned_data
             
             # 缓存价格数据（用于 Z-score 计算）
             price_data_cache[(timeframe, period)] = {
-                'btc_prices': btc_aligned['Close'],
+                'base_prices': base_aligned['Close'],
                 'alt_prices': alt_aligned['Close']
             }
             
@@ -1691,7 +1729,7 @@ class DelayCorrelationAnalyzer:
             result = self._safe_execute(
                 self._analyze_single_combination,
                 coin, timeframe, period, current_alt_df,
-                btc_df_aligned=btc_aligned,
+                base_df_aligned=base_aligned,
                 alt_df_aligned=alt_aligned,
                 error_msg=f"处理 {coin} 的 {timeframe}/{period} 时发生异常"
             )
@@ -1749,7 +1787,7 @@ class DelayCorrelationAnalyzer:
                 # 使用增强版函数，同时获取 Z-score、平稳性等级和 p-value
                 # 双窗口策略：Beta（基于对数价格）使用长窗口（BETA_WINDOW）构建价差，统计量使用短窗口（ZSCORE_WINDOW）
                 zscore_result, stationarity_level_result, p_value_result = self._calculate_zscore_with_level(
-                    price_data['btc_prices'],
+                    price_data['base_prices'],
                     price_data['alt_prices'],
                     window=self.ZSCORE_WINDOW,
                     beta_window=self.BETA_WINDOW,  # 双窗口策略
@@ -1820,12 +1858,21 @@ class DelayCorrelationAnalyzer:
             return False
     
     def run(self):
-        """分析交易所中所有USDC永续合约交易对"""
+        """
+        分析交易所中所有USDC永续合约交易对
+        
+        遍历所有USDC永续合约，将每个交易对与基准币种（base_symbol）进行相关性分析，
+        识别存在时间差套利机会的异常币种。
+        
+        注意：基准币种本身会被排除在分析列表之外。
+        """
         logger.info(f"启动分析器 | 交易所: {self.exchange_name} | "
+                    f"基准币种: {self.base_symbol} | "
                     f"K线组合: {self.combinations}")
         
         all_coins = self.exchange.load_markets()
-        usdc_coins = [c for c in all_coins if '/USDC:USDC' in c and c != self.btc_symbol]
+        # 筛选所有USDC永续合约，排除基准币种本身
+        usdc_coins = [c for c in all_coins if '/USDC:USDC' in c and c != self.base_symbol]
         total = len(usdc_coins)
         anomaly_count = 0
         skip_count = 0
