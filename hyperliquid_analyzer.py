@@ -1859,26 +1859,31 @@ class DelayCorrelationAnalyzer:
     
     def run(self):
         """
-        分析交易所中所有USDC永续合约交易对
+        分析PURR代币与基准币种的相关性
         
-        遍历所有USDC永续合约，将每个交易对与基准币种（base_symbol）进行相关性分析，
-        识别存在时间差套利机会的异常币种。
+        仅分析PURR/USDC:USDC永续合约，将其与基准币种（base_symbol）进行相关性分析，
+        识别存在时间差套利机会的异常模式。
         
         注意：基准币种本身会被排除在分析列表之外。
         """
         logger.info(f"启动分析器 | 交易所: {self.exchange_name} | "
                     f"基准币种: {self.base_symbol} | "
+                    f"目标币种: PURR | "
                     f"K线组合: {self.combinations}")
         
         all_coins = self.exchange.load_markets()
-        # 筛选所有USDC永续合约，排除基准币种本身
-        usdc_coins = [c for c in all_coins if '/USDC:USDC' in c and c != self.base_symbol]
+        # 仅筛选PURR相关的USDC永续合约，排除基准币种本身
+        usdc_coins = [c for c in all_coins if '/USDC:USDC' in c and c != self.base_symbol and 'PURR' in c]
         total = len(usdc_coins)
         anomaly_count = 0
         skip_count = 0
         start_time = time.time()
         
-        logger.info(f"发现 {total} 个 USDC 永续合约交易对")
+        if total == 0:
+            logger.warning("未找到 PURR/USDC:USDC 交易对，请检查交易所是否支持该交易对")
+            return
+        
+        logger.info(f"发现 {total} 个 PURR 相关 USDC 永续合约交易对")
         
         # 进度里程碑：25%, 50%, 75%, 100%
         milestones = {max(1, int(total * p)) for p in [0.25, 0.5, 0.75, 1.0]}
