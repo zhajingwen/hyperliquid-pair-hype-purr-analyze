@@ -424,7 +424,7 @@ class DelayCorrelationAnalyzer:
         Note:
             - Beta 系数需要至少 MIN_POINTS_FOR_BETA_CALC 个数据点
             - 如果基准币种收益率方差为 0，返回 np.nan
-            - 此函数用于收益率数据，与基于价格的 _calculate_beta_from_prices() 不同
+            - 此函数用于收益率数据，用于波动率分析和风险评估
         """
         # 1. 数据长度检查
         if len(base_ret) != len(alt_ret):
@@ -526,80 +526,6 @@ class DelayCorrelationAnalyzer:
         except Exception as e:
             coin_info = f" | 币种: {coin}" if coin else ""
             logger.debug(f"OLS协整参数计算失败：{type(e).__name__}: {str(e)}{coin_info}", exc_info=True)
-            return None
-
-    @staticmethod
-    def _calculate_beta_from_prices(base_prices: pd.Series, alt_prices: pd.Series, coin: str = None) -> Optional[float]:
-        """
-        基于对数价格计算 Beta 系数（已废弃：方案一协方差方法）
-
-        ⚠️ 已废弃：此函数使用协方差方法计算Beta，已被OLS回归方法替代。
-        现在 Z-score 计算使用 OLS 回归方法（方案二），包含截距项α。
-
-        本函数通过对数价格的协方差和方差计算 Beta 系数。
-        公式：β = Cov(log_BASE_prices, log_ALT_prices) / Var(log_BASE_prices)
-
-        与 _calculate_beta() 的区别：
-        - _calculate_beta()：基于收益率序列，用于波动率分析和风险评估
-        - _calculate_beta_from_prices()：基于对数价格序列（已废弃，仅保留用于向后兼容）
-
-        Args:
-            base_prices: 基准币种价格序列（pandas Series）
-            alt_prices: 山寨币价格序列（pandas Series）
-            coin: 币种名称（可选，用于日志）
-
-        Returns:
-            float: Beta 系数值（基于对数价格，全样本）
-            None: 如果计算失败
-
-        Note:
-            - 此函数已不再用于 Z-score 计算
-            - 现在使用 OLS 回归方法：log_alt = α + β × log_base + ε
-            - 保留此函数仅用于向后兼容，不建议在新代码中使用
-        """
-        # 1. 数据长度检查
-        if len(base_prices) != len(alt_prices):
-            coin_info = f" | 币种: {coin}" if coin else ""
-            logger.warning(f"价格 Beta 计算失败：基准币种和 ALT 数据长度不一致 | "
-                          f"基准币种: {len(base_prices)}, ALT: {len(alt_prices)}"
-                          f"{coin_info}")
-            return None
-
-        # 2. 最小数据点检查
-        if len(base_prices) < DelayCorrelationAnalyzer.MIN_POINTS_FOR_BETA_CALC:
-            return None
-
-        try:
-            # 3. 计算对数价格
-            log_base = np.log(base_prices)
-            log_alt = np.log(alt_prices)
-
-            # 4. 计算协方差矩阵
-            cov_matrix = np.cov(log_base, log_alt)
-            covariance = cov_matrix[0, 1]
-            base_variance = cov_matrix[0, 0]
-
-            # 5. 检查基准币种方差是否为 0
-            if base_variance == 0 or np.isnan(base_variance):
-                coin_info = f" | 币种: {coin}" if coin else ""
-                logger.debug(f"价格 Beta 计算失败：基准币种对数价格方差为 0 或 NaN{coin_info}")
-                return None
-
-            # 6. 计算 Beta 系数（基于对数价格）
-            # β = Cov(log_BASE, log_ALT) / Var(log_BASE)
-            beta = covariance / base_variance
-
-            # 7. 检查结果有效性
-            if np.isnan(beta) or np.isinf(beta):
-                coin_info = f" | 币种: {coin}" if coin else ""
-                logger.debug(f"价格 Beta 计算失败：结果为 NaN 或 Inf | Beta: {beta}{coin_info}")
-                return None
-
-            return beta
-
-        except Exception as e:
-            coin_info = f" | 币种: {coin}" if coin else ""
-            logger.warning(f"价格 Beta 计算异常：{type(e).__name__}: {str(e)}{coin_info}", exc_info=True)
             return None
 
     @staticmethod
