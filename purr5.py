@@ -135,17 +135,6 @@ class DelayCorrelationAnalyzer:
     # 是否启用异常值处理（可配置开关）
     ENABLE_OUTLIER_TREATMENT = True
 
-    # ========== 新增：Beta 收益率系数配置 ==========
-    # 是否计算 Beta 收益率系数（默认启用）
-    # Beta 收益率系数：基于基准币种和山寨币收益率计算，衡量山寨币相对基准币种的波动幅度
-    # 公式：β = Cov(BASE_returns, ALT_returns) / Var(BASE_returns)
-    ENABLE_BETA_CALCULATION = True
-    # Beta 收益率系数计算所需的最小数据点（与相关系数要求相同）
-    MIN_POINTS_FOR_BETA_CALC = 10
-    # 平均 Beta 收益率系数阈值：低于此值不发送告警（确保有足够的套利空间）
-    # β < 1.0 表示波动幅度小于基准币种，套利空间受限
-    AVG_BETA_THRESHOLD = 0.4
-    
     # ========== 新增：Z-score 配置 ==========
     # 是否启用 Z-score 检查（默认启用）
     ENABLE_ZSCORE_CHECK = True
@@ -397,81 +386,6 @@ class DelayCorrelationAnalyzer:
         return winsorized
 
     @staticmethod
-    def _calculate_beta(base_ret, alt_ret, coin: str = None):
-        """
-        计算 Beta 收益率系数
-
-        基于收益率序列计算 Beta 系数，衡量山寨币收益率相对基准币种收益率的波动幅度。
-        公式：β = Cov(BASE_returns, ALT_returns) / Var(BASE_returns)
-
-        应用场景：
-        - 波动率分析：评估山寨币相对基准币种的风险暴露
-        - 对冲比例：β 值可作为对冲策略的参考比例
-        - 风险筛选：过滤低波动性资产（β < 阈值）
-
-        Args:
-            base_ret: 基准币种收益率数组（numpy array）
-            alt_ret: 山寨币收益率数组（numpy array）
-            coin: 币种名称（可选，用于日志）
-
-        Returns:
-            float: Beta 收益率系数值
-                - Beta > 1.0: ALT 波动幅度大于基准币种（高波动）
-                - Beta = 1.0: ALT 与基准币种同步波动
-                - Beta < 1.0: ALT 波动幅度小于基准币种（低波动）
-                - Beta < 0: ALT 与基准币种反向波动（罕见，可能存在对冲机会）
-                - 如果数据不足或计算失败，返回 np.nan
-
-        Note:
-            - Beta 系数需要至少 MIN_POINTS_FOR_BETA_CALC 个数据点
-            - 如果基准币种收益率方差为 0，返回 np.nan
-            - 此函数用于收益率数据，用于波动率分析和风险评估
-        """
-        # 1. 数据长度检查
-        if len(base_ret) != len(alt_ret):
-            coin_info = f" | 币种: {coin}" if coin else ""
-            logger.warning(f"Beta 计算失败：基准币种和 ALT 数据长度不一致 | "
-                          f"基准币种: {len(base_ret)}, ALT: {len(alt_ret)}"
-                          f"{coin_info}")
-            return np.nan
-
-        # 2. 最小数据点检查
-        if len(base_ret) < DelayCorrelationAnalyzer.MIN_POINTS_FOR_BETA_CALC:
-            return np.nan
-
-        # 3. 计算协方差和方差
-        try:
-            # 使用 numpy 的 cov 函数计算协方差矩阵
-            # cov_matrix[0, 1] 是基准币种和 ALT 的协方差
-            # cov_matrix[0, 0] 是基准币种的方差
-            cov_matrix = np.cov(base_ret, alt_ret)
-            covariance = cov_matrix[0, 1]
-            base_variance = cov_matrix[0, 0]
-
-            # 4. 检查基准币种方差是否为 0（避免除以 0）
-            if base_variance == 0 or np.isnan(base_variance):
-                coin_info = f" | 币种: {coin}" if coin else ""
-                logger.debug(f"Beta 计算失败：基准币种收益率方差为 0 或 NaN{coin_info}")
-                return np.nan
-
-            # 5. 计算 Beta 收益率系数
-            # β = Cov(BASE_returns, ALT_returns) / Var(BASE_returns)
-            beta = covariance / base_variance
-
-            # 6. 检查结果有效性
-            if np.isnan(beta) or np.isinf(beta):
-                coin_info = f" | 币种: {coin}" if coin else ""
-                logger.debug(f"Beta 计算失败：结果为 NaN 或 Inf | Beta: {beta}{coin_info}")
-                return np.nan
-
-            return beta
-
-        except Exception as e:
-            coin_info = f" | 币种: {coin}" if coin else ""
-            logger.warning(f"Beta 计算异常：{type(e).__name__}: {str(e)}{coin_info}", exc_info=True)
-            return np.nan
-
-    @staticmethod
     def _calculate_cointegration_params(base_prices: pd.Series, alt_prices: pd.Series,
                                         coin: str = None) -> Optional[dict]:
         """
@@ -715,10 +629,9 @@ class DelayCorrelationAnalyzer:
 
     @staticmethod
     def find_optimal_delay(base_ret, alt_ret, max_lag=3,
-                           enable_outlier_treatment=None,
-                           enable_beta_calc=None, coin: str = None):
+                           enable_outlier_treatment=None, coin: str = None):
         """
-        寻找最优延迟 τ*（增强版：支持异常值处理和 Beta 系数计算）
+        寻找最优延迟 τ*（增强版：支持异常值处理）
 
         通过计算不同延迟下基准币种和山寨币收益率的相关系数，找出使相关系数最大的延迟值。
         tau_star > 0 表示山寨币滞后于基准币种，存在时间差套利机会。
@@ -728,21 +641,17 @@ class DelayCorrelationAnalyzer:
             alt_ret: 山寨币收益率数组
             max_lag: 最大延迟值（默认 3）
             enable_outlier_treatment: 是否启用异常值处理（None 时使用类常量）
-            enable_beta_calc: 是否计算 Beta 系数（None 时使用类常量）
             coin: 币种名称（可选，用于日志）
 
         Returns:
-            tuple: (tau_star, corrs, max_related_matrix, beta)
+            tuple: (tau_star, corrs, max_related_matrix)
                 - tau_star: 最优延迟值
                 - corrs: 所有延迟值对应的相关系数列表
                 - max_related_matrix: 最大相关系数
-                - beta: Beta 系数（如果启用）或 None
         """
         # ========== 1. 参数默认值处理 ==========
         if enable_outlier_treatment is None:
             enable_outlier_treatment = DelayCorrelationAnalyzer.ENABLE_OUTLIER_TREATMENT
-        if enable_beta_calc is None:
-            enable_beta_calc = DelayCorrelationAnalyzer.ENABLE_BETA_CALCULATION
 
         # ========== 2. 异常值处理（如果启用）==========
         if enable_outlier_treatment:
@@ -796,34 +705,7 @@ class DelayCorrelationAnalyzer:
             tau_star = 0
             max_related_matrix = np.nan
 
-        # ========== 4. 计算 Beta 收益率系数（如果启用）==========
-        # 基于收益率序列计算 Beta，衡量山寨币相对基准币种的波动幅度
-        # 公式：β = Cov(BASE_returns, ALT_returns) / Var(BASE_returns)
-        beta = None
-        if enable_beta_calc:
-            # 根据最优延迟选择数据对齐方式计算 Beta
-            # 目的：确保 Beta 反映真实的跟随关系（考虑延迟效应）
-            # 如果最优延迟 > 0，使用延迟对齐后的数据
-            # 如果最优延迟 = 0，使用同期数据
-            if tau_star > 0:
-                # 使用最优延迟对齐后的数据：BASE[t] 与 ALT[t+tau_star]
-                # 对齐后计算的 Beta 反映考虑延迟的真实波动关系
-                base_beta = base_ret_processed[:-tau_star]
-                alt_beta = alt_ret_processed[tau_star:]
-            else:
-                # 使用同期数据：BASE[t] 与 ALT[t]
-                base_beta = base_ret_processed
-                alt_beta = alt_ret_processed
-            
-            m_beta = min(len(base_beta), len(alt_beta))
-            if m_beta >= DelayCorrelationAnalyzer.MIN_POINTS_FOR_BETA_CALC:
-                beta = DelayCorrelationAnalyzer._calculate_beta(
-                    base_beta[:m_beta],
-                    alt_beta[:m_beta],
-                    coin=coin
-                )
-
-        return tau_star, corrs, max_related_matrix, beta
+        return tau_star, corrs, max_related_matrix
     
     def _get_base_data(self, timeframe: str, period: str) -> Optional[pd.DataFrame]:
         """
@@ -949,10 +831,10 @@ class DelayCorrelationAnalyzer:
         
         return base_df_aligned, alt_df_aligned
     
-    def _analyze_single_combination(self, coin: str, timeframe: str, period: str, alt_df: Optional[pd.DataFrame] = None, 
+    def _analyze_single_combination(self, coin: str, timeframe: str, period: str, alt_df: Optional[pd.DataFrame] = None,
                                      base_df_aligned: Optional[pd.DataFrame] = None, alt_df_aligned: Optional[pd.DataFrame] = None) -> Optional[tuple]:
         """
-        分析单个 timeframe/period 组合（增强版：支持 Beta 系数）
+        分析单个 timeframe/period 组合
 
         Args:
             coin: 币种交易对名称
@@ -963,8 +845,7 @@ class DelayCorrelationAnalyzer:
             alt_df_aligned: 可选的对齐后的山寨币数据，如果提供则直接使用，跳过数据获取和对齐步骤
 
         Returns:
-            成功返回 (correlation, timeframe, period, tau_star, beta)，失败返回 None
-            注意：beta 可能为 None（如果计算失败或禁用）
+            成功返回 (correlation, timeframe, period, tau_star)，失败返回 None
         """
         # 如果未提供已对齐的数据，则获取并对齐数据
         if base_df_aligned is None or alt_df_aligned is None:
@@ -985,26 +866,20 @@ class DelayCorrelationAnalyzer:
                 return None
             base_df_aligned, alt_df_aligned = aligned_data
 
-        # 调用增强版的 find_optimal_delay（现在返回 4 个值）
-        tau_star, _, related_matrix, beta = self.find_optimal_delay(
+        # 调用 find_optimal_delay（返回 3 个值）
+        tau_star, _, related_matrix = self.find_optimal_delay(
             base_df_aligned['return'].values,
             alt_df_aligned['return'].values,
             coin=coin
         )
 
-        # 增强日志输出
-        if beta is not None and not np.isnan(beta):
-            logger.debug(
-                f"分析中间结果 | 币种: {coin} | timeframe: {timeframe} | period: {period} | "
-                f"tau_star: {tau_star} | 相关系数: {related_matrix:.4f} | Beta: {beta:.4f}"
-            )
-        else:
-            logger.debug(
-                f"分析中间结果 | 币种: {coin} | timeframe: {timeframe} | period: {period} | "
-                f"tau_star: {tau_star} | 相关系数: {related_matrix:.4f}"
-            )
+        # 日志输出
+        logger.debug(
+            f"分析中间结果 | 币种: {coin} | timeframe: {timeframe} | period: {period} | "
+            f"tau_star: {tau_star} | 相关系数: {related_matrix:.4f}"
+        )
 
-        return (related_matrix, timeframe, period, tau_star, beta)
+        return (related_matrix, timeframe, period, tau_star)
     
     def _detect_anomaly_pattern(self, results: list, price_data_cache: dict = None,
                                coin: str = None) -> tuple[bool, float, float, float]:
@@ -1015,7 +890,6 @@ class DelayCorrelationAnalyzer:
         - 长期相关系数 > LONG_TERM_CORR_THRESHOLD：长期与基准币种有较强跟随性（30d对应1h）
         - 短期相关系数 < SHORT_TERM_CORR_THRESHOLD：短期存在明显滞后（7d对应5m）
         - 差值 > CORR_DIFF_THRESHOLD：短期和长期差异足够显著
-        - 平均Beta系数 >= AVG_BETA_THRESHOLD：波动幅度需满足阈值要求（基于配置周期数据计算）
         - 协整检验 ADF p-value < 0.05：价差平稳，适合配对交易（基于配置周期STATS_PERIOD数据）
 
         Args:
@@ -1031,47 +905,20 @@ class DelayCorrelationAnalyzer:
         # ========== 先提取相关系数 ==========
         short_periods = self.short_periods
         long_periods = self.long_periods
-        
-        # 使用索引访问，添加长度检查以确保安全（兼容4元组和5元组格式）
+
+        # 使用索引访问，添加长度检查以确保安全
         short_term_corrs = [x[0] for x in results if len(x) >= 3 and x[2] in short_periods]
         long_term_corrs = [x[0] for x in results if len(x) >= 3 and x[2] in long_periods]
-        
+
         if not short_term_corrs or not long_term_corrs:
             logger.warning(f"相关系数提取失败，跳过 | 币种: {coin} | 短期周期: {short_periods} | 长期周期: {long_periods} | 结果: {results}")
             return False, 0, 0.0, 0.0
-        
+
         min_short_corr = min(short_term_corrs)
         max_long_corr = max(long_term_corrs)
         # 计算相关系数差值（长期最大相关系数 - 短期最小相关系数）
         diff_amount = max_long_corr - min_short_corr
-        
-        # ========== Beta 收益率系数检查 ==========
-        # 从 results 中提取所有有效的 Beta 收益率系数值
-        # Beta 收益率系数：基于收益率计算，衡量山寨币相对基准币种的波动幅度
-        # 用于过滤波动不足的交易对（β < 阈值），确保有足够套利空间
-        valid_betas = []
-        for result in results:
-            # 处理新旧格式兼容（5个值 vs 4个值）
-            if len(result) == 5:
-                _, _, _, _, beta = result
-                if beta is not None and not np.isnan(beta):
-                    valid_betas.append(beta)
-            elif len(result) == 4:
-                # 旧格式没有 beta，跳过
-                continue
-        
-        # 如果启用了 Beta 计算且有有效的 Beta 值，进行阈值检查
-        if self.ENABLE_BETA_CALCULATION and valid_betas:
-            avg_beta = np.mean(valid_betas)
-            # β < 1.0 表示波动小于基准币种，套利空间受限，过滤该币种
-            if avg_beta < self.AVG_BETA_THRESHOLD:
-                coin_info = f" | 币种: {coin}" if coin else ""
-                logger.info(
-                    f"Beta收益率系数不满足要求，过滤 | 平均Beta: {avg_beta:.4f} < {self.AVG_BETA_THRESHOLD}"
-                    f"{coin_info}"
-                )
-                return False, 0, min_short_corr, max_long_corr
-        
+
         is_anomaly = False
         
         # 长期相关系数大于阈值，且短期相关系数小于阈值的时候，才计算差值
@@ -1147,7 +994,7 @@ class DelayCorrelationAnalyzer:
                        stationarity_level: Optional['StationarityLevel'] = None,
                        p_value: Optional[float] = None):
         """
-        输出异常模式的分析结果（增强版：包含 Beta 系数、Z-score 和平稳性等级）
+        输出异常模式的分析结果（增强版：包含 Z-score 和平稳性等级）
 
         Args:
             coin: 币种名称
@@ -1159,19 +1006,14 @@ class DelayCorrelationAnalyzer:
         """
         # 构建结果 DataFrame
         data_rows = []
-        has_beta = False  # 标记是否有有效的 Beta 收益率系数值
 
         for result in results:
-            # 处理新旧格式兼容（5个值 vs 4个值）
-            if len(result) == 5:
-                corr, tf, p, ts, beta = result
-            elif len(result) == 4:
-                corr, tf, p, ts = result
-                beta = None
-            else:
+            if len(result) != 4:
                 # 处理异常格式，记录日志并跳过
                 logger.warning(f"结果格式异常，跳过 | 币种: {coin} | 结果长度: {len(result)} | 结果: {result}")
                 continue
+
+            corr, tf, p, ts = result
 
             row = {
                 '相关系数': corr,
@@ -1179,11 +1021,6 @@ class DelayCorrelationAnalyzer:
                 '数据周期': p,
                 '最优延迟': ts
             }
-
-            # 添加 Beta 收益率系数列（如果存在且有效）
-            if beta is not None and not np.isnan(beta):
-                row['Beta收益率系数'] = beta
-                has_beta = True
 
             data_rows.append(row)
 
@@ -1195,16 +1032,6 @@ class DelayCorrelationAnalyzer:
         content = f"{self.exchange_name}\n\n{coin} 相关系数分析结果\n{df_results.to_string(index=False)}\n"
         content += f"\n相关系数差值: {diff_amount:.2f}"
 
-        # 如果有 Beta 收益率系数信息，添加风险提示
-        if has_beta:
-            avg_beta = df_results['Beta收益率系数'].mean() if 'Beta收益率系数' in df_results.columns else None
-            if avg_beta is not None and avg_beta > 1.5:
-                content += f"\n⚠️ 高波动风险：平均Beta={avg_beta:.2f}（波动幅度是基准币种的{avg_beta:.1f}倍）"
-            elif avg_beta is not None and avg_beta > 1.2:
-                content += f"\n⚠️ 中等波动：平均Beta={avg_beta:.2f}"
-            else:
-                content += f"\nBeta收益率系数: {avg_beta:.2f}"
-        
         # 如果有 Z-score 信息，根据平稳性等级添加信号强度提示
         if zscore is not None:
             abs_zscore = abs(zscore)
@@ -1402,23 +1229,17 @@ class DelayCorrelationAnalyzer:
             if result is not None:
                 results.append(result)
 
-        # 过滤 NaN 并按相关系数降序排序（处理新的5元组格式）
+        # 过滤 NaN 并按相关系数降序排序
         valid_results = []
         for result in results:
-            # 处理新格式（5个值）
-            if len(result) == 5:
-                corr, tf, p, ts, beta = result
-                if not np.isnan(corr):
-                    valid_results.append((corr, tf, p, ts, beta))
-            # 向后兼容旧格式（4个值）
-            elif len(result) == 4:
-                corr, tf, p, ts = result
-                if not np.isnan(corr):
-                    valid_results.append((corr, tf, p, ts, None))
-            else:
+            if len(result) != 4:
                 # 处理异常格式，记录日志并跳过
                 logger.warning(f"结果格式异常，跳过 | 币种: {coin} | 结果长度: {len(result)} | 结果: {result}")
                 continue
+
+            corr, tf, p, ts = result
+            if not np.isnan(corr):
+                valid_results.append((corr, tf, p, ts))
 
         valid_results = sorted(valid_results, key=lambda x: x[0], reverse=True)
 
