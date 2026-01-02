@@ -16,14 +16,6 @@ from typing import Union, Tuple, Optional
 from utils.lark_bot import sender
 from utils.config import lark_bot_id
 
-from cointegration_no_lookahead import (
-    calculate_cointegration_params_rolling,
-    calculate_spread_rolling_simple
-)
-
-from zscore_calculation_example import calculate_zscore_methods, get_current_zscore
-
-
 def setup_logging(log_file="hyperliquid.log", level=logging.DEBUG):
     """
     配置日志系统，支持控制台和文件输出
@@ -196,7 +188,7 @@ class DelayCorrelationAnalyzer:
         Args:
             exchange_name: 交易所名称，支持ccxt库支持的所有交易所
             timeout: 请求超时时间（毫秒）
-            default_combinations: K线组合列表，如 [("5m", "7d"), ("1h", "30d")]
+            default_combinations: K线组合列表，如 [("5m", "7d"), ("1h", "30d")] (从短周期到长周期的顺序)
         """
         self.exchange_name = exchange_name
         self.exchange = getattr(ccxt, exchange_name)({
@@ -564,7 +556,7 @@ class DelayCorrelationAnalyzer:
     @staticmethod
     def price_diff_spread_ols_window(base_prices: pd.Series, alt_prices: pd.Series, beta_window: int = 100, zscore_window: int = 30) -> pd.Series:
         """
-        计算价格差价
+        计算价格差价（双窗口策略：OLS回归使用长窗口（稳定），统计量使用短窗口（敏感）。）
         """
         # 4. 数据切片：取足够计算OLS回归和统计量的数据
         data_window = max(beta_window, zscore_window)
@@ -598,84 +590,7 @@ class DelayCorrelationAnalyzer:
         return spread
 
     @staticmethod
-    def price_diff_spread_compare(base: pd.Series, alt: pd.Series, beta_window: int = 100, zscore_window: int = 30) -> pd.Series:
-        """
-        计算价格差价（简单对数价格差）
-        """
-        # 方法对比
-        results = calculate_zscore_methods(base, alt, window=100)
-
-        if results:
-            print("\n各方法计算的最近5个z-score:")
-            print("-" * 70)
-
-            for method_name, zscore_series in [
-                ("无前瞻偏差 (推荐回测)", results['zscore_no_lookahead']),
-                ("滚动窗口", results['zscore_rolling']),
-                ("固定窗口", results['zscore_fixed_window']),
-                ("全历史 (含bias)", results['zscore_full'])
-            ]:
-                print(f"\n{method_name}:")
-                print(f"  最近5个值: {zscore_series.tail().values}")
-                print(f"  当前值: {zscore_series.iloc[-1]:.4f}")
-                print(f"  均值: {zscore_series.mean():.4f}, 标准差: {zscore_series.std():.4f}")
-
-        print("\n" + "=" * 70)
-        print("实盘交易场景 - 获取当前z-score")
-        print("=" * 70)
-
-        current_z = get_current_zscore(base, alt, window=100, zscore_window=100)
-
-        if current_z is not None:
-            print(f"\n当前z-score: {current_z:.4f}")
-
-            # 交易信号
-            if current_z > 2:
-                print("📉 信号: 价差过高,考虑做空价差 (买base,卖alt)")
-            elif current_z < -2:
-                print("📈 信号: 价差过低,考虑做多价差 (卖base,买alt)")
-            else:
-                print("⏸️  信号: 价差在正常范围,观望")
-
-        print("\n" + "=" * 70)
-        print("可视化z-score")
-        print("=" * 70)
-
-        if results:
-            import matplotlib.pyplot as plt
-
-            fig, axes = plt.subplots(2, 1, figsize=(14, 10))
-
-            # 价差图
-            results['spread'].plot(ax=axes[0], label='Spread', color='blue')
-            axes[0].axhline(y=results['spread'].mean(), color='r', linestyle='--', label='Mean')
-            axes[0].axhline(y=results['spread'].mean() + 2*results['spread'].std(),
-                        color='orange', linestyle='--', label='+2σ')
-            axes[0].axhline(y=results['spread'].mean() - 2*results['spread'].std(),
-                        color='orange', linestyle='--', label='-2σ')
-            axes[0].set_title('Price Spread Over Time')
-            axes[0].legend()
-            axes[0].grid(True, alpha=0.3)
-
-            # z-score图
-            results['zscore_rolling'].plot(ax=axes[1], label='Rolling Z-Score', color='green')
-            axes[1].axhline(y=0, color='black', linestyle='-', linewidth=0.8)
-            axes[1].axhline(y=2, color='red', linestyle='--', label='±2σ threshold')
-            axes[1].axhline(y=-2, color='red', linestyle='--')
-            axes[1].fill_between(results['zscore_rolling'].index,
-                                -2, 2, alpha=0.2, color='green')
-            axes[1].set_title('Z-Score Over Time (Entry/Exit Signals)')
-            axes[1].legend()
-            axes[1].grid(True, alpha=0.3)
-
-            plt.tight_layout()
-            plt.savefig('zscore_analysis.png', dpi=100)
-            print("\nZ-score分析图已保存: zscore_analysis.png")
-
-
-
-    @staticmethod
-    def _calculate_zscore_with_level(
+    def _calculate_zscore(
         base_prices: pd.Series,
         alt_prices: pd.Series,
         window: int = 20,
@@ -718,7 +633,7 @@ class DelayCorrelationAnalyzer:
 
         # 2. 数据验证
         if len(base_prices) != len(alt_prices):
-            return None, None, None
+            return None
 
         # 3. 数据验证与降级策略
         required_points = max(beta_window, zscore_window)
@@ -733,7 +648,7 @@ class DelayCorrelationAnalyzer:
                 )
                 beta_window = zscore_window
             else:
-                return None, None, None
+                return None
 
         try:
             # 双窗口策略：OLS回归使用长窗口（稳定），统计量使用短窗口（敏感）。
@@ -744,30 +659,27 @@ class DelayCorrelationAnalyzer:
             spread_std = spread.iloc[:-1].std()
             current_spread = spread.iloc[-1]
 
-            # 对比测试分析 
-            spread_compare = DelayCorrelationAnalyzer.price_diff_spread_compare(base_prices, alt_prices, beta_window, zscore_window)
-
             # 8. 检查统计量有效性
             if pd.isna(spread_mean) or pd.isna(spread_std):
-                return None, None, None
+                return None
 
             if spread_std == 0 or np.isnan(spread_std):
-                return None, None, None
+                return None
 
             # 9. 计算当前 Z-score（修复：使用当前窗口的最后一个价差值）
             zscore = (current_spread - spread_mean) / spread_std
 
-            logger.info(f"Z-score: 双窗口策略：OLS回归使用长窗口（稳定），统计量使用短窗口（敏感）。: {zscore}")
+            # logger.info(f"Z-score: 双窗口策略：OLS回归使用长窗口（稳定），统计量使用短窗口（敏感）。: {zscore}")
 
             if np.isnan(zscore) or np.isinf(zscore):
-                return None, None, None
+                return None
 
-            return float(zscore), None, None
+            return float(zscore)
 
         except Exception as e:
             coin_info = f" | 币种: {coin}" if coin else ""
             logger.warning(f"Z-score 计算异常：{type(e).__name__}: {str(e)}{coin_info}", exc_info=True)
-            return None, None, None
+            return None
 
     @staticmethod
     def _get_trading_direction(zscore: float, coin: str) -> tuple[str, str]:
@@ -1378,8 +1290,57 @@ class DelayCorrelationAnalyzer:
                 sender(content, self.lark_hook)
         else:
             logger.warning(f"飞书通知未发送（LARKBOT_ID 未配置）| 币种: {coin}")
-        # =====================================
     
+    def zscore_analysis(self, coin: str, price_data_cache: dict) -> bool:
+        """
+        分析单个币种的Z-score
+        """
+        # ========== Z-score 验证（如果启用且检测到异常）==========
+        zscore_result = None
+        # 保存所有周期数据的Z-score结果(短周期在前面， 长周期在后面)
+        zscore_result_list = []
+        # 遍历所有周期数据，计算Z-score
+        if self.ENABLE_ZSCORE_CHECK:
+            for stats_period_key in price_data_cache:
+                price_data = price_data_cache[stats_period_key]
+
+                # 使用增强版函数，同时获取 Z-score、平稳性等级和 p-value
+                # 方法：OLS回归（Engle-Granger两步法）
+                # 双窗口策略：OLS回归使用长窗口（BETA_WINDOW）计算协整参数（α, β），统计量使用短窗口（ZSCORE_WINDOW）
+                zscore_result = self._calculate_zscore(
+                    price_data['base_prices'],
+                    price_data['alt_prices'],
+                    window=self.ZSCORE_WINDOW,
+                    beta_window=self.BETA_WINDOW,  # 双窗口策略：OLS回归窗口
+                    coin=coin
+                )
+                logger.info(f"Z-score: 周期 {stats_period_key} | 币种: {coin} | Z-score: {zscore_result}")
+                if zscore_result is not None:
+                    zscore_result_list.append(zscore_result)
+                    abs_zscore = abs(zscore_result)
+
+                    # Z-score 阈值验证
+                    if abs_zscore < self.ZSCORE_THRESHOLD:
+                        logger.info(
+                            f"Z-score 验证未通过，过滤信号 | 币种: {coin} | "
+                            f"Z-score: {zscore_result:.2f}的绝对值 < {self.ZSCORE_THRESHOLD} | "
+                            # f"平稳性: {stationarity_level_result.chinese_name if stationarity_level_result else '未知'}"
+                        )
+                        # return False
+                    else:
+                        direction_desc, direction_code = self._get_trading_direction(zscore_result, coin)
+                else:
+                    logger.debug(f"Z-score 计算失败，跳过验证 | 币种: {coin}")
+            else:
+                logger.debug(f"未找到价格数据，跳过 Z-score 验证 | 币种: {coin}")
+        direction = zscore_result_list[-1]
+        middle_zscore = zscore_result_list[-2]
+        # 检查两个Z-score的符号是否一致，如果一致，则认为是一个套利机会
+        if (direction >= 0) == (middle_zscore >= 0):
+            return zscore_result_list
+        return None
+
+
     def one_coin_analysis(self, coin: str) -> bool:
         """
         分析单个币种与基准币种的相关系数，识别异常模式（增强版：支持 Z-score 验证）
@@ -1472,91 +1433,11 @@ class DelayCorrelationAnalyzer:
             f"相关系数检测 | 币种: {coin} | 是否异常: {is_anomaly} | 相关系数差值: {diff_amount:.4f} | 短期最小: {min_short_corr:.4f} | 长期最大: {max_long_corr:.4f}"
             )
 
-        # ========== Z-score 验证（如果启用且检测到异常）==========
-        zscore_result = None
-        stationarity_level_result = None  # 新增：保存平稳性等级
-        p_value_result = None  # 新增：保存p-value
-        if self.ENABLE_ZSCORE_CHECK:
-            # 使用配置周期数据（STATS_PERIOD）计算 Z-score、Beta系数和ADF平稳性检验
-            # 优点：配置周期数据更稳定，减少噪音干扰，提高统计检验可靠性
-
-            # 获取配置周期数据的缓存key
-            stats_period_key = None
-            for tf, p in self.combinations:
-                if p == self.STATS_PERIOD:  # 使用配置的统计检验周期
-                    stats_period_key = (tf, p)
-                    break
-
-            if stats_period_key and stats_period_key in price_data_cache:
-                price_data = price_data_cache[stats_period_key]
-
-                # 使用增强版函数，同时获取 Z-score、平稳性等级和 p-value
-                # 方法：OLS回归（Engle-Granger两步法）
-                # 双窗口策略：OLS回归使用长窗口（BETA_WINDOW）计算协整参数（α, β），统计量使用短窗口（ZSCORE_WINDOW）
-                # 价差公式：spread = log(ALT) - (α + β × log(BASE))
-                # 重要：所有统计检验（OLS/ADF）均基于配置周期数据，确保统计有效性
-                zscore_result, stationarity_level_result, p_value_result = self._calculate_zscore_with_level(
-                    price_data['base_prices'],
-                    price_data['alt_prices'],
-                    window=self.ZSCORE_WINDOW,
-                    beta_window=self.BETA_WINDOW,  # 双窗口策略：OLS回归窗口
-                    coin=coin
-                )
-                
-                if zscore_result is not None:
-                    abs_zscore = abs(zscore_result)
-
-                    # Z-score 阈值验证
-                    if abs_zscore < self.ZSCORE_THRESHOLD:
-                        logger.info(
-                            f"Z-score 验证未通过，过滤信号 | 币种: {coin} | "
-                            f"Z-score: {zscore_result:.2f}的绝对值 < {self.ZSCORE_THRESHOLD} | "
-                            f"平稳性: {stationarity_level_result.chinese_name if stationarity_level_result else '未知'}"
-                        )
-                        return False
-                    else:
-                        direction_desc, direction_code = self._get_trading_direction(zscore_result, coin)
-
-                        # 根据平稳性等级输出不同强度的日志
-                        if stationarity_level_result == StationarityLevel.STRONG:
-                            signal_strength = '强(高质量)' if abs_zscore > 3 else '中等(可靠)'
-                            logger.info(
-                                f"Z-score 验证通过（强平稳）| 币种: {coin} | "
-                                f"Z-score: {zscore_result:.2f} | 平稳性: {stationarity_level_result.chinese_name} | "
-                                f"方向: {direction_desc} | 信号强度: {signal_strength}"
-                            )
-                        elif stationarity_level_result == StationarityLevel.WEAK:
-                            signal_strength = '弱(探索性)'
-                            logger.warning(
-                                f"Z-score 验证通过（弱平稳警告）| 币种: {coin} | "
-                                f"Z-score: {zscore_result:.2f} | 平稳性: {stationarity_level_result.chinese_name} | "
-                                f"方向: {direction_desc} | 信号强度: {signal_strength} | "
-                                f"⚠️ 建议谨慎交易，平稳性检验处于边缘区域"
-                            )
-                        else:
-                            # 理论上不应出现（因为_calculate_zscore_with_level已过滤非平稳）
-                            signal_strength = '未知'
-                            logger.warning(
-                                f"Z-score 验证异常（平稳性未知）| 币种: {coin} | "
-                                f"Z-score: {zscore_result:.2f} | 平稳性: 未知"
-                            )
-                else:
-                    logger.debug(f"Z-score 计算失败，跳过验证 | 币种: {coin}")
-            else:
-                logger.debug(f"未找到价格数据，跳过 Z-score 验证 | 币种: {coin}")
-
         if is_anomaly:
-            # ========== 收集平稳性统计 ==========
-            if stationarity_level_result == StationarityLevel.STRONG:
-                self.strong_signal_count += 1
-            elif stationarity_level_result == StationarityLevel.WEAK:
-                self.weak_signal_count += 1
-            else:
-                self.non_stationary_count += 1
-            # ===================================
-
-            self._output_results(coin, valid_results, diff_amount, zscore=zscore_result,
-                                stationarity_level=stationarity_level_result, p_value=p_value_result)  # 新增p-value参数
+            zscore_result_list = self.zscore_analysis(coin, price_data_cache)
+            # 找到绝对值最大的元素（保留原符号）
+            zscore_result = zscore_result_list[np.argmax(np.abs(zscore_result_list))]
+            self._output_results(coin, valid_results, diff_amount, zscore=zscore_result)
             return True
         else:
             # 计算相关系数统计信息
@@ -1635,7 +1516,8 @@ class DelayCorrelationAnalyzer:
 
 
 if __name__ == "__main__":
-    default_combinations = [('1h', '30d'), ('4h', '60d')]
+    # 从短周期到长周期的顺序
+    default_combinations = [('5m', '7d'), ('1h', '30d'), ('4h', '60d')]
     while True:
         analyzer = DelayCorrelationAnalyzer(exchange_name="hyperliquid", default_combinations=default_combinations)
         analyzer.run()
