@@ -140,7 +140,12 @@ class DelayCorrelationAnalyzer:
     ENABLE_ZSCORE_CHECK = True
     # Z-score 阈值，超过此值才认为是显著的套利机会
     # ZSCORE_THRESHOLD = 2.0  # 标准差倍数
-    ZSCORE_THRESHOLD = 1.0  # 测试值
+    # 长周期（4H）的Z-score阈值
+    # ZSCORE_THRESHOLD_LONG = 1.0  # 测试值
+    # 中间周期（1H）的Z-score阈值
+    ZSCORE_THRESHOLD_MIDDLE = 1.5  # 测试值
+    # 短周期（5M）的Z-score阈值
+    ZSCORE_THRESHOLD_SHORT = 1.8  # 测试值
     # ========== 双窗口策略配置 ==========
     # OLS回归窗口（长期关系窗口，用于 Z-score 价差构建）
     # 目的：使用更长窗口进行OLS回归计算协整参数（α, β），捕捉稳定的基准币种-ALT 价格关系
@@ -1144,27 +1149,21 @@ class DelayCorrelationAnalyzer:
                 logger.info(f"Z-score: 周期 {stats_period_key} | 币种: {coin} | Z-score: {zscore_result}")
                 if zscore_result is not None:
                     zscore_result_list.append(zscore_result)
-                    abs_zscore = abs(zscore_result)
-
-                    # Z-score 阈值验证
-                    if abs_zscore < self.ZSCORE_THRESHOLD:
-                        logger.info(
-                            f"Z-score 验证未通过，过滤信号 | 币种: {coin} | "
-                            f"Z-score: {zscore_result:.2f}的绝对值 < {self.ZSCORE_THRESHOLD} | "
-                            # f"平稳性: {stationarity_level_result.chinese_name if stationarity_level_result else '未知'}"
-                        )
-                        # return False
-                    else:
-                        direction_desc, direction_code = self._get_trading_direction(zscore_result, coin)
                 else:
-                    logger.debug(f"Z-score 计算失败，跳过验证 | 币种: {coin}")
-            else:
-                logger.debug(f"未找到价格数据，跳过 Z-score 验证 | 币种: {coin}")
+                    logger.warning(f"Z-score 计算失败，{stats_period_key} | 币种: {coin}")
+        else:
+            return None
+        # 长周期（4H）的Z-score
         direction = zscore_result_list[-1]
+        # 中间周期（1H）的Z-score
         middle_zscore = zscore_result_list[-2]
-        # 检查两个Z-score的符号是否一致，如果一致，则认为是一个套利机会
-        if (direction >= 0) == (middle_zscore >= 0):
-            return zscore_result_list
+        # 短周期（5M）的Z-score
+        short_zscore = zscore_result_list[0]
+        # 检查3个Z-score的符号是否一致，如果一致，则认为是一个套利机会
+        if (direction >= 0) == (middle_zscore >= 0) == (short_zscore >= 0):
+            # 长期定方向，中间和短周期做偏离阈值验证，如果都大于阈值，则认为是一个套利机会
+            if abs(middle_zscore) > self.ZSCORE_THRESHOLD_MIDDLE and abs(short_zscore) > self.ZSCORE_THRESHOLD_SHORT:
+                return zscore_result_list
         return None
 
 
@@ -1256,6 +1255,8 @@ class DelayCorrelationAnalyzer:
 
         if is_anomaly:
             zscore_result_list = self.zscore_analysis(coin, price_data_cache)
+            if not zscore_result_list:
+                return False
             # 找到绝对值最大的元素（保留原符号）
             zscore_result = zscore_result_list[np.argmax(np.abs(zscore_result_list))]
             self._output_results(coin, valid_results, diff_amount, zscore=zscore_result)
