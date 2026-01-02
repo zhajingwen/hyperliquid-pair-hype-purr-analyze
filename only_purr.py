@@ -537,10 +537,9 @@ class DelayCorrelationAnalyzer:
         coin: str = None
     ) -> Tuple[Optional[float], Optional['StationarityLevel'], Optional[float]]:
         """
-        计算 Z-score 并返回平稳性等级（基于OLS回归方法）
+        计算 Z-score（基于OLS回归方法）
 
-        使用OLS回归计算协整参数（Engle-Granger两步法），构建价差序列并计算Z-score。
-        同时返回平稳性等级和 p-value，便于下游逻辑区分强信号和弱信号。
+        使用OLS回归计算协整参数，构建价差序列并计算Z-score。
 
         双窗口策略：OLS回归使用长窗口（稳定），统计量使用短窗口（敏感）。
 
@@ -553,9 +552,9 @@ class DelayCorrelationAnalyzer:
 
         Returns:
             tuple: (zscore, stationarity_level, p_value)
-                - zscore: Z-score 值（如果计算失败或非平稳则为 None）
-                - stationarity_level: 平稳性等级（如果计算失败则为 None）
-                - p_value: ADF 检验的 p-value（如果计算失败则为 None）
+                - zscore: Z-score 值（如果计算失败则为 None）
+                - stationarity_level: 始终返回 None（已移除协整检验）
+                - p_value: 始终返回 None（已移除协整检验）
 
         Note:
             - 使用OLS回归：log_alt = α + β × log_base + ε
@@ -564,9 +563,6 @@ class DelayCorrelationAnalyzer:
             - OLS回归使用前 beta_window-1 个点（避免 look-ahead bias）
             - 均值和标准差基于前 window-1 期价差，避免样本偏差
             - 降级策略：数据不足时自动降级为单窗口模式
-            - 非平稳信号返回 (None, NON_STATIONARY, p_value)
-            - 弱平稳信号返回 (zscore 值, WEAK, p_value)，并在日志中警告
-            - 强平稳信号返回 (zscore 值, STRONG, p_value)
         """
         # ========== 双窗口策略实现（基于OLS回归）==========
         # 1. 参数处理：beta_window 默认使用类属性 BETA_WINDOW
@@ -599,7 +595,7 @@ class DelayCorrelationAnalyzer:
             recent_base_full = base_prices.iloc[-data_window:]
             recent_alt_full = alt_prices.iloc[-data_window:]
 
-            # 5. OLS回归计算协整参数（长窗口，用于平稳性检验）
+            # 5. OLS回归计算协整参数
             # 使用前 beta_window-1 个点计算OLS参数（避免 look-ahead bias）
             # 公式：log_alt = α + β × log_base + ε
             # 用途：构建价差序列 spread = log(ALT) - (α + β × log(BASE))
@@ -616,82 +612,7 @@ class DelayCorrelationAnalyzer:
             alpha = model.intercept_
             beta_ols = model.coef_[0]
 
-            # 6. 价差构建（用于平稳性检验：使用更长窗口确保统计有效性）
-            # 平稳性检验需要足够的样本量（建议至少50-100个数据点），
-            # 因此使用 beta_window 的数据构建价差序列进行检验
-            # 价差公式：spread = log(ALT) - (α + β × log(BASE))
-            stationarity_base = recent_base_full.iloc[-beta_window:]
-            stationarity_alt = recent_alt_full.iloc[-beta_window:]
-            log_base_stationarity = np.log(stationarity_base)
-            log_alt_stationarity = np.log(stationarity_alt)
-            spread_for_stationarity = log_alt_stationarity - (alpha + beta_ols * log_base_stationarity)
-
-            # 7. 执行ADF检验并分级判定平稳性
-            spread_clean = spread_for_stationarity.dropna()
-            if len(spread_clean) < 20:
-                coin_info = f" | 币种: {coin}" if coin else ""
-                logger.debug(f"平稳性检验失败：数据点不足 | 需要: 20, 实际: {len(spread_clean)}{coin_info}")
-                return None, StationarityLevel.NON_STATIONARY, 1.0
-
-            adf_result = adfuller(spread_clean, autolag='AIC')
-            p_value = adf_result[1]
-            adf_statistic = adf_result[0]
-
-            # 分级判定平稳性
-            strong_threshold = DelayCorrelationAnalyzer.STATIONARITY_STRONG_THRESHOLD
-            weak_threshold = DelayCorrelationAnalyzer.STATIONARITY_WEAK_THRESHOLD
-            
-            if p_value < strong_threshold:
-                stationarity_level = StationarityLevel.STRONG
-            elif p_value < weak_threshold:
-                stationarity_level = StationarityLevel.WEAK
-            else:
-                stationarity_level = StationarityLevel.NON_STATIONARY
-
-            # 记录检验结果
-            coin_info = f" | 币种: {coin}" if coin else ""
-            if stationarity_level == StationarityLevel.STRONG:
-                logger.debug(
-                    f"平稳性检验通过（强平稳，OLS回归）| ADF统计量: {adf_statistic:.4f} | "
-                    f"p-value: {p_value:.4f} < {strong_threshold} | "
-                    f"α={alpha:.4f}, β={beta_ols:.4f} | 等级: {stationarity_level.chinese_name}"
-                    f"{coin_info}"
-                )
-            elif stationarity_level == StationarityLevel.WEAK:
-                logger.info(
-                    f"平稳性检验通过（弱平稳，OLS回归）| ADF统计量: {adf_statistic:.4f} | "
-                    f"p-value: {p_value:.4f} ∈ [{strong_threshold}, {weak_threshold}) | "
-                    f"α={alpha:.4f}, β={beta_ols:.4f} | 等级: {stationarity_level.chinese_name}"
-                    f"{coin_info}"
-                )
-            else:
-                logger.info(
-                    f"平稳性检验失败（非平稳，OLS回归）| ADF统计量: {adf_statistic:.4f} | "
-                    f"p-value: {p_value:.4f} >= {weak_threshold} | "
-                    f"α={alpha:.4f}, β={beta_ols:.4f} | 等级: {stationarity_level.chinese_name}"
-                    f"{coin_info}"
-                )
-
-            # 8. 非平稳：终止计算
-            if stationarity_level == StationarityLevel.NON_STATIONARY:
-                coin_info = f" | 币种: {coin}" if coin else ""
-                logger.info(
-                    f"Z-score 计算终止：价差序列非平稳（ADF p-value={p_value:.4f}）| "
-                    f"均值回归假设不成立，不适合配对交易"
-                    f"{coin_info}"
-                )
-                return None, stationarity_level, p_value
-
-            # 9. 弱平稳：发出警告但继续计算
-            if stationarity_level == StationarityLevel.WEAK:
-                coin_info = f" | 币种: {coin}" if coin else ""
-                logger.info(
-                    f"Z-score 计算继续（弱平稳警告）| ADF p-value={p_value:.4f} | "
-                    f"平稳性检验处于边缘区域（{stationarity_level.chinese_name}），建议谨慎交易"
-                    f"{coin_info}"
-                )
-
-            # 10. 价差构建（用于Z-score计算：使用短窗口保持敏感度）
+            # 6. 价差构建（用于Z-score计算：使用短窗口保持敏感度）
             # 取最近 zscore_window 期数据，使用长窗口计算的OLS参数构建对数价差
             recent_base = recent_base_full.iloc[-zscore_window:]
             recent_alt = recent_alt_full.iloc[-zscore_window:]
@@ -699,26 +620,26 @@ class DelayCorrelationAnalyzer:
             log_alt = np.log(recent_alt)
             spread = log_alt - (alpha + beta_ols * log_base)
 
-            # 11. 计算统计量（修复样本偏差：使用前window-1期数据，排除当前值）
+            # 7. 计算统计量（修复样本偏差：使用前window-1期数据，排除当前值）
             # 避免"用样本测试样本本身"的问题，防止Z-score被系统性低估
             spread_mean = spread.iloc[:-1].mean()
             spread_std = spread.iloc[:-1].std()
 
-            # 12. 检查统计量有效性
+            # 8. 检查统计量有效性
             if pd.isna(spread_mean) or pd.isna(spread_std):
-                return None, stationarity_level, p_value
+                return None, None, None
 
             if spread_std == 0 or np.isnan(spread_std):
-                return None, stationarity_level, p_value
+                return None, None, None
 
-            # 13. 计算当前 Z-score（修复：使用当前窗口的最后一个价差值）
+            # 9. 计算当前 Z-score（修复：使用当前窗口的最后一个价差值）
             current_spread = spread.iloc[-1]
             zscore = (current_spread - spread_mean) / spread_std
 
             if np.isnan(zscore) or np.isinf(zscore):
-                return None, stationarity_level, p_value
+                return None, None, None
 
-            return float(zscore), stationarity_level, p_value
+            return float(zscore), None, None
 
         except Exception as e:
             coin_info = f" | 币种: {coin}" if coin else ""
