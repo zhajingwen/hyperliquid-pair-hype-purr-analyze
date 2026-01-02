@@ -112,8 +112,8 @@ class DelayCorrelationAnalyzer:
     核心功能：
     - 计算不同时间周期和延迟下的相关系数
     - 计算Beta系数衡量波动幅度关系
-    - 计算Z-score识别价差偏离
-    - 进行协整检验验证价差平稳性
+    - 使用OLS回归（Engle-Granger两步法）进行协整检验和平稳性验证
+    - 计算Z-score识别价差偏离（基于OLS回归构建的价差序列）
     """
     # 相关系数计算所需的最小数据点数
     MIN_POINTS_FOR_CORR_CALC = 10
@@ -154,11 +154,12 @@ class DelayCorrelationAnalyzer:
     # ZSCORE_THRESHOLD = 2.0  # 标准差倍数
     ZSCORE_THRESHOLD = 1.5  # 测试值
     # ========== 双窗口策略配置 ==========
-    # Beta 系数计算窗口（长期关系窗口，用于 Z-score 价差构建）
-    # 目的：使用更长窗口计算基于对数价格的 Beta，捕捉稳定的基准币种-ALT 价格关系
-    # 用于构建价差序列：spread = log(ALT) - β × log(BASE)
-    # 测试验证：窗口=100 时 Beta 标准差从 0.29 降至 0.20，稳定性提升 45%
-    BETA_WINDOW = 100  # 建议值：80-120，平衡稳定性与响应性
+    # OLS回归窗口（长期关系窗口，用于 Z-score 价差构建）
+    # 目的：使用更长窗口进行OLS回归计算协整参数（α, β），捕捉稳定的基准币种-ALT 价格关系
+    # 方法：OLS回归 log_alt = α + β × log_base + ε
+    # 用于构建价差序列：spread = log(ALT) - (α + β × log(BASE))
+    # 测试验证：窗口=100 时参数稳定性提升，减少虚假信号
+    BETA_WINDOW = 100  # 建议值：80-120，平衡稳定性与响应性（OLS回归窗口）
 
     # Z-score 统计量计算窗口（短期偏离窗口）
     # 目的：检测当前价差相对于短期均值的偏离程度，捕捉短期套利机会
@@ -177,7 +178,8 @@ class DelayCorrelationAnalyzer:
     STATIONARITY_SIGNIFICANCE_LEVEL = STATIONARITY_STRONG_THRESHOLD
 
     # ========== 统计检验周期配置 ==========
-    # 统计检验使用的数据周期（Beta系数、Z-score、协整检验、ADF检验）
+    # 统计检验使用的数据周期（OLS回归、Z-score、协整检验、ADF检验）
+    # 方法：使用OLS回归（Engle-Granger两步法）进行协整检验
     STATS_PERIOD = '30d'  # 可选值: '30d'（长周期）或 '7d'（短周期）
 
     def __init__(self, exchange_name="kucoin", timeout=30000, default_combinations=None):
@@ -529,19 +531,17 @@ class DelayCorrelationAnalyzer:
     @staticmethod
     def _calculate_beta_from_prices(base_prices: pd.Series, alt_prices: pd.Series, coin: str = None) -> Optional[float]:
         """
-        基于对数价格计算 Beta 系数（全样本计算）
+        基于对数价格计算 Beta 系数（已废弃：方案一协方差方法）
 
-        本函数通过对数价格的协方差和方差计算 Beta 系数，适用于价差序列构建和 Z-score 计算。
+        ⚠️ 已废弃：此函数使用协方差方法计算Beta，已被OLS回归方法替代。
+        现在 Z-score 计算使用 OLS 回归方法（方案二），包含截距项α。
+
+        本函数通过对数价格的协方差和方差计算 Beta 系数。
         公式：β = Cov(log_BASE_prices, log_ALT_prices) / Var(log_BASE_prices)
 
         与 _calculate_beta() 的区别：
         - _calculate_beta()：基于收益率序列，用于波动率分析和风险评估
-        - _calculate_beta_from_prices()：基于对数价格序列，用于协整关系和价差构建
-
-        应用场景：
-        - Z-score 计算：用于构建对数价差序列 spread = log(ALT) - β × log(BASE)
-        - 协整分析：评估价格序列的长期均衡关系
-        - 对冲比例：β 值反映价格层面的对冲比例
+        - _calculate_beta_from_prices()：基于对数价格序列（已废弃，仅保留用于向后兼容）
 
         Args:
             base_prices: 基准币种价格序列（pandas Series）
@@ -553,10 +553,9 @@ class DelayCorrelationAnalyzer:
             None: 如果计算失败
 
         Note:
-            - 使用对数价格可以消除价格量级差异（基准币种 50000 vs ALT 0.01）
-            - 对数价格的线性关系更稳定，符合协整理论和配对交易实践
-            - Z-score 计算使用此函数（数据已预先截取为 window-1 个点，无需滚动窗口函数）
-            - 对数变换后 Beta 不等同于收益率 Beta，两者衡量不同维度的关系
+            - 此函数已不再用于 Z-score 计算
+            - 现在使用 OLS 回归方法：log_alt = α + β × log_base + ε
+            - 保留此函数仅用于向后兼容，不建议在新代码中使用
         """
         # 1. 数据长度检查
         if len(base_prices) != len(alt_prices):
@@ -612,18 +611,18 @@ class DelayCorrelationAnalyzer:
         coin: str = None
     ) -> Tuple[Optional[float], Optional['StationarityLevel'], Optional[float]]:
         """
-        计算 Z-score 并返回平稳性等级（双窗口增强版）
+        计算 Z-score 并返回平稳性等级（基于OLS回归方法）
 
-        此函数是 _calculate_zscore 的增强版本，同时返回 Z-score 值、平稳性等级和 p-value，
-        便于下游逻辑区分强信号和弱信号。
+        使用OLS回归计算协整参数（Engle-Granger两步法），构建价差序列并计算Z-score。
+        同时返回平稳性等级和 p-value，便于下游逻辑区分强信号和弱信号。
 
-        双窗口策略：Beta 使用长窗口（稳定），统计量使用短窗口（敏感）。
+        双窗口策略：OLS回归使用长窗口（稳定），统计量使用短窗口（敏感）。
 
         Args:
             base_prices: 基准币种价格序列
             alt_prices: 山寨币价格序列
             window: 统计量窗口大小（默认 20），实际使用 ZSCORE_WINDOW
-            beta_window: Beta 窗口大小（可选，默认 None 使用 BETA_WINDOW 类属性）
+            beta_window: OLS回归窗口大小（可选，默认 None 使用 BETA_WINDOW 类属性）
             coin: 币种名称（用于日志）
 
         Returns:
@@ -633,15 +632,17 @@ class DelayCorrelationAnalyzer:
                 - p_value: ADF 检验的 p-value（如果计算失败则为 None）
 
         Note:
-            - 双窗口设计：beta_window 用于计算 Beta，window 用于计算统计量
-            - Beta 计算排除最后一个点，避免 look-ahead bias
+            - 使用OLS回归：log_alt = α + β × log_base + ε
+            - 价差公式：spread = log(ALT) - (α + β × log(BASE))
+            - 双窗口设计：beta_window 用于OLS回归，window 用于计算统计量
+            - OLS回归使用前 beta_window-1 个点（避免 look-ahead bias）
             - 均值和标准差基于前 window-1 期价差，避免样本偏差
             - 降级策略：数据不足时自动降级为单窗口模式
             - 非平稳信号返回 (None, NON_STATIONARY, p_value)
             - 弱平稳信号返回 (zscore 值, WEAK, p_value)，并在日志中警告
             - 强平稳信号返回 (zscore 值, STRONG, p_value)
         """
-        # ========== 双窗口策略实现 ==========
+        # ========== 双窗口策略实现（基于OLS回归）==========
         # 1. 参数处理：beta_window 默认使用类属性 BETA_WINDOW
         if beta_window is None:
             beta_window = getattr(DelayCorrelationAnalyzer, 'BETA_WINDOW', window * 3)
@@ -667,47 +668,85 @@ class DelayCorrelationAnalyzer:
                 return None, None, None
 
         try:
-            # 4. 数据切片：取足够计算 Beta 和统计量的数据
+            # 4. 数据切片：取足够计算OLS回归和统计量的数据
             data_window = max(beta_window, zscore_window)
             recent_base_full = base_prices.iloc[-data_window:]
             recent_alt_full = alt_prices.iloc[-data_window:]
 
-            # 5. Beta 系数计算（长窗口，基于对数价格）
-            # 使用前 beta_window-1 个点计算 Beta（避免 look-ahead bias）
-            # 公式：β = Cov(log_BASE, log_ALT) / Var(log_BASE)
-            # 用途：构建价差序列 spread = log(ALT) - β × log(BASE)
-            beta_base = recent_base_full.iloc[:-1]
-            beta_alt = recent_alt_full.iloc[:-1]
-            rolling_beta = DelayCorrelationAnalyzer._calculate_beta_from_prices(
-                beta_base, beta_alt, coin=coin
-            )
-            if rolling_beta is None:
-                return None, None, None
+            # 5. OLS回归计算协整参数（长窗口，用于平稳性检验）
+            # 使用前 beta_window-1 个点计算OLS参数（避免 look-ahead bias）
+            # 公式：log_alt = α + β × log_base + ε
+            # 用途：构建价差序列 spread = log(ALT) - (α + β × log(BASE))
+            ols_base = recent_base_full.iloc[:-1]
+            ols_alt = recent_alt_full.iloc[:-1]
+            
+            # 计算对数价格
+            log_base_ols = np.log(ols_base).values.reshape(-1, 1)
+            log_alt_ols = np.log(ols_alt).values
+
+            # OLS回归
+            model = LinearRegression()
+            model.fit(log_base_ols, log_alt_ols)
+            alpha = model.intercept_
+            beta_ols = model.coef_[0]
 
             # 6. 价差构建（用于平稳性检验：使用更长窗口确保统计有效性）
             # 平稳性检验需要足够的样本量（建议至少50-100个数据点），
             # 因此使用 beta_window 的数据构建价差序列进行检验
-            # 价差公式：spread = log(ALT) - β × log(BASE)
+            # 价差公式：spread = log(ALT) - (α + β × log(BASE))
             stationarity_base = recent_base_full.iloc[-beta_window:]
             stationarity_alt = recent_alt_full.iloc[-beta_window:]
             log_base_stationarity = np.log(stationarity_base)
             log_alt_stationarity = np.log(stationarity_alt)
-            spread_for_stationarity = log_alt_stationarity - rolling_beta * log_base_stationarity
+            spread_for_stationarity = log_alt_stationarity - (alpha + beta_ols * log_base_stationarity)
 
-            # 7. 执行分级平稳性检验（使用更长窗口的价差序列）
-            stationarity_level, p_value = DelayCorrelationAnalyzer._check_spread_stationarity(
-                spread_for_stationarity, coin=coin
-            )
+            # 7. 执行ADF检验并分级判定平稳性
+            spread_clean = spread_for_stationarity.dropna()
+            if len(spread_clean) < 20:
+                coin_info = f" | 币种: {coin}" if coin else ""
+                logger.debug(f"平稳性检验失败：数据点不足 | 需要: 20, 实际: {len(spread_clean)}{coin_info}")
+                return None, StationarityLevel.NON_STATIONARY, 1.0
 
-            # 8. 价差构建（用于Z-score计算：使用短窗口保持敏感度）
-            # 取最近 zscore_window 期数据，使用长窗口计算的 Beta 构建对数价差
-            recent_base = recent_base_full.iloc[-zscore_window:]
-            recent_alt = recent_alt_full.iloc[-zscore_window:]
-            log_base = np.log(recent_base)
-            log_alt = np.log(recent_alt)
-            spread = log_alt - rolling_beta * log_base
+            adf_result = adfuller(spread_clean, autolag='AIC')
+            p_value = adf_result[1]
+            adf_statistic = adf_result[0]
 
-            # 9. 非平稳：终止计算
+            # 分级判定平稳性
+            strong_threshold = DelayCorrelationAnalyzer.STATIONARITY_STRONG_THRESHOLD
+            weak_threshold = DelayCorrelationAnalyzer.STATIONARITY_WEAK_THRESHOLD
+            
+            if p_value < strong_threshold:
+                stationarity_level = StationarityLevel.STRONG
+            elif p_value < weak_threshold:
+                stationarity_level = StationarityLevel.WEAK
+            else:
+                stationarity_level = StationarityLevel.NON_STATIONARY
+
+            # 记录检验结果
+            coin_info = f" | 币种: {coin}" if coin else ""
+            if stationarity_level == StationarityLevel.STRONG:
+                logger.debug(
+                    f"平稳性检验通过（强平稳，OLS回归）| ADF统计量: {adf_statistic:.4f} | "
+                    f"p-value: {p_value:.4f} < {strong_threshold} | "
+                    f"α={alpha:.4f}, β={beta_ols:.4f} | 等级: {stationarity_level.chinese_name}"
+                    f"{coin_info}"
+                )
+            elif stationarity_level == StationarityLevel.WEAK:
+                logger.info(
+                    f"平稳性检验通过（弱平稳，OLS回归）| ADF统计量: {adf_statistic:.4f} | "
+                    f"p-value: {p_value:.4f} ∈ [{strong_threshold}, {weak_threshold}) | "
+                    f"α={alpha:.4f}, β={beta_ols:.4f} | 等级: {stationarity_level.chinese_name}"
+                    f"{coin_info}"
+                )
+            else:
+                logger.info(
+                    f"平稳性检验失败（非平稳，OLS回归）| ADF统计量: {adf_statistic:.4f} | "
+                    f"p-value: {p_value:.4f} >= {weak_threshold} | "
+                    f"α={alpha:.4f}, β={beta_ols:.4f} | 等级: {stationarity_level.chinese_name}"
+                    f"{coin_info}"
+                )
+
+            # 8. 非平稳：终止计算
             if stationarity_level == StationarityLevel.NON_STATIONARY:
                 coin_info = f" | 币种: {coin}" if coin else ""
                 logger.info(
@@ -717,7 +756,7 @@ class DelayCorrelationAnalyzer:
                 )
                 return None, stationarity_level, p_value
 
-            # 10. 弱平稳：发出警告但继续计算
+            # 9. 弱平稳：发出警告但继续计算
             if stationarity_level == StationarityLevel.WEAK:
                 coin_info = f" | 币种: {coin}" if coin else ""
                 logger.info(
@@ -725,6 +764,14 @@ class DelayCorrelationAnalyzer:
                     f"平稳性检验处于边缘区域（{stationarity_level.chinese_name}），建议谨慎交易"
                     f"{coin_info}"
                 )
+
+            # 10. 价差构建（用于Z-score计算：使用短窗口保持敏感度）
+            # 取最近 zscore_window 期数据，使用长窗口计算的OLS参数构建对数价差
+            recent_base = recent_base_full.iloc[-zscore_window:]
+            recent_alt = recent_alt_full.iloc[-zscore_window:]
+            log_base = np.log(recent_base)
+            log_alt = np.log(recent_alt)
+            spread = log_alt - (alpha + beta_ols * log_base)
 
             # 11. 计算统计量（修复样本偏差：使用前window-1期数据，排除当前值）
             # 避免"用样本测试样本本身"的问题，防止Z-score被系统性低估
@@ -751,96 +798,6 @@ class DelayCorrelationAnalyzer:
             coin_info = f" | 币种: {coin}" if coin else ""
             logger.warning(f"Z-score 计算异常：{type(e).__name__}: {str(e)}{coin_info}", exc_info=True)
             return None, None, None
-
-    @staticmethod
-    def _check_spread_stationarity(spread: pd.Series,
-                                    strong_threshold: float = None,
-                                    weak_threshold: float = None,
-                                    coin: str = None) -> tuple['StationarityLevel', float]:
-        """
-        检验价差序列的平稳性（增强版：分级判定）
-
-        平稳性是配对交易的核心假设：价差序列必须是平稳的，
-        才能保证均值回归性质，从而使 Z-score 的套利信号有效。
-
-        Args:
-            spread: 价差序列（pandas Series）
-            strong_threshold: 强平稳阈值（默认使用类常量 STATIONARITY_STRONG_THRESHOLD）
-            weak_threshold: 弱平稳阈值（默认使用类常量 STATIONARITY_WEAK_THRESHOLD）
-            coin: 币种名称（可选，用于日志）
-
-        Returns:
-            tuple: (stationarity_level, p_value)
-                - stationarity_level: 平稳性等级（StationarityLevel枚举）
-                - p_value: ADF 检验的 p 值
-
-        平稳性等级判定规则:
-            - STRONG (强平稳): p < 0.05, 统计学上显著平稳,高质量信号
-            - WEAK (弱平稳): 0.05 <= p < 0.10, 探索性分析可接受,弱信号
-            - NON_STATIONARY (非平稳): p >= 0.10, 不适合配对交易,过滤
-
-        Note:
-            - ADF 检验的原假设（H0）：序列是非平稳的
-            - 如果 p-value < 0.05，拒绝原假设，认为序列是强平稳的
-            - 如果 0.05 <= p-value < 0.10，弱平稳，仅作为探索性信号
-            - 如果价差非平稳（p >= 0.10），不应计算 Z-score
-        """
-        # 参数默认值处理
-        if strong_threshold is None:
-            strong_threshold = DelayCorrelationAnalyzer.STATIONARITY_STRONG_THRESHOLD
-        if weak_threshold is None:
-            weak_threshold = DelayCorrelationAnalyzer.STATIONARITY_WEAK_THRESHOLD
-
-        try:
-            # 1. 移除 NaN 值
-            spread_clean = spread.dropna()
-
-            # 2. 检查数据量是否足够（ADF 检验至少需要 20 个数据点）
-            if len(spread_clean) < 20:
-                coin_info = f" | 币种: {coin}" if coin else ""
-                logger.debug(f"平稳性检验失败：数据点不足 | 需要: 20, 实际: {len(spread_clean)}{coin_info}")
-                return StationarityLevel.NON_STATIONARY, 1.0  # 返回 p=1.0 表示无法拒绝非平稳假设
-
-            # 3. 执行 ADF 检验
-            result = adfuller(spread_clean, autolag='AIC')
-            adf_statistic = result[0]
-            p_value = result[1]
-
-            # 4. 分级判定平稳性
-            if p_value < strong_threshold:
-                level = StationarityLevel.STRONG
-            elif p_value < weak_threshold:
-                level = StationarityLevel.WEAK
-            else:
-                level = StationarityLevel.NON_STATIONARY
-
-            # 5. 记录检验结果（分级日志）
-            coin_info = f" | 币种: {coin}" if coin else ""
-            if level == StationarityLevel.STRONG:
-                logger.debug(
-                    f"平稳性检验通过（强平稳）| ADF统计量: {adf_statistic:.4f} | "
-                    f"p-value: {p_value:.4f} < {strong_threshold} | 等级: {level.chinese_name}"
-                    f"{coin_info}"
-                )
-            elif level == StationarityLevel.WEAK:
-                logger.info(
-                    f"平稳性检验通过（弱平稳）| ADF统计量: {adf_statistic:.4f} | "
-                    f"p-value: {p_value:.4f} ∈ [{strong_threshold}, {weak_threshold}) | 等级: {level.chinese_name}"
-                    f"{coin_info}"
-                )
-            else:
-                logger.info(
-                    f"平稳性检验失败（非平稳）| ADF统计量: {adf_statistic:.4f} | "
-                    f"p-value: {p_value:.4f} >= {weak_threshold} | 等级: {level.chinese_name}"
-                    f"{coin_info}"
-                )
-
-            return level, p_value
-
-        except Exception as e:
-            coin_info = f" | 币种: {coin}" if coin else ""
-            logger.warning(f"平稳性检验异常：{type(e).__name__}: {str(e)}{coin_info}", exc_info=True)
-            return StationarityLevel.NON_STATIONARY, 1.0
 
     @staticmethod
     def _get_trading_direction(zscore: float, coin: str) -> tuple[str, str]:
@@ -1562,13 +1519,15 @@ class DelayCorrelationAnalyzer:
                 price_data = price_data_cache[stats_period_key]
 
                 # 使用增强版函数，同时获取 Z-score、平稳性等级和 p-value
-                # 双窗口策略：Beta（基于对数价格）使用长窗口（BETA_WINDOW）构建价差，统计量使用短窗口（ZSCORE_WINDOW）
-                # 重要：所有统计检验（Beta/ADF）均基于配置周期数据，确保统计有效性
+                # 方法：OLS回归（Engle-Granger两步法）
+                # 双窗口策略：OLS回归使用长窗口（BETA_WINDOW）计算协整参数（α, β），统计量使用短窗口（ZSCORE_WINDOW）
+                # 价差公式：spread = log(ALT) - (α + β × log(BASE))
+                # 重要：所有统计检验（OLS/ADF）均基于配置周期数据，确保统计有效性
                 zscore_result, stationarity_level_result, p_value_result = self._calculate_zscore_with_level(
                     price_data['base_prices'],
                     price_data['alt_prices'],
                     window=self.ZSCORE_WINDOW,
-                    beta_window=self.BETA_WINDOW,  # 双窗口策略
+                    beta_window=self.BETA_WINDOW,  # 双窗口策略：OLS回归窗口
                     coin=coin
                 )
                 
