@@ -152,7 +152,7 @@ class DelayCorrelationAnalyzer:
     ENABLE_ZSCORE_CHECK = True
     # Z-score 阈值，超过此值才认为是显著的套利机会
     # ZSCORE_THRESHOLD = 2.0  # 标准差倍数
-    ZSCORE_THRESHOLD = 1.5  # 测试值
+    ZSCORE_THRESHOLD = 1.0  # 测试值
     # ========== 双窗口策略配置 ==========
     # OLS回归窗口（长期关系窗口，用于 Z-score 价差构建）
     # 目的：使用更长窗口进行OLS回归计算协整参数（α, β），捕捉稳定的基准币种-ALT 价格关系

@@ -16,6 +16,13 @@ from typing import Union, Tuple, Optional
 from utils.lark_bot import sender
 from utils.config import lark_bot_id
 
+from cointegration_no_lookahead import (
+    calculate_cointegration_params_rolling,
+    calculate_spread_rolling_simple
+)
+
+from zscore_calculation_example import calculate_zscore_methods, get_current_zscore
+
 
 def setup_logging(log_file="hyperliquid.log", level=logging.DEBUG):
     """
@@ -589,129 +596,81 @@ class DelayCorrelationAnalyzer:
         return spread
 
     @staticmethod
-    def price_diff_spread_ols_full(base_prices: pd.Series, alt_prices: pd.Series) -> pd.Series:
-        coin="PURR/USDC:USDC"
-        # 协整检验（基于配置周期数据）
-        ols_params = DelayCorrelationAnalyzer._calculate_cointegration_params(
-            base_prices, alt_prices, coin=coin
-        )
-        spread = ols_params['spread']
-        return spread
-
-
-    @staticmethod
-    def _calculate_beta_from_prices(base_prices: pd.Series, alt_prices: pd.Series, coin: str = None) -> Optional[float]:
-        """
-        基于对数价格计算 Beta 系数（全样本计算）
-
-        本函数通过对数价格的协方差和方差计算 Beta 系数，适用于价差序列构建和 Z-score 计算。
-        公式：β = Cov(log_BASE_prices, log_ALT_prices) / Var(log_BASE_prices)
-
-        与 _calculate_beta() 的区别：
-        - _calculate_beta()：基于收益率序列，用于波动率分析和风险评估
-        - _calculate_beta_from_prices()：基于对数价格序列，用于协整关系和价差构建
-
-        与 _calculate_rolling_beta_from_prices() 的区别：
-        - _calculate_beta_from_prices()：使用传入序列的全部数据计算 Beta（全样本）
-        - _calculate_rolling_beta_from_prices()：从传入序列的最后 window 个点计算 Beta（滚动窗口）
-
-        应用场景：
-        - Z-score 计算：用于构建对数价差序列 spread = log(ALT) - β × log(BASE)
-        - 协整分析：评估价格序列的长期均衡关系
-        - 对冲比例：β 值反映价格层面的对冲比例
-
-        Args:
-            base_prices: 基准币种价格序列（pandas Series）
-            alt_prices: 山寨币价格序列（pandas Series）
-            coin: 币种名称（可选，用于日志）
-
-        Returns:
-            float: Beta 系数值（基于对数价格，全样本）
-            None: 如果计算失败
-
-        Note:
-            - 使用对数价格可以消除价格量级差异（基准币种 50000 vs ALT 0.01）
-            - 对数价格的线性关系更稳定，符合协整理论和配对交易实践
-            - Z-score 计算使用此函数（数据已预先截取为 window-1 个点，无需滚动窗口函数）
-            - 对数变换后 Beta 不等同于收益率 Beta，两者衡量不同维度的关系
-        """
-        # 1. 数据长度检查
-        if len(base_prices) != len(alt_prices):
-            coin_info = f" | 币种: {coin}" if coin else ""
-            logger.warning(f"价格 Beta 计算失败：基准币种和 ALT 数据长度不一致 | "
-                          f"基准币种: {len(base_prices)}, ALT: {len(alt_prices)}"
-                          f"{coin_info}")
-            return None
-
-        # 2. 最小数据点检查
-        if len(base_prices) < DelayCorrelationAnalyzer.MIN_POINTS_FOR_BETA_CALC:
-            return None
-
-        try:
-            # 3. 计算对数价格
-            log_base = np.log(base_prices)
-            log_alt = np.log(alt_prices)
-
-            # 4. 计算协方差矩阵
-            cov_matrix = np.cov(log_base, log_alt)
-            covariance = cov_matrix[0, 1]
-            base_variance = cov_matrix[0, 0]
-
-            # 5. 检查基准币种方差是否为 0
-            if base_variance == 0 or np.isnan(base_variance):
-                coin_info = f" | 币种: {coin}" if coin else ""
-                logger.debug(f"价格 Beta 计算失败：基准币种对数价格方差为 0 或 NaN{coin_info}")
-                return None
-
-            # 6. 计算 Beta 系数（基于对数价格）
-            # β = Cov(log_BASE, log_ALT) / Var(log_BASE)
-            beta = covariance / base_variance
-
-            # 7. 检查结果有效性
-            if np.isnan(beta) or np.isinf(beta):
-                coin_info = f" | 币种: {coin}" if coin else ""
-                logger.debug(f"价格 Beta 计算失败：结果为 NaN 或 Inf | Beta: {beta}{coin_info}")
-                return None
-
-            return beta
-
-        except Exception as e:
-            coin_info = f" | 币种: {coin}" if coin else ""
-            logger.warning(f"价格 Beta 计算异常：{type(e).__name__}: {str(e)}{coin_info}", exc_info=True)
-            return None
-
-    @staticmethod
-    def price_diff_spread_simple(base_prices: pd.Series, alt_prices: pd.Series, beta_window: int = 100, zscore_window: int = 30) -> pd.Series:
+    def price_diff_spread_compare(base: pd.Series, alt: pd.Series, beta_window: int = 100, zscore_window: int = 30) -> pd.Series:
         """
         计算价格差价（简单对数价格差）
         """
-        coin="PURR/USDC:USDC"
-      # ========== 双窗口策略实现 ==========
-        # 4. 数据切片：取足够计算 Beta 和统计量的数据
-        data_window = max(beta_window, zscore_window)
-        recent_base_full = base_prices.iloc[-data_window:]
-        recent_alt_full = alt_prices.iloc[-data_window:]
+        # 方法对比
+        results = calculate_zscore_methods(base, alt, window=100)
 
-        # 5. Beta 系数计算（长窗口，基于对数价格）
-        # 使用前 beta_window-1 个点计算 Beta（避免 look-ahead bias）
-        # 公式：β = Cov(log_BASE, log_ALT) / Var(log_BASE)
-        # 用途：构建价差序列 spread = log(ALT) - β × log(BASE)
-        beta_base = recent_base_full.iloc[:-1]
-        beta_alt = recent_alt_full.iloc[:-1]
-        rolling_beta = DelayCorrelationAnalyzer._calculate_beta_from_prices(
-            beta_base, beta_alt, coin=coin
-        )
-        if rolling_beta is None:
-            return None, None, None
+        if results:
+            print("\n各方法计算的最近5个z-score:")
+            print("-" * 70)
 
-        # 8. 价差构建（用于Z-score计算：使用短窗口保持敏感度）
-        # 取最近 zscore_window 期数据，使用长窗口计算的 Beta 构建对数价差
-        recent_base = recent_base_full.iloc[-zscore_window:]
-        recent_alt = recent_alt_full.iloc[-zscore_window:]
-        log_base = np.log(recent_base)
-        log_alt = np.log(recent_alt)
-        spread = log_alt - rolling_beta * log_base
-        return spread
+            for method_name, zscore_series in [
+                ("无前瞻偏差 (推荐回测)", results['zscore_no_lookahead']),
+                ("滚动窗口", results['zscore_rolling']),
+                ("固定窗口", results['zscore_fixed_window']),
+                ("全历史 (含bias)", results['zscore_full'])
+            ]:
+                print(f"\n{method_name}:")
+                print(f"  最近5个值: {zscore_series.tail().values}")
+                print(f"  当前值: {zscore_series.iloc[-1]:.4f}")
+                print(f"  均值: {zscore_series.mean():.4f}, 标准差: {zscore_series.std():.4f}")
+
+        print("\n" + "=" * 70)
+        print("实盘交易场景 - 获取当前z-score")
+        print("=" * 70)
+
+        current_z = get_current_zscore(base, alt, window=100, zscore_window=100)
+
+        if current_z is not None:
+            print(f"\n当前z-score: {current_z:.4f}")
+
+            # 交易信号
+            if current_z > 2:
+                print("📉 信号: 价差过高,考虑做空价差 (买base,卖alt)")
+            elif current_z < -2:
+                print("📈 信号: 价差过低,考虑做多价差 (卖base,买alt)")
+            else:
+                print("⏸️  信号: 价差在正常范围,观望")
+
+        print("\n" + "=" * 70)
+        print("可视化z-score")
+        print("=" * 70)
+
+        if results:
+            import matplotlib.pyplot as plt
+
+            fig, axes = plt.subplots(2, 1, figsize=(14, 10))
+
+            # 价差图
+            results['spread'].plot(ax=axes[0], label='Spread', color='blue')
+            axes[0].axhline(y=results['spread'].mean(), color='r', linestyle='--', label='Mean')
+            axes[0].axhline(y=results['spread'].mean() + 2*results['spread'].std(),
+                        color='orange', linestyle='--', label='+2σ')
+            axes[0].axhline(y=results['spread'].mean() - 2*results['spread'].std(),
+                        color='orange', linestyle='--', label='-2σ')
+            axes[0].set_title('Price Spread Over Time')
+            axes[0].legend()
+            axes[0].grid(True, alpha=0.3)
+
+            # z-score图
+            results['zscore_rolling'].plot(ax=axes[1], label='Rolling Z-Score', color='green')
+            axes[1].axhline(y=0, color='black', linestyle='-', linewidth=0.8)
+            axes[1].axhline(y=2, color='red', linestyle='--', label='±2σ threshold')
+            axes[1].axhline(y=-2, color='red', linestyle='--')
+            axes[1].fill_between(results['zscore_rolling'].index,
+                                -2, 2, alpha=0.2, color='green')
+            axes[1].set_title('Z-Score Over Time (Entry/Exit Signals)')
+            axes[1].legend()
+            axes[1].grid(True, alpha=0.3)
+
+            plt.tight_layout()
+            plt.savefig('zscore_analysis.png', dpi=100)
+            print("\nZ-score分析图已保存: zscore_analysis.png")
+
+
 
     @staticmethod
     def _calculate_zscore_with_level(
@@ -775,45 +734,31 @@ class DelayCorrelationAnalyzer:
                 return None, None, None
 
         try:
-            # 计算三种价格差价
             # 双窗口策略：OLS回归使用长窗口（稳定），统计量使用短窗口（敏感）。
-            spread_ols_window = DelayCorrelationAnalyzer.price_diff_spread_ols_window(base_prices, alt_prices, beta_window, zscore_window)
-            # 全样本策略：使用全样本计算OLS回归参数
-            spread_ols_full = DelayCorrelationAnalyzer.price_diff_spread_ols_full(base_prices, alt_prices)
-            # 简单对数价格差
-            spread_simple = DelayCorrelationAnalyzer.price_diff_spread_simple(base_prices, alt_prices, beta_window, zscore_window)
+            spread = DelayCorrelationAnalyzer.price_diff_spread_ols_window(base_prices, alt_prices, beta_window, zscore_window)
+            # 调试信息：记录价差序列的长度和统计量
+            # spread_len = len(spread)
+            spread_mean = spread.iloc[:-1].mean()
+            spread_std = spread.iloc[:-1].std()
+            current_spread = spread.iloc[-1]
 
-            method_names = ["ols_window", "ols_full", "simple"]
-            for index, (spread, method_name) in enumerate(zip([spread_ols_window, spread_ols_full, spread_simple], method_names), start=1):
-                # 调试信息：记录价差序列的长度和统计量
-                spread_len = len(spread)
-                spread_mean = spread.iloc[:-1].mean()
-                spread_std = spread.iloc[:-1].std()
-                current_spread = spread.iloc[-1]
-                
-                logger.info(
-                    f"方法 {index} ({method_name}): "
-                    f"价差序列长度={spread_len}, "
-                    f"统计量样本数={spread_len-1}, "
-                    f"均值={spread_mean:.6f}, "
-                    f"标准差={spread_std:.6f}, "
-                    f"当前价差={current_spread:.6f}"
-                )
+            # 对比测试分析 
+            spread_compare = DelayCorrelationAnalyzer.price_diff_spread_compare(base_prices, alt_prices, beta_window, zscore_window)
 
-                # 8. 检查统计量有效性
-                if pd.isna(spread_mean) or pd.isna(spread_std):
-                    return None, None, None
+            # 8. 检查统计量有效性
+            if pd.isna(spread_mean) or pd.isna(spread_std):
+                return None, None, None
 
-                if spread_std == 0 or np.isnan(spread_std):
-                    return None, None, None
+            if spread_std == 0 or np.isnan(spread_std):
+                return None, None, None
 
-                # 9. 计算当前 Z-score（修复：使用当前窗口的最后一个价差值）
-                zscore = (current_spread - spread_mean) / spread_std
+            # 9. 计算当前 Z-score（修复：使用当前窗口的最后一个价差值）
+            zscore = (current_spread - spread_mean) / spread_std
 
-                logger.info(f"Z-score: {index} ({method_name}): {zscore}")
+            logger.info(f"Z-score: 双窗口策略：OLS回归使用长窗口（稳定），统计量使用短窗口（敏感）。: {zscore}")
 
-                if np.isnan(zscore) or np.isinf(zscore):
-                    return None, None, None
+            if np.isnan(zscore) or np.isinf(zscore):
+                return None, None, None
 
             return float(zscore), None, None
 
