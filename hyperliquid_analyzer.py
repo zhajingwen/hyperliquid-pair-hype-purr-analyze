@@ -156,8 +156,8 @@ class DelayCorrelationAnalyzer:
     # 是否启用 Z-score 检查（默认启用）
     ENABLE_ZSCORE_CHECK = True
     # Z-score 阈值，超过此值才认为是显著的套利机会
-    ZSCORE_THRESHOLD = 2.0  # 标准差倍数
-
+    # ZSCORE_THRESHOLD = 2.0  # 标准差倍数
+    ZSCORE_THRESHOLD = 1.5  # 测试值
     # ========== 双窗口策略配置 ==========
     # Beta 系数计算窗口（长期关系窗口，用于 Z-score 价差构建）
     # 目的：使用更长窗口计算基于对数价格的 Beta，捕捉稳定的基准币种-ALT 价格关系
@@ -1533,14 +1533,26 @@ class DelayCorrelationAnalyzer:
 
                 if ols_params is None or ols_params['adf_pvalue'] >= 0.05:
                     coin_info = f" | 币种: {coin}" if coin else ""
-                    adf_pvalue_str = f"{ols_params['adf_pvalue']:.4f}" if ols_params else 'N/A'
-                    logger.info(
-                        f"协整检验未通过（基于{self.STATS_PERIOD}周期数据），过滤信号 | "
-                        f"相关系数: {max_long_corr:.4f} | "
-                        f"ADF p-value: {adf_pvalue_str} >= 0.05 | "
-                        f"原因: 价差非平稳，不适合配对交易"
-                        f"{coin_info}"
-                    )
+                    if ols_params:
+                        adf_pvalue_str = f"{ols_params['adf_pvalue']:.4f}"
+                        alpha_str = f"{ols_params['alpha']:.4f}"
+                        beta_str = f"{ols_params['beta']:.4f}"
+                        logger.info(
+                            f"协整检验未通过（基于{self.STATS_PERIOD}周期数据），过滤信号 | "
+                            f"相关系数: {max_long_corr:.4f} | "
+                            f"α={alpha_str}, β={beta_str} | "
+                            f"ADF p-value: {adf_pvalue_str} >= 0.05 | "
+                            f"原因: 价差非平稳，不适合配对交易"
+                            f"{coin_info}"
+                        )
+                    else:
+                        logger.info(
+                            f"协整检验未通过（基于{self.STATS_PERIOD}周期数据），过滤信号 | "
+                            f"相关系数: {max_long_corr:.4f} | "
+                            f"ADF p-value: N/A | "
+                            f"原因: OLS参数计算失败"
+                            f"{coin_info}"
+                        )
                     # is_anomaly = False  # ⚠️ 协整失败，拒绝信号
                 else:
                     # 协整检验通过，输出详细信息
