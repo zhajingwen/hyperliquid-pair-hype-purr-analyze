@@ -126,7 +126,7 @@ class DelayCorrelationAnalyzer:
     SHORT_TERM_CORR_THRESHOLD = 0.2  
 
     # 相关系数差值阈值，如果小于这个值就不告警
-    CORR_DIFF_THRESHOLD = 0.1
+    CORR_DIFF_THRESHOLD = 0.5
 
     # ========== 新增：异常值处理配置 ==========
     # Winsorization 分位数配置
@@ -199,7 +199,7 @@ class DelayCorrelationAnalyzer:
         # 保留双周期组合用于相关性对比：5分钟K线7天，1小时K线30天
         # Beta/协整/ADF检验将使用配置周期(STATS_PERIOD)数据计算
         self.combinations = default_combinations or [("5m", "7d"), ("1h", "30d")]
-        self.short_periods = ['30d']
+        self.short_periods = ['7d']
         self.long_periods = ['60d']
         # 基准币种交易对：作为参考基准，用于计算与其他山寨币的相关系数和Beta系数
         # 当前使用 HYPE/USDC:USDC 作为基准币种
