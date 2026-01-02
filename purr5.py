@@ -1045,10 +1045,10 @@ class DelayCorrelationAnalyzer:
             # 根据平稳性等级调整信号描述
             if stationarity_level == StationarityLevel.STRONG:
                 # 强平稳：标准套利信号输出
-                if abs_zscore > 3:
+                if abs_zscore > 2.0:
                     signal_strength = "强"
                     emoji = "🔥"
-                elif abs_zscore > 2:
+                elif abs_zscore > 1.7:
                     signal_strength = "中等"
                     emoji = "📊"
                 else:
