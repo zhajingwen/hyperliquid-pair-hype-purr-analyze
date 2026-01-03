@@ -141,11 +141,11 @@ class DelayCorrelationAnalyzer:
     # Z-score 阈值，超过此值才认为是显著的套利机会
     # ZSCORE_THRESHOLD = 2.0  # 标准差倍数
     # 长周期（4H）的Z-score阈值
-    # ZSCORE_THRESHOLD_LONG = 1.0  # 测试值
+    ZSCORE_THRESHOLD_LONG = 0.2  # 测试值
     # 中间周期（1H）的Z-score阈值
     ZSCORE_THRESHOLD_MIDDLE = 1.5  # 测试值
     # 短周期（5M）的Z-score阈值
-    ZSCORE_THRESHOLD_SHORT = 1.8  # 测试值
+    ZSCORE_THRESHOLD_SHORT = 2.0  # 测试值
     # ========== 双窗口策略配置 ==========
     # OLS回归窗口（长期关系窗口，用于 Z-score 价差构建）
     # 目的：使用更长窗口进行OLS回归计算协整参数（α, β），捕捉稳定的基准币种-ALT 价格关系
@@ -1162,7 +1162,7 @@ class DelayCorrelationAnalyzer:
         # 检查3个Z-score的符号是否一致，如果一致，则认为是一个套利机会
         if (direction >= 0) == (middle_zscore >= 0) == (short_zscore >= 0):
             # 长期定方向，中间和短周期做偏离阈值验证，如果都大于阈值，则认为是一个套利机会
-            if abs(middle_zscore) > self.ZSCORE_THRESHOLD_MIDDLE and abs(short_zscore) > self.ZSCORE_THRESHOLD_SHORT:
+            if abs(direction) > self.ZSCORE_THRESHOLD_LONG and abs(middle_zscore) > self.ZSCORE_THRESHOLD_MIDDLE and abs(short_zscore) > self.ZSCORE_THRESHOLD_SHORT:
                 return zscore_result_list
         return None
 
