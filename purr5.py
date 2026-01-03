@@ -145,7 +145,7 @@ class DelayCorrelationAnalyzer:
     # 中间周期（1H）的Z-score阈值
     ZSCORE_THRESHOLD_MIDDLE = 1.5  # 测试值
     # 短周期（5M）的Z-score阈值
-    ZSCORE_THRESHOLD_SHORT = 2.0  # 测试值
+    ZSCORE_THRESHOLD_SHORT = 1.8  # 测试值
     # ========== 双窗口策略配置 ==========
     # OLS回归窗口（长期关系窗口，用于 Z-score 价差构建）
     # 目的：使用更长窗口进行OLS回归计算协整参数（α, β），捕捉稳定的基准币种-ALT 价格关系
