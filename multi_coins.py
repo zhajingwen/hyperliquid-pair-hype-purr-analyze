@@ -1286,6 +1286,9 @@ class DelayCorrelationAnalyzer:
         
         for idx, coin in enumerate(usdc_coins, 1):
             logger.debug(f"检查币种: {coin}")
+            # 添加进度日志
+            percentage = idx * 100 // total
+            logger.info(f"分析进度: {idx}/{total} ({percentage}%) | 当前币种: {coin}")
             
             result = self._safe_execute(
                 self.one_coin_analysis,
