@@ -110,7 +110,7 @@ class DelayCorrelationAnalyzer:
     SHORT_TERM_CORR_THRESHOLD = 0.2  
 
     # 相关系数差值阈值，如果小于这个值就不告警
-    CORR_DIFF_THRESHOLD = 0.5
+    CORR_DIFF_THRESHOLD = 0.2
 
     # ========== 新增：异常值处理配置 ==========
     # Winsorization 分位数配置
