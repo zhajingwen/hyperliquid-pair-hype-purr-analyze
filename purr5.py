@@ -9,19 +9,17 @@ import numpy as np
 import pandas as pd
 from enum import Enum
 from retry import retry
-from logging.handlers import RotatingFileHandler
 from statsmodels.tsa.stattools import adfuller
 from sklearn.linear_model import LinearRegression
 from typing import Union, Tuple, Optional
 from utils.lark_bot import sender
 from utils.config import lark_bot_id
 
-def setup_logging(log_file="hyperliquid.log", level=logging.DEBUG):
+def setup_logging(level=logging.DEBUG):
     """
-    配置日志系统，支持控制台和文件输出
+    配置日志系统，仅输出到控制台
     
     Args:
-        log_file: 日志文件路径
         level: 日志级别
     
     Returns:
@@ -30,20 +28,14 @@ def setup_logging(log_file="hyperliquid.log", level=logging.DEBUG):
     # 使用固定的 logger 名称，而不是 __name__，避免在主模块中变成 __main__
     log = logging.getLogger('HyperliquidAnalyzer')
     
-    # 避免重复添加 handlers：检查是否已有相同类型的handler
+    # 避免重复添加 handlers：检查是否已有控制台handler
     has_console_handler = any(
         isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler)
         for h in log.handlers
     )
-    # 检查文件handler：检查是否有RotatingFileHandler类型的handler
-    # 由于我们只使用RotatingFileHandler，简单检查类型即可
-    has_file_handler = any(
-        isinstance(h, RotatingFileHandler)
-        for h in log.handlers
-    )
     
-    # 如果handlers已存在，直接返回
-    if has_console_handler and has_file_handler:
+    # 如果handler已存在，直接返回
+    if has_console_handler:
         return log
     
     # 检查根logger是否已被配置（避免与其他模块的basicConfig冲突）
@@ -56,18 +48,10 @@ def setup_logging(log_file="hyperliquid.log", level=logging.DEBUG):
         datefmt='%Y-%m-%d %H:%M:%S'
     )
     
-    # 只添加缺失的handler
-    if not has_console_handler:
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(formatter)
-        log.addHandler(console_handler)
-    
-    if not has_file_handler:
-        file_handler = RotatingFileHandler(
-            log_file, maxBytes=10*1024*1024, backupCount=5, encoding='utf-8'
-        )
-        file_handler.setFormatter(formatter)
-        log.addHandler(file_handler)
+    # 只添加控制台handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    log.addHandler(console_handler)
     
     # 配置 logger
     log.setLevel(level)
