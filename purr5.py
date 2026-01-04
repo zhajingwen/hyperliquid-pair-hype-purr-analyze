@@ -153,11 +153,8 @@ class DelayCorrelationAnalyzer:
     ENABLE_WEAK_SIGNAL_FEISHU = True
     # 向后兼容：保留原变量名
     STATIONARITY_SIGNIFICANCE_LEVEL = STATIONARITY_STRONG_THRESHOLD
-
-    # ========== 统计检验周期配置 ==========
-    # 统计检验使用的数据周期（OLS回归、Z-score、协整检验、ADF检验）
-    # 方法：使用OLS回归（Engle-Granger两步法）进行协整检验
-    STATS_PERIOD = '60d'  # 可选值: '60d'（长周期）或 '30d'（短周期）
+    # 老协整检验方案
+    STATS_PERIOD = ('4h', '60d')
 
     def __init__(self, exchange_name="kucoin", timeout=30000, default_combinations=None):
         """
@@ -490,15 +487,67 @@ class DelayCorrelationAnalyzer:
         log_base = np.log(recent_base)
         log_alt = np.log(recent_alt)
         spread = log_alt - (alpha + beta_ols * log_base)
-        return spread
 
-    @staticmethod
+        # 5. ADF检验价差平稳性（使用数值数组）
+        adf_result = adfuller(spread.values, autolag='AIC')
+        adf_pvalue = adf_result[1]
+
+        return {
+            'alpha': alpha,
+            'beta': beta_ols,
+            'spread': spread,
+            'adf_pvalue': adf_pvalue
+        }
+
+    def cointegration_analysis(self, cointegration_result: dict, method_type: str, coin: str = None, stats_period_key: tuple = None) -> dict:
+        """
+        协整分析
+        """
+
+        if cointegration_result is None or cointegration_result['adf_pvalue'] >= 0.05:
+            coin_info = f" | 币种: {coin} | 方法: {method_type}" if coin else ""
+            if cointegration_result:
+                adf_pvalue_str = f"{cointegration_result['adf_pvalue']:.4f}"
+                alpha_str = f"{cointegration_result['alpha']:.4f}"
+                beta_str = f"{cointegration_result['beta']:.4f}"
+                logger.info(
+                    # f"协整检验未通过（基于{self.STATS_PERIOD}周期数据），过滤信号 | "
+                    # f"相关系数: {max_long_corr:.4f} | "
+                    f" 协整检验未通过（基于{stats_period_key}周期数据） | "
+                    f"α={alpha_str}, β={beta_str} | "
+                    f"ADF p-value: {adf_pvalue_str} >= 0.05 | "
+                    f"原因: 价差非平稳，不适合配对交易"
+                    f"{coin_info}"
+                )
+            else:
+                logger.info(
+                    # f"协整检验未通过（基于{self.STATS_PERIOD}周期数据），过滤信号 | "
+                    # f"相关系数: {max_long_corr:.4f} | "
+                    f"✅ 协整检验未通过（基于{stats_period_key}周期数据） | "
+                    f"ADF p-value: N/A | "
+                    f"原因: OLS参数计算失败"
+                    f"{coin_info}"
+                )
+            # is_anomaly = False  # ⚠️ 协整失败，拒绝信号
+        else:
+            # 协整检验通过，输出详细信息
+            coin_info = f" | 币种: {coin}" if coin else ""
+            logger.info(
+                # f"✅ 协整检验通过（基于{self.STATS_PERIOD}周期数据） | "
+                f"✅ 协整检验通过（基于{stats_period_key}周期数据） | "
+                f"α={cointegration_result['alpha']:.4f}, β={cointegration_result['beta']:.4f}, "
+                f"ADF p-value={cointegration_result['adf_pvalue']:.4f} < 0.05"
+                f"{coin_info}"
+            )
+
     def _calculate_zscore(
+        self,
         base_prices: pd.Series,
         alt_prices: pd.Series,
         window: int = 20,
         beta_window: int = None,
-        coin: str = None
+        coin: str = None,
+        stats_period_key: tuple = None
     ) -> Tuple[Optional[float], Optional['StationarityLevel'], Optional[float]]:
         """
         计算 Z-score（基于OLS回归方法）
@@ -513,7 +562,7 @@ class DelayCorrelationAnalyzer:
             window: 统计量窗口大小（默认 20），实际使用 ZSCORE_WINDOW
             beta_window: OLS回归窗口大小（可选，默认 None 使用 BETA_WINDOW 类属性）
             coin: 币种名称（用于日志）
-
+            stats_period_key: 统计周期 ('5m', '7d') 或 ('1h', '30d') 或 ('4h', '60d')
         Returns:
             tuple: (zscore, stationarity_level, p_value)
                 - zscore: Z-score 值（如果计算失败则为 None）
@@ -554,8 +603,16 @@ class DelayCorrelationAnalyzer:
                 return None
 
         try:
+            # 协整检验（基于配置周期数据）(老方案)，全量数据
+            ols_params = DelayCorrelationAnalyzer._calculate_cointegration_params(
+                base_prices, alt_prices, coin=coin
+            )
+            self.cointegration_analysis(ols_params, 'old', coin, stats_period_key)
             # 双窗口策略：OLS回归使用长窗口（稳定），统计量使用短窗口（敏感）。
-            spread = DelayCorrelationAnalyzer.price_diff_spread_ols_window(base_prices, alt_prices, beta_window, zscore_window)
+            cointegration_result = DelayCorrelationAnalyzer.price_diff_spread_ols_window(base_prices, alt_prices, beta_window, zscore_window)
+            self.cointegration_analysis(cointegration_result, 'new', coin, stats_period_key)
+
+            spread = cointegration_result['spread']
             # 调试信息：记录价差序列的长度和统计量
             # spread_len = len(spread)
             spread_mean = spread.iloc[:-1].mean()
@@ -921,60 +978,6 @@ class DelayCorrelationAnalyzer:
             if any((x[3] > 0) for x in results if len(x) >= 4 and x[2] == '7d'):
                 is_anomaly = True
 
-        # ========== 新增：协整验证（论文方法）- 使用配置周期数据 ==========
-        if is_anomaly and price_data_cache is not None:
-            # 使用配置周期数据（STATS_PERIOD）进行协整检验，提高统计可靠性
-            # 优点：配置周期数据样本量足够时，协整关系更稳定，减少虚假信号
-            cointegration_key = None
-            for tf, p in price_data_cache.keys():
-                if p == self.STATS_PERIOD:  # 使用配置的统计检验周期
-                    cointegration_key = (tf, p)
-                    break
-
-            if cointegration_key and cointegration_key in price_data_cache:
-                price_data = price_data_cache[cointegration_key]
-                base_prices = price_data['base_prices']
-                alt_prices = price_data['alt_prices']
-
-                # 协整检验（基于配置周期数据）
-                ols_params = DelayCorrelationAnalyzer._calculate_cointegration_params(
-                    base_prices, alt_prices, coin=coin
-                )
-
-                if ols_params is None or ols_params['adf_pvalue'] >= 0.05:
-                    coin_info = f" | 币种: {coin}" if coin else ""
-                    if ols_params:
-                        adf_pvalue_str = f"{ols_params['adf_pvalue']:.4f}"
-                        alpha_str = f"{ols_params['alpha']:.4f}"
-                        beta_str = f"{ols_params['beta']:.4f}"
-                        logger.info(
-                            f"协整检验未通过（基于{self.STATS_PERIOD}周期数据），过滤信号 | "
-                            f"相关系数: {max_long_corr:.4f} | "
-                            f"α={alpha_str}, β={beta_str} | "
-                            f"ADF p-value: {adf_pvalue_str} >= 0.05 | "
-                            f"原因: 价差非平稳，不适合配对交易"
-                            f"{coin_info}"
-                        )
-                    else:
-                        logger.info(
-                            f"协整检验未通过（基于{self.STATS_PERIOD}周期数据），过滤信号 | "
-                            f"相关系数: {max_long_corr:.4f} | "
-                            f"ADF p-value: N/A | "
-                            f"原因: OLS参数计算失败"
-                            f"{coin_info}"
-                        )
-                    # is_anomaly = False  # ⚠️ 协整失败，拒绝信号
-                else:
-                    # 协整检验通过，输出详细信息
-                    coin_info = f" | 币种: {coin}" if coin else ""
-                    logger.info(
-                        f"✅ 协整检验通过（基于{self.STATS_PERIOD}周期数据） | "
-                        f"α={ols_params['alpha']:.4f}, β={ols_params['beta']:.4f}, "
-                        f"ADF p-value={ols_params['adf_pvalue']:.4f} < 0.05"
-                        f"{coin_info}"
-                    )
-        # =====================================
-
         return is_anomaly, diff_amount, min_short_corr, max_long_corr
 
 
@@ -1128,7 +1131,8 @@ class DelayCorrelationAnalyzer:
                     price_data['alt_prices'],
                     window=self.ZSCORE_WINDOW,
                     beta_window=self.BETA_WINDOW,  # 双窗口策略：OLS回归窗口
-                    coin=coin
+                    coin=coin,
+                    stats_period_key=stats_period_key
                 )
                 logger.info(f"Z-score: 周期 {stats_period_key} | 币种: {coin} | Z-score: {zscore_result}")
                 if zscore_result is not None:
