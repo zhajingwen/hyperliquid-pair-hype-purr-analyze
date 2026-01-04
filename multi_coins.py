@@ -1328,7 +1328,6 @@ class DelayCorrelationAnalyzer:
 if __name__ == "__main__":
     # 从短周期到长周期的顺序
     default_combinations = [('5m', '7d'), ('1h', '30d'), ('4h', '60d')]
-    while True:
-        analyzer = DelayCorrelationAnalyzer(exchange_name="hyperliquid", default_combinations=default_combinations)
-        analyzer.run()
-        time.sleep(3)
+    analyzer = DelayCorrelationAnalyzer(exchange_name="hyperliquid", default_combinations=default_combinations)
+    analyzer.run()
+    time.sleep(3)
