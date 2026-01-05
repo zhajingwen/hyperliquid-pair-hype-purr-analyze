@@ -1,6 +1,6 @@
 # 功能：分析山寨币与基准币种的皮尔逊相关系数，识别存在时间差套利空间的异常币种
 # 原理：通过计算不同时间周期和延迟下的相关系数，找出短期低相关但长期高相关的币种
-# 基准币种：当前使用 HYPE/USDC:USDC 作为参考基准，用于计算相关系数、Beta系数和Z-score
+# 基准币种：由 base_symbol 指定，作为参考基准，用于计算相关系数、Beta系数和Z-score
 
 import ccxt
 import time
@@ -89,7 +89,7 @@ class DelayCorrelationAnalyzer:
     """
     山寨币与基准币种相关系数分析器
 
-    通过分析山寨币与基准币种（当前为 HYPE/USDC:USDC）的相关系数，
+    通过分析山寨币与基准币种（由 base_symbol 指定）的相关系数，
     识别短期低相关但长期高相关的异常币种，这类币种存在时间差套利机会。
     
     核心功能：
@@ -177,8 +177,7 @@ class DelayCorrelationAnalyzer:
         self.short_periods = ['7d']
         self.long_periods = ['60d']
         # 基准币种交易对：作为参考基准，用于计算与其他山寨币的相关系数和Beta系数
-        # 当前使用 HYPE/USDC:USDC 作为基准币种
-        self.base_symbol = "HYPE/USDC:USDC"
+        self.base_symbol = "TON/USDC:USDC"
         # 基准币种数据缓存：缓存不同时间周期和周期的基准币种K线数据
         self.base_df_cache = {}
         # 山寨币数据缓存：缓存不同山寨币的K线数据
@@ -503,9 +502,9 @@ class DelayCorrelationAnalyzer:
         """
         协整分析
         """
+        coin_info = f" | 币种: {coin} | 方法: {method_type}" if coin else ""
 
         if cointegration_result is None or cointegration_result['adf_pvalue'] >= 0.05:
-            coin_info = f" | 币种: {coin} | 方法: {method_type}" if coin else ""
             if cointegration_result:
                 adf_pvalue_str = f"{cointegration_result['adf_pvalue']:.4f}"
                 alpha_str = f"{cointegration_result['alpha']:.4f}"
@@ -527,7 +526,6 @@ class DelayCorrelationAnalyzer:
             # is_anomaly = False  # ⚠️ 协整失败，拒绝信号
         else:
             # 协整检验通过，输出详细信息
-            coin_info = f" | 币种: {coin}" if coin else ""
             logger.info(
                 f"✅ 协整检验通过（基于{stats_period_key}周期数据） | "
                 f"α={cointegration_result['alpha']:.4f}, β={cointegration_result['beta']:.4f} | "
@@ -655,7 +653,7 @@ class DelayCorrelationAnalyzer:
                 - 方向代码: "short_alt_long_base" 或 "long_alt_short_base"
         
         Note:
-            基准币种由 self.base_symbol 指定，当前为 HYPE/USDC:USDC
+            基准币种由 self.base_symbol 指定
         """
         if zscore > 0:
             # 价差偏高，预期回归 → 做空山寨币，做多基准币种
@@ -1136,6 +1134,10 @@ class DelayCorrelationAnalyzer:
                     logger.warning(f"Z-score 计算失败，{stats_period_key} | 币种: {coin}")
         else:
             return None
+        # 检查是否有足够的Z-score结果
+        if len(zscore_result_list) < 3:
+            logger.warning(f"Z-score 结果不足，需要3个周期，实际只有 {len(zscore_result_list)} 个 | 币种: {coin}")
+            return None
         # 长周期（4H）的Z-score
         direction = zscore_result_list[-1]
         # 中间周期（1H）的Z-score
@@ -1154,7 +1156,7 @@ class DelayCorrelationAnalyzer:
         """
         分析单个币种与基准币种的相关系数，识别异常模式（增强版：支持 Z-score 验证）
 
-        对指定的山寨币与基准币种（base_symbol，当前为 HYPE/USDC:USDC）进行相关性分析，
+        对指定的山寨币与基准币种（由 base_symbol 指定）进行相关性分析，
         包括相关系数计算、Beta系数计算、Z-score计算和平稳性检验。
 
         Args:
@@ -1254,30 +1256,27 @@ class DelayCorrelationAnalyzer:
     
     def run(self):
         """
-        分析PURR代币与基准币种的相关性
+        分析目标代币与基准币种的相关性
         
-        仅分析PURR/USDC:USDC永续合约，将其与基准币种（base_symbol）进行相关性分析，
+        分析目标代币的USDC永续合约，将其与基准币种（base_symbol）进行相关性分析，
         识别存在时间差套利机会的异常模式。
         
         注意：基准币种本身会被排除在分析列表之外。
         """
+        # 直接使用固定交易对，跳过 load_markets() 以加快启动速度
+        usdc_coins = ["NOT/USDC:USDC"]
+        total = len(usdc_coins)
+        
         logger.info(f"启动分析器 | 交易所: {self.exchange_name} | "
                     f"基准币种: {self.base_symbol} | "
-                    f"目标币种: PURR | "
+                    f"目标币种: {usdc_coins[0]} | "
                     f"K线组合: {self.combinations}")
         
-        # 直接使用固定交易对，跳过 load_markets() 以加快启动速度
-        usdc_coins = ["PURR/USDC:USDC"]
-        total = len(usdc_coins)
+        logger.info(f"发现 {total} 个 {usdc_coins[0]} 相关 USDC 永续合约交易对")
+        
         anomaly_count = 0
         skip_count = 0
         start_time = time.time()
-        
-        if total == 0:
-            logger.warning("未找到 PURR/USDC:USDC 交易对，请检查交易所是否支持该交易对")
-            return
-        
-        logger.info(f"发现 {total} 个 PURR 相关 USDC 永续合约交易对")
         
         # 进度里程碑：25%, 50%, 75%, 100%
         milestones = {max(1, int(total * p)) for p in [0.25, 0.5, 0.75, 1.0]}

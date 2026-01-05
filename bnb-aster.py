@@ -103,14 +103,13 @@ class DelayCorrelationAnalyzer:
     # 数据分析所需的最小数据点数
     MIN_DATA_POINTS_FOR_ANALYSIS = 50
 
-    # 异常模式检测阈值
+    # ========== 新增：相关系数阈值配置 ==========
     # 长期相关系数阈值，目标需要在下面这两个值的范围内，否则不告警
     LONG_TERM_CORR_THRESHOLD = 0.4
     # 短期相关系数阈值，
-    SHORT_TERM_CORR_THRESHOLD = 0.2  
-
+    SHORT_TERM_CORR_THRESHOLD = 0.6  
     # 相关系数差值阈值，如果小于这个值就不告警
-    CORR_DIFF_THRESHOLD = 0.5
+    CORR_DIFF_THRESHOLD = 0.01
 
     # ========== 新增：异常值处理配置 ==========
     # Winsorization 分位数配置
@@ -178,7 +177,7 @@ class DelayCorrelationAnalyzer:
         self.long_periods = ['60d']
         # 基准币种交易对：作为参考基准，用于计算与其他山寨币的相关系数和Beta系数
         # 当前使用 HYPE/USDC:USDC 作为基准币种
-        self.base_symbol = "HYPE/USDC:USDC"
+        self.base_symbol = "BNB/USDC:USDC"
         # 基准币种数据缓存：缓存不同时间周期和周期的基准币种K线数据
         self.base_df_cache = {}
         # 山寨币数据缓存：缓存不同山寨币的K线数据
@@ -1263,21 +1262,21 @@ class DelayCorrelationAnalyzer:
         """
         logger.info(f"启动分析器 | 交易所: {self.exchange_name} | "
                     f"基准币种: {self.base_symbol} | "
-                    f"目标币种: PURR | "
+                    # f"目标币种: PURR | "
                     f"K线组合: {self.combinations}")
         
         # 直接使用固定交易对，跳过 load_markets() 以加快启动速度
-        usdc_coins = ["PURR/USDC:USDC"]
+        usdc_coins = ["ASTER/USDC:USDC"]
         total = len(usdc_coins)
         anomaly_count = 0
         skip_count = 0
         start_time = time.time()
         
         if total == 0:
-            logger.warning("未找到 PURR/USDC:USDC 交易对，请检查交易所是否支持该交易对")
+            # logger.warning("未找到 PURR/USDC:USDC 交易对，请检查交易所是否支持该交易对")
             return
         
-        logger.info(f"发现 {total} 个 PURR 相关 USDC 永续合约交易对")
+        # logger.info(f"发现 {total} 个 PURR 相关 USDC 永续合约交易对")
         
         # 进度里程碑：25%, 50%, 75%, 100%
         milestones = {max(1, int(total * p)) for p in [0.25, 0.5, 0.75, 1.0]}
