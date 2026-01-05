@@ -479,6 +479,14 @@ class DelayCorrelationAnalyzer:
         alpha = model.intercept_
         beta_ols = model.coef_[0]
 
+        # 价差构建（用于计算ADF ADF检验用100期）
+        log_base_full = np.log(recent_base_full)  # 全部100期
+        log_alt_full = np.log(recent_alt_full)
+        spread_full = log_alt_full - (alpha + beta_ols * log_base_full)
+        # ADF检验价差平稳性
+        adf_result = adfuller(spread_full.values, autolag='AIC')
+        adf_pvalue = adf_result[1]
+
         # 6. 价差构建（用于Z-score计算：使用短窗口保持敏感度）
         # 取最近 zscore_window 期数据，使用长窗口计算的OLS参数构建对数价差
         recent_base = recent_base_full.iloc[-zscore_window:]
@@ -487,15 +495,11 @@ class DelayCorrelationAnalyzer:
         log_alt = np.log(recent_alt)
         spread = log_alt - (alpha + beta_ols * log_base)
 
-        # 5. ADF检验价差平稳性（使用数值数组）
-        adf_result = adfuller(spread.values, autolag='AIC')
-        adf_pvalue = adf_result[1]
-
         return {
-            'alpha': alpha,
-            'beta': beta_ols,
-            'spread': spread,
-            'adf_pvalue': adf_pvalue
+            'alpha': alpha, # 截距项（价格溢价/折价）
+            'beta': beta_ols, # OLS回归系数
+            'spread': spread, # 用于Z-score计算的价差序列
+            'adf_pvalue': adf_pvalue # ADF检验价差平稳性
         }
 
     def cointegration_analysis(self, cointegration_result: dict, method_type: str, coin: str = None, stats_period_key: tuple = None) -> dict:
