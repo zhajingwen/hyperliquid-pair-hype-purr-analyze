@@ -373,7 +373,7 @@ class DelayCorrelationAnalyzer:
 
     @staticmethod
     def _calculate_cointegration_params(base_prices: pd.Series, alt_prices: pd.Series,
-                                        coin: str = None) -> Optional[dict]:
+                                        coin: str = None, base_symbol: str = None) -> Optional[dict]:
         """
         使用OLS回归计算协整参数（验证性函数）
 
@@ -407,9 +407,10 @@ class DelayCorrelationAnalyzer:
             # 1. 数据验证
             if len(base_prices) != len(alt_prices):
                 coin_info = f" | 币种: {coin}" if coin else ""
+                base_symbol_info = f" | 基准币种: {base_symbol}" if base_symbol else ""
                 logger.warning(f"协整参数计算失败：基准币种和ALT数据长度不一致 | "
                               f"基准币种: {len(base_prices)}, ALT: {len(alt_prices)}"
-                              f"{coin_info}")
+                              f"{coin_info}{base_symbol_info}")
                 return None
 
             if len(base_prices) < 10:  # 最小数据点要求
@@ -604,7 +605,7 @@ class DelayCorrelationAnalyzer:
         try:
             # 协整检验（基于配置周期数据）(老方案)，全量数据
             ols_params = DelayCorrelationAnalyzer._calculate_cointegration_params(
-                base_prices, alt_prices, coin=coin
+                base_prices, alt_prices, coin=coin, base_symbol=self.base_symbol
             )
             self.cointegration_analysis(ols_params, 'old', coin, stats_period_key)
             # 双窗口策略：OLS回归使用长窗口（稳定），统计量使用短窗口（敏感）。
@@ -640,8 +641,7 @@ class DelayCorrelationAnalyzer:
             logger.warning(f"Z-score 计算异常：{type(e).__name__}: {str(e)}{coin_info}", exc_info=True)
             return None
 
-    @staticmethod
-    def _get_trading_direction(zscore: float, coin: str) -> tuple[str, str]:
+    def _get_trading_direction(self, zscore: float, coin: str) -> tuple[str, str]:
         """
         根据 Z-score 获取交易方向
         
@@ -655,25 +655,22 @@ class DelayCorrelationAnalyzer:
         
         Returns:
             tuple: (方向描述, 方向代码)
-                - 方向描述: "做空AR/做多基准币种" 或 "做多AR/做空基准币种"
+                - 方向描述: "做空{coin}/做多{基准币种}" 或 "做多{coin}/做空{基准币种}"（coin保留完整值）
                 - 方向代码: "short_alt_long_base" 或 "long_alt_short_base"
         
         Note:
-            基准币种由 self.base_symbol 指定，当前为 HYPE/USDC:USDC
+            基准币种由 self.base_symbol 指定
         """
         if zscore > 0:
             # 价差偏高，预期回归 → 做空山寨币，做多基准币种
-            coin_symbol = coin.split('/')[0]  # 提取币种符号，如 "AR"
-            return f"做空{coin_symbol}/做多基准币种", "short_alt_long_base"
+            return f"做空{coin}/做多{self.base_symbol}", "short_alt_long_base"
         elif zscore < 0:
             # 价差偏低，预期回归 → 做多山寨币，做空基准币种
-            coin_symbol = coin.split('/')[0]
-            return f"做多{coin_symbol}/做空基准币种", "long_alt_short_base"
+            return f"做多{coin}/做空{self.base_symbol}", "long_alt_short_base"
         else:
             return "无方向（Z-score=0）", "neutral"
 
-    @staticmethod
-    def find_optimal_delay(base_ret, alt_ret, max_lag=3,
+    def find_optimal_delay(self, base_ret, alt_ret, max_lag=3,
                            enable_outlier_treatment=None, coin: str = None):
         """
         寻找最优延迟 τ*（增强版：支持异常值处理）
@@ -700,8 +697,9 @@ class DelayCorrelationAnalyzer:
 
         # ========== 2. 异常值处理（如果启用）==========
         if enable_outlier_treatment:
+            base_symbol_name = self.base_symbol.split('/')[0]
             base_ret_processed = DelayCorrelationAnalyzer._winsorize_returns(
-                base_ret, coin="基准币种 (参考币种)"
+                base_ret, coin=f"{base_symbol_name} (参考币种)"
             )
             alt_ret_processed = DelayCorrelationAnalyzer._winsorize_returns(
                 alt_ret, coin=f"{coin} (目标币种)"
@@ -768,7 +766,7 @@ class DelayCorrelationAnalyzer:
         """
         cache_key = (timeframe, period)
         if cache_key in self.base_df_cache:
-            logger.debug(f"基准币种数据缓存命中 | {timeframe}/{period}")
+            logger.debug(f"基准币种数据缓存命中 | 基准币种: {self.base_symbol} | {timeframe}/{period}")
             return self.base_df_cache[cache_key].copy()
         
         logger.debug(f"基准币种数据缓存未命中，开始下载 | 基准币种: {self.base_symbol} | {timeframe}/{period}")
@@ -870,8 +868,8 @@ class DelayCorrelationAnalyzer:
         
         # 数据验证：检查数据量（数据存在但不足）
         if len(base_df_aligned) < self.MIN_DATA_POINTS_FOR_ANALYSIS or len(alt_df_aligned) < self.MIN_DATA_POINTS_FOR_ANALYSIS:
-            logger.warning(f"数据量不足，跳过 | 币种: {coin} | {timeframe}/{period} | 基准币种数据量: {len(base_df_aligned)} | 山寨币数据量: {len(alt_df_aligned)}")
-            logger.debug(f"币种: {coin} | {timeframe}/{period} 数据详情 | 基准币种: {base_df.head()}, length: {len(base_df)} | 山寨币: {alt_df.head()}, length: {len(alt_df)}")
+            logger.warning(f"数据量不足，跳过 | 币种: {coin} | {timeframe}/{period} | 基准币种({self.base_symbol})数据量: {len(base_df_aligned)} | 山寨币数据量: {len(alt_df_aligned)}")
+            logger.debug(f"币种: {coin} | {timeframe}/{period} 数据详情 | 基准币种({self.base_symbol}): {base_df.head()}, length: {len(base_df)} | 山寨币: {alt_df.head()}, length: {len(alt_df)}")
             return None
         
         return base_df_aligned, alt_df_aligned
@@ -1187,7 +1185,7 @@ class DelayCorrelationAnalyzer:
             base_df = self._get_base_data(timeframe, period)
             if base_df is None:
                 # 基准币种数据获取失败，跳过该组合
-                logger.warning(f"基准币种数据获取失败，跳过组合 | 币种: {coin} | {timeframe}/{period}")
+                logger.warning(f"基准币种数据获取失败，跳过组合 | 币种: {coin} | {timeframe}/{period} | 基准币种: {self.base_symbol}")
                 continue
             
             # 对齐和验证数据（一次性完成，结果传递给 _analyze_single_combination 复用）
