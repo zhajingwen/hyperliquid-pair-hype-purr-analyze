@@ -103,14 +103,24 @@ class DelayCorrelationAnalyzer:
     # 数据分析所需的最小数据点数
     MIN_DATA_POINTS_FOR_ANALYSIS = 50
 
-    # 异常模式检测阈值
+    # # 异常模式检测阈值
+    # # 长期相关系数阈值，目标需要在下面这两个值的范围内，否则不告警
+    # LONG_TERM_CORR_THRESHOLD = 0.4
+    # # 短期相关系数阈值，
+    # SHORT_TERM_CORR_THRESHOLD = 0.2  
+
+    # # 相关系数差值阈值，如果小于这个值就不告警
+    # CORR_DIFF_THRESHOLD = 0.5
+    
+    # ========== 新增：相关系数阈值配置 ==========
     # 长期相关系数阈值，目标需要在下面这两个值的范围内，否则不告警
     LONG_TERM_CORR_THRESHOLD = 0.4
     # 短期相关系数阈值，
-    SHORT_TERM_CORR_THRESHOLD = 0.2  
-
+    SHORT_TERM_CORR_THRESHOLD = 1  
     # 相关系数差值阈值，如果小于这个值就不告警
-    CORR_DIFF_THRESHOLD = 0.5
+    CORR_DIFF_THRESHOLD = -1
+
+
 
     # ========== 新增：异常值处理配置 ==========
     # Winsorization 分位数配置

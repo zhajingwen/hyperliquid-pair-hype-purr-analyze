@@ -107,9 +107,9 @@ class DelayCorrelationAnalyzer:
     # 长期相关系数阈值，目标需要在下面这两个值的范围内，否则不告警
     LONG_TERM_CORR_THRESHOLD = 0.4
     # 短期相关系数阈值，
-    SHORT_TERM_CORR_THRESHOLD = 0.6  
+    SHORT_TERM_CORR_THRESHOLD = 1  
     # 相关系数差值阈值，如果小于这个值就不告警
-    CORR_DIFF_THRESHOLD = 0.01
+    CORR_DIFF_THRESHOLD = -1
 
     # ========== 新增：异常值处理配置 ==========
     # Winsorization 分位数配置
