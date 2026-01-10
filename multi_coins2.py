@@ -104,15 +104,9 @@ class DelayCorrelationAnalyzer:
     # 数据分析所需的最小数据点数
     MIN_DATA_POINTS_FOR_ANALYSIS = 50
 
-    # ========== 新增：相关系数阈值配置 ==========
-    # 长期相关系数阈值，目标需要在下面这两个值的范围内，否则不告警
-    LONG_TERM_CORR_THRESHOLD = 0.4
-    # 短期相关系数阈值，
-    SHORT_TERM_CORR_THRESHOLD = 1
-    # 相关系数差值阈值，如果小于这个值就不告警
-    CORR_DIFF_THRESHOLD = -1
-
-
+    # ========== 相关系数过滤配置 ==========
+    # ('4h', '60d') 组合的相关系数阈值：大于此值保留，小于等于此值剔除
+    TARGET_CORR_THRESHOLD = 0.6
 
     # ========== 新增：异常值处理配置 ==========
     # Winsorization 分位数配置
@@ -169,8 +163,6 @@ class DelayCorrelationAnalyzer:
         # 保留双周期组合用于相关性对比：5分钟K线7天，1小时K线30天
         # Beta/协整/ADF检验将使用配置周期(STATS_PERIOD)数据计算
         self.combinations = default_combinations or [("5m", "7d"), ("1h", "30d")]
-        self.short_periods = ['7d']
-        self.long_periods = ['60d']
         # 基准币种交易对：作为参考基准，用于计算与其他山寨币的相关系数和Beta系数
         self.base_symbol = "BTC/USDC:USDC"  # 修改为BTC/USDC:USDC
         # 基准币种数据缓存：缓存不同时间周期和周期的基准币种K线数据
@@ -920,55 +912,63 @@ class DelayCorrelationAnalyzer:
     def _detect_anomaly_pattern(self, results: list, price_data_cache: dict = None,
                                coin: str = None) -> tuple[bool, float, float, float]:
         """
-        检测异常模式：短期低相关但长期高相关（增强版：包含协整验证）
+        检测异常模式：('4h', '60d') 组合的相关系数 > 0.6
 
-        异常模式判断阈值：
-        - 长期相关系数 > LONG_TERM_CORR_THRESHOLD：长期与基准币种有较强跟随性（30d对应1h）
-        - 短期相关系数 < SHORT_TERM_CORR_THRESHOLD：短期存在明显滞后（7d对应5m）
-        - 差值 > CORR_DIFF_THRESHOLD：短期和长期差异足够显著
-        - 协整检验 ADF p-value < 0.05：价差平稳，适合配对交易（基于配置周期STATS_PERIOD数据）
+        新规则（简化版）：
+        - 仅判断 ('4h', '60d') 组合的相关系数是否 > TARGET_CORR_THRESHOLD (0.6)
+        - 满足条件 → 保留并进入 Z-score 验证
+        - 不满足条件 → 剔除跳过
 
         Args:
-            results: 分析结果列表，包含相关系数、时间周期、延迟等信息
-            price_data_cache: 价格数据缓存字典，格式为 {(timeframe, period): {'base_prices': pd.Series, 'alt_prices': pd.Series}}
-                - base_prices: 基准币种价格序列（用于协整检验）
-                - alt_prices: 山寨币价格序列（用于协整检验）
-            coin: 币种名称（可选，用于日志）
+            results: 分析结果列表，格式 [(correlation, timeframe, period, tau_star), ...]
+            price_data_cache: 价格数据缓存（保留参数，用于后续 Z-score 计算）
+            coin: 币种名称（用于日志）
 
         Returns:
-            (is_anomaly, diff_amount, min_short_corr, max_long_corr): 是否异常模式、相关系数差值、短期最小相关系数、长期最大相关系数
+            (is_anomaly, target_corr, 0.0, 0.0):
+                - is_anomaly: 是否满足新规则
+                - target_corr: ('4h', '60d') 的相关系数值
+                - 0.0, 0.0: 占位符（兼容原返回值格式）
         """
-        # ========== 先提取相关系数 ==========
-        short_periods = self.short_periods
-        long_periods = self.long_periods
+        # ========== 新规则：仅判断 ('4h', '60d') 的相关系数 ==========
+        target_timeframe = '4h'
+        target_period = '60d'
+        target_corr = None
 
-        # 使用索引访问，添加长度检查以确保安全
-        short_term_corrs = [x[0] for x in results if len(x) >= 3 and x[2] in short_periods]
-        long_term_corrs = [x[0] for x in results if len(x) >= 3 and x[2] in long_periods]
+        # 从 results 中查找目标组合
+        for result in results:
+            if len(result) >= 3:
+                corr, tf, p = result[0], result[1], result[2]
+                if tf == target_timeframe and p == target_period:
+                    target_corr = corr
+                    break
 
-        if not short_term_corrs or not long_term_corrs:
-            logger.warning(f"相关系数提取失败，跳过 | 币种: {coin} | 短期周期: {short_periods} | 长期周期: {long_periods} | 结果: {results}")
-            return False, 0, 0.0, 0.0
+        # 数据验证：检查是否找到目标组合
+        if target_corr is None:
+            logger.warning(
+                f"未找到目标组合 ({target_timeframe}, {target_period}) | "
+                f"币种: {coin} | 可用结果: {results}"
+            )
+            return False, 0.0, 0.0, 0.0
 
-        min_short_corr = min(short_term_corrs)
-        max_long_corr = max(long_term_corrs)
-        # 计算相关系数差值（长期最大相关系数 - 短期最小相关系数）
-        diff_amount = max_long_corr - min_short_corr
+        # 新判定逻辑：单一条件判断
+        is_anomaly = target_corr > self.TARGET_CORR_THRESHOLD
 
-        is_anomaly = False
+        # 日志输出
+        if is_anomaly:
+            logger.info(
+                f"✅ 通过相关系数筛选 | 币种: {coin} | "
+                f"({target_timeframe}, {target_period}) 相关系数: {target_corr:.4f} > {self.TARGET_CORR_THRESHOLD}"
+            )
+        else:
+            logger.debug(
+                f"❌ 未通过相关系数筛选 | 币种: {coin} | "
+                f"({target_timeframe}, {target_period}) 相关系数: {target_corr:.4f} <= {self.TARGET_CORR_THRESHOLD}"
+            )
 
-        # 长期相关系数大于阈值，且短期相关系数小于阈值的时候，才计算差值
-        if max_long_corr > self.LONG_TERM_CORR_THRESHOLD and min_short_corr < self.SHORT_TERM_CORR_THRESHOLD:
-            # 相关性差值大于阈值，则认为存在套利机会
-            if diff_amount > self.CORR_DIFF_THRESHOLD:
-                is_anomaly = True
-        # 长期相关系数大于阈值，且短期存在明显滞后时，则认为存在套利机会
-        if max_long_corr > self.LONG_TERM_CORR_THRESHOLD:
-            # x[3] 是最优延迟，x[2] 是数据周期
-            if any((x[3] > 0) for x in results if len(x) >= 4 and x[2] == '7d'):
-                is_anomaly = True
-
-        return is_anomaly, diff_amount, min_short_corr, max_long_corr
+        # 返回值（兼容原调用方期望的4值格式）
+        # 注意：diff_amount 位置现在是 target_corr
+        return is_anomaly, target_corr, 0.0, 0.0
 
 
     def _output_results(self, coin: str, results: list, diff_amount: float,
@@ -981,7 +981,7 @@ class DelayCorrelationAnalyzer:
         Args:
             coin: 币种名称
             results: 分析结果列表
-            diff_amount: 相关系数差值
+            diff_amount: ('4h', '60d') 组合的相关系数值
             zscore: Z-score 值（可选）
             stationarity_level: 平稳性等级（可选，用于区分强/弱信号）
             p_value: ADF检验的p-value（可选）
@@ -1008,11 +1008,11 @@ class DelayCorrelationAnalyzer:
 
         df_results = pd.DataFrame(data_rows)
 
-        logger.info(f"发现异常币种 | 交易所: {self.exchange_name} | 币种: {coin} | 相关系数差值: {diff_amount:.2f}")
+        logger.info(f"发现异常币种 | 交易所: {self.exchange_name} | 币种: {coin} | 4h/60d 相关系数: {diff_amount:.2f}")
 
         # 飞书消息内容
         content = f"{self.exchange_name}\n\n{coin} 相关系数分析结果\n{df_results.to_string(index=False)}\n"
-        content += f"\n相关系数差值: {diff_amount:.2f}"
+        content += f"\n4h/60d 相关系数: {diff_amount:.2f}"
 
         # 如果有 Z-score 信息，根据平稳性等级添加信号强度提示
         if zscore is not None:
@@ -1232,8 +1232,9 @@ class DelayCorrelationAnalyzer:
             valid_results, price_data_cache=price_data_cache, coin=coin
         )
         logger.info(
-            f"相关系数检测 | 币种: {coin} | 是否异常: {is_anomaly} | 相关系数差值: {diff_amount:.4f} | 短期最小: {min_short_corr:.4f} | 长期最大: {max_long_corr:.4f}"
-            )
+            f"相关系数检测 | 币种: {coin} | 是否异常: {is_anomaly} | "
+            f"4h/60d 相关系数: {diff_amount:.4f}"
+        )
 
         if is_anomaly:
             zscore_result_list = self.zscore_analysis(coin, price_data_cache)
@@ -1351,7 +1352,7 @@ class DelayCorrelationAnalyzer:
 if __name__ == "__main__":
     # 从短周期到长周期的顺序
     default_combinations = [('5m', '7d'), ('1h', '30d'), ('4h', '60d')]
-    while True:
-        analyzer = DelayCorrelationAnalyzer(exchange_name="hyperliquid", default_combinations=default_combinations)
-        analyzer.run()
-        time.sleep(3)
+    # while True:
+    analyzer = DelayCorrelationAnalyzer(exchange_name="hyperliquid", default_combinations=default_combinations)
+    analyzer.run()
+        # time.sleep(3)

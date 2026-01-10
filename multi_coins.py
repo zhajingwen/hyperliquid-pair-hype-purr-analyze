@@ -1265,7 +1265,36 @@ class DelayCorrelationAnalyzer:
             max_corr = max(corrs) if corrs else 0
             logger.info(f"常规数据 | 币种: {coin} | 相关系数范围: {min_corr:.4f} ~ {max_corr:.4f}")
             return False
-    
+
+    def get_all_usdc_perpetuals(self):
+        """
+        获取Hyperliquid交易所的全量USDC本位永续合约
+
+        Returns:
+            list: USDC永续合约交易对列表
+        """
+        try:
+            logger.info("开始获取Hyperliquid全量USDC永续合约列表...")
+            markets = self.exchange.load_markets()
+
+            # 筛选USDC本位永续合约（格式：XXX/USDC:USDC）
+            usdc_perpetuals = []
+            for symbol in markets:
+                market = markets[symbol]
+                # 检查是否为USDC永续合约且非基准币种
+                if (market.get('quote') == 'USDC' and
+                    market.get('settle') == 'USDC' and
+                    market.get('type') == 'swap' and
+                    symbol != self.base_symbol):
+                    usdc_perpetuals.append(symbol)
+
+            logger.info(f"获取完成 | 共发现 {len(usdc_perpetuals)} 个USDC永续合约")
+            return sorted(usdc_perpetuals)
+
+        except Exception as e:
+            logger.error(f"获取USDC永续合约列表失败：{type(e).__name__}: {str(e)}", exc_info=True)
+            return []
+
     def run(self):
         """
         分析目标代币与基准币种的相关性
@@ -1276,7 +1305,8 @@ class DelayCorrelationAnalyzer:
         注意：基准币种本身会被排除在分析列表之外。
         """
         # 直接使用固定交易对，跳过 load_markets() 以加快启动速度
-        usdc_coins = ["NOT/USDC:USDC"]
+        # usdc_coins = ["NOT/USDC:USDC"]
+        usdc_coins = self.get_all_usdc_perpetuals()
         total = len(usdc_coins)
         
         logger.info(f"启动分析器 | 交易所: {self.exchange_name} | "
