@@ -107,6 +107,9 @@ class DelayCorrelationAnalyzer:
     # ========== 相关系数过滤配置 ==========
     # ('4h', '60d') 组合的相关系数阈值：大于此值保留，小于等于此值剔除
     TARGET_CORR_THRESHOLD = 0.6
+    # 目标时间周期和数据周期配置
+    TARGET_TIMEFRAME = '4h'  # K线时间周期
+    TARGET_PERIOD = '60d'    # 数据周期
 
     # ========== 新增：异常值处理配置 ==========
     # Winsorization 分位数配置
@@ -930,23 +933,21 @@ class DelayCorrelationAnalyzer:
                 - target_corr: ('4h', '60d') 的相关系数值
                 - 0.0, 0.0: 占位符（兼容原返回值格式）
         """
-        # ========== 新规则：仅判断 ('4h', '60d') 的相关系数 ==========
-        target_timeframe = '4h'
-        target_period = '60d'
+        # ========== 新规则：仅判断目标组合的相关系数 ==========
         target_corr = None
 
         # 从 results 中查找目标组合
         for result in results:
             if len(result) >= 3:
                 corr, tf, p = result[0], result[1], result[2]
-                if tf == target_timeframe and p == target_period:
+                if tf == self.TARGET_TIMEFRAME and p == self.TARGET_PERIOD:
                     target_corr = corr
                     break
 
         # 数据验证：检查是否找到目标组合
         if target_corr is None:
             logger.warning(
-                f"未找到目标组合 ({target_timeframe}, {target_period}) | "
+                f"未找到目标组合 ({self.TARGET_TIMEFRAME}, {self.TARGET_PERIOD}) | "
                 f"币种: {coin} | 可用结果: {results}"
             )
             return False, 0.0, 0.0, 0.0
@@ -958,12 +959,12 @@ class DelayCorrelationAnalyzer:
         if is_anomaly:
             logger.info(
                 f"✅ 通过相关系数筛选 | 币种: {coin} | "
-                f"({target_timeframe}, {target_period}) 相关系数: {target_corr:.4f} > {self.TARGET_CORR_THRESHOLD}"
+                f"({self.TARGET_TIMEFRAME}, {self.TARGET_PERIOD}) 相关系数: {target_corr:.4f} > {self.TARGET_CORR_THRESHOLD}"
             )
         else:
             logger.debug(
                 f"❌ 未通过相关系数筛选 | 币种: {coin} | "
-                f"({target_timeframe}, {target_period}) 相关系数: {target_corr:.4f} <= {self.TARGET_CORR_THRESHOLD}"
+                f"({self.TARGET_TIMEFRAME}, {self.TARGET_PERIOD}) 相关系数: {target_corr:.4f} <= {self.TARGET_CORR_THRESHOLD}"
             )
 
         # 返回值（兼容原调用方期望的4值格式）
@@ -1239,6 +1240,7 @@ class DelayCorrelationAnalyzer:
         if is_anomaly:
             zscore_result_list = self.zscore_analysis(coin, price_data_cache)
             if not zscore_result_list:
+                logger.info(f"❌ Z-score 计算不满足告警条件 | 币种: {coin}")
                 return False
             # 找到绝对值最大的元素（保留原符号）
             zscore_result = zscore_result_list[np.argmax(np.abs(zscore_result_list))]
@@ -1247,9 +1249,9 @@ class DelayCorrelationAnalyzer:
         else:
             # 计算相关系数统计信息
             corrs = [r[0] for r in valid_results]
-            min_corr = min(corrs) if corrs else 0
+            # min_corr = min(corrs) if corrs else 0
             max_corr = max(corrs) if corrs else 0
-            logger.info(f"常规数据 | 币种: {coin} | 相关系数范围: {min_corr:.4f} ~ {max_corr:.4f}")
+            logger.info(f"❌ 常规数据 | 币种: {coin} | 最大相关系数: {max_corr:.4f} 小于阈值: {self.TARGET_CORR_THRESHOLD}")
             return False
 
     def get_all_usdc_perpetuals(self):
