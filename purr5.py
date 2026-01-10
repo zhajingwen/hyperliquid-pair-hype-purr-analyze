@@ -518,9 +518,8 @@ class DelayCorrelationAnalyzer:
         """
         协整分析
         """
-
+        coin_info = f" | 币种: {coin} | 方法: {method_type}" if coin else ""
         if cointegration_result is None or cointegration_result['adf_pvalue'] >= 0.05:
-            coin_info = f" | 币种: {coin} | 方法: {method_type}" if coin else ""
             if cointegration_result:
                 adf_pvalue_str = f"{cointegration_result['adf_pvalue']:.4f}"
                 alpha_str = f"{cointegration_result['alpha']:.4f}"
@@ -542,7 +541,6 @@ class DelayCorrelationAnalyzer:
             # is_anomaly = False  # ⚠️ 协整失败，拒绝信号
         else:
             # 协整检验通过，输出详细信息
-            coin_info = f" | 币种: {coin}" if coin else ""
             logger.info(
                 f"✅ 协整检验通过（基于{stats_period_key}周期数据） | "
                 f"α={cointegration_result['alpha']:.4f}, β={cointegration_result['beta']:.4f} | "
