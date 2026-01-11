@@ -1296,8 +1296,8 @@ class DelayCorrelationAnalyzer:
         logger.info(f"协整检验结果统计 | 币种: {coin} | True数量: {cointegration_true_count} | 总数量: {len(cointegration_result_list)}")
 
         # 检查是否有足够的协整检验结果通过
-        if len(cointegration_true_count) < self.COINTEGRATION_RESULT_APPROVED_THRESHOLD_NUMBER:
-            logger.warning(f"协整检验结果通过的周期数不足，需要 {self.COINTEGRATION_RESULT_APPROVED_THRESHOLD_NUMBER} 个周期通过，实际只有 {len(cointegration_result_list)} 个 | 币种: {coin}")
+        if cointegration_true_count < self.COINTEGRATION_RESULT_APPROVED_THRESHOLD_NUMBER:
+            logger.warning(f"协整检验结果通过的周期数不足，需要 {self.COINTEGRATION_RESULT_APPROVED_THRESHOLD_NUMBER} 个周期通过，实际只有 {cointegration_true_count} 个 | 币种: {coin}")
             return None
 
         # 检查是否有足够的Z-score结果
