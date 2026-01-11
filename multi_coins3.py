@@ -564,7 +564,7 @@ class DelayCorrelationAnalyzer:
         beta_window: int = None,
         coin: str = None,
         cointegration_result: dict = None
-    ) -> Tuple[Optional[float], Optional['StationarityLevel'], Optional[float]]:
+    ) -> Optional[float]:
         """
         计算 Z-score（基于OLS回归方法）
 
@@ -1247,7 +1247,9 @@ class DelayCorrelationAnalyzer:
 
     def zscore_analysis(self, coin: str, price_data_cache: dict) -> bool:
         """
-        分析单个币种的Z-score
+        分析单个币种的
+        多周期，多算法的协整检验结果
+        和双窗口策略计算得到的Z-score
         """
         # ========== Z-score 验证（如果启用且检测到异常）==========
         zscore_result = None
@@ -1271,7 +1273,6 @@ class DelayCorrelationAnalyzer:
                 # 保存当前周期数据的协整检验结果
                 cointegration_result_list.extend([cointegration_status_total_period, cointegration_status_short_period])
 
-                # 使用增强版函数，同时获取 Z-score、平稳性等级和 p-value
                 # 方法：OLS回归（Engle-Granger两步法）
                 # 双窗口策略：OLS回归使用长窗口（BETA_WINDOW）计算协整参数（α, β），统计量使用短窗口（ZSCORE_WINDOW）
                 zscore_result = self._calculate_zscore(
@@ -1290,8 +1291,12 @@ class DelayCorrelationAnalyzer:
         else:
             return None
 
+        # 计算协整检验结果中为True的数量
+        cointegration_true_count = sum(1 for result in cointegration_result_list if result is True)
+        logger.info(f"协整检验结果统计 | 币种: {coin} | True数量: {cointegration_true_count} | 总数量: {len(cointegration_result_list)}")
+
         # 检查是否有足够的协整检验结果通过
-        if len(cointegration_result_list) < self.COINTEGRATION_RESULT_APPROVED_THRESHOLD_NUMBER:
+        if len(cointegration_true_count) < self.COINTEGRATION_RESULT_APPROVED_THRESHOLD_NUMBER:
             logger.warning(f"协整检验结果通过的周期数不足，需要 {self.COINTEGRATION_RESULT_APPROVED_THRESHOLD_NUMBER} 个周期通过，实际只有 {len(cointegration_result_list)} 个 | 币种: {coin}")
             return None
 
