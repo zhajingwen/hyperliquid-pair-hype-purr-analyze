@@ -1,18 +1,20 @@
-# 模块3: 实时数据流 (Real-time Data Flow)
+# 模块3: 实时分析引擎 (Real-time Analysis Engine)
 
 ## 📋 模块概述
 
-⚠️ **注意**: 这是一个**可选的增强功能模块**，优先级为P1。基础功能（模块1、2、4、5）完成后可选实施。
+⭐ **核心模块**：优先级为P0，这是系统的主分析引擎，完全替代multi_coins3.py的批量分析模式。
 
-负责WebSocket实时K线数据流的接收、缓冲、批量写入，以及动态币种订阅管理和新币种监控。
+负责WebSocket实时K线数据流接收、每根K线闭合后的即时分析、Z-score异常检测、飞书告警，以及动态币种订阅管理。
 
 ### 模块职责
-- ✅ WebSocket连接管理（自动重连）
+- ✅ WebSocket连接管理（自动重连，仅订阅5m/1h/4h周期）
 - ✅ 实时K线数据接收和解析
-- ✅ 缓冲队列和异步批量写入线程
-- ✅ 动态币种订阅（200+币种）
+- ✅ **每根K线闭合后立即分析**（<1分钟延迟）
+- ✅ 调用utils/analysis_core.py公共分析模块
+- ✅ Z-score异常检测与飞书实时告警
+- ✅ 批量写入TimescaleDB（异步队列）
+- ✅ 动态币种订阅（200+币种 × 3周期 = 600订阅）
 - ✅ 新币种监控（每小时检测）
-- ✅ 可选的实时套利信号检测
 
 ### 依赖关系
 - **上游依赖**: 模块1（数据库）、模块2（访问层）
@@ -25,13 +27,13 @@
 │         Hyperliquid Exchange WebSocket API                   │
 │         (wss://api.hyperliquid.xyz/ws)                       │
 └────────────────────────┬─────────────────────────────────────┘
-                         │ 推送K线数据 (1m, 5m, 1h, 4h...)
+                         │ 推送K线数据 (仅5m, 1h, 4h)
                          ▼
 ┌──────────────────────────────────────────────────────────────┐
-│           realtime_kline_service.py                          │
+│           realtime_kline_service.py (主分析引擎)             │
 │  ┌────────────────────────────────────────────────────────┐  │
 │  │  EnhancedWebSocketManager                              │  │
-│  │  - 600+ 订阅 (200币种 × 3周期)                         │  │
+│  │  - 600订阅 (200币种 × 3周期: 5m/1h/4h)                 │  │
 │  │  - 自动重连 + 心跳检测                                  │  │
 │  │  - "假活"检测（30秒无数据超时）                         │  │
 │  └────────────────┬───────────────────────────────────────┘  │
@@ -42,28 +44,44 @@
 │  │  - 时间戳转换 (ms → datetime)                          │  │
 │  │  - 币种格式化 (ETH → ETH/USDC:USDC)                    │  │
 │  │  - 数据验证                                            │  │
-│  └────────────────┬───────────────────────────────────────┘  │
-│                   │                                          │
-│                   ▼                                          │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │  Buffer Queue (缓冲队列)                                │  │
-│  │  - Queue.Queue (线程安全)                               │  │
-│  │  - 最大容量: 10000条                                    │  │
-│  └────────────────┬───────────────────────────────────────┘  │
-│                   │                                          │
-│                   ▼                                          │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │  Batch Writer Thread (异步批量写入线程)                 │  │
-│  │  - 批次大小: 1000-2000条                                │  │
-│  │  - 超时时间: 5秒                                        │  │
-│  │  - COPY命令批量写入                                     │  │
-│  └────────────────┬───────────────────────────────────────┘  │
-└────────────────────┼──────────────────────────────────────────┘
-                     │
-                     ▼
-          ┌─────────────────────────┐
-          │   TimescaleDB (klines表) │
-          └─────────────────────────┘
+│  └─────────┬──────────────────────────────────────────────┘  │
+│            │                                                 │
+│            ├──→ 写入DB分支（异步）                           │
+│            │   ┌──────────────────────────────────────┐     │
+│            │   │  Buffer Queue (缓冲队列)              │     │
+│            │   │  - Queue.Queue (线程安全)             │     │
+│            │   └──────┬───────────────────────────────┘     │
+│            │          │                                      │
+│            │          ▼                                      │
+│            │   ┌──────────────────────────────────────┐     │
+│            │   │  Batch Writer Thread                 │     │
+│            │   │  - 批次: 1000-2000条或5秒超时         │     │
+│            │   │  - COPY命令批量写入                   │     │
+│            │   └──────┬───────────────────────────────┘     │
+│            │          │                                      │
+│            │          ▼                                      │
+│            │   ┌─────────────────────────┐                  │
+│            │   │  TimescaleDB (klines表)  │                  │
+│            │   └─────────────────────────┘                  │
+│            │                                                 │
+│            └──→ 实时分析分支（同步）                         │
+│                ┌──────────────────────────────────────┐     │
+│                │  analyze_and_alert()                 │     │
+│                │  1. 查询历史数据 (7d/30d/60d)         │     │
+│                │  2. 调用 utils/analysis_core.py:     │     │
+│                │     - calculate_correlation()        │     │
+│                │     - test_cointegration()           │     │
+│                │     - calculate_zscore()             │     │
+│                │     - detect_anomaly()               │     │
+│                │  3. if 异常: send_feishu_alert()     │     │
+│                │  4. 保存 analysis_results            │     │
+│                └──────────────────────────────────────┘     │
+└──────────────────────────────────────────────────────────────┘
+
+关键数据流:
+• 每根K线闭合 → 同时触发"写入DB"和"实时分析"
+• 分析频率: 12次/分钟 = 8(5m) + 3.3(1h) + 0.83(4h)
+• 分析延迟: <5秒 (查询DB + 计算 + 告警)
 ```
 
 ## 📦 核心类设计
@@ -72,25 +90,35 @@
 
 ```python
 class RealtimeKlineService:
-    """实时K线数据服务"""
+    """实时K线分析服务（主分析引擎）"""
 
-    def __init__(self, symbols: List[str], timeframes: List[str],
-                 enable_realtime_analysis: bool = False):
+    def __init__(self, base_symbol: str = 'BTC/USDC:USDC'):
         """
-        初始化实时K线服务
+        初始化实时分析服务
 
         Args:
-            symbols: 订阅的币种列表，如 ["BTC", "ETH", "SOL"]
-            timeframes: 订阅的时间周期，如 ["1m", "5m", "1h"]
-            enable_realtime_analysis: 是否启用实时分析（Z-score检测）
+            base_symbol: 基础币种（用于配对分析），默认BTC/USDC:USDC
         """
-        self.symbols = symbols
-        self.timeframes = timeframes
-        self.enable_realtime_analysis = enable_realtime_analysis
+        self.base_symbol = base_symbol
+
+        # 分析配置：5m(7天), 1h(30天), 4h(60天)
+        self.ANALYSIS_CONFIGS = [
+            ('5m', '7d'),
+            ('1h', '30d'),
+            ('4h', '60d')
+        ]
+
+        # 订阅周期（仅5m/1h/4h，不含1m）
+        self.timeframes = ['5m', '1h', '4h']
+
+        # 动态获取币种列表
+        self.symbols = self._get_all_symbols_from_exchange()
 
         # 初始化数据库客户端
         self.db_client = TimescaleDBClient(...)
         self.kline_repo = KlineRepository(self.db_client)
+        self.analysis_repo = AnalysisResultRepository(self.db_client)
+        self.symbol_metadata_repo = SymbolMetadataRepository(self.db_client)
 
         # 缓冲队列（线程安全）
         self.kline_buffer = queue.Queue(maxsize=10000)
@@ -123,13 +151,17 @@ def on_message(self, msg: Dict):
     """
     WebSocket消息回调处理
 
+    核心逻辑：
+    1. 写入DB（异步）
+    2. 触发实时分析（同步）
+
     Hyperliquid数据格式:
     {
       "channel": "candle",
       "data": {
         "t": 1704067260000,  # 开盘时间（毫秒）
         "s": "ETH",          # 币种符号
-        "i": "1m",           # 时间周期
+        "i": "5m",           # 时间周期 (仅5m/1h/4h)
         "o": "2295.5",       # 开盘价
         "h": "2296.8",       # 最高价
         "l": "2295.2",       # 最低价
@@ -148,11 +180,14 @@ def on_message(self, msg: Dict):
         if not kline:
             return
 
-        # 放入缓冲队列（非阻塞）
+        # 1. 写入DB（异步批量队列）
         try:
             self.kline_buffer.put_nowait(kline)
         except queue.Full:
             logger.warning(f"缓冲队列已满，丢弃K线 | {kline['symbol']}")
+
+        # 2. 触发实时分析（同步执行，负载可控 = 0.2次/秒）
+        self._analyze_and_alert(kline['symbol'], kline['timeframe'])
 
     except Exception as e:
         logger.error(f"消息处理失败: {e}", exc_info=True)
@@ -287,7 +322,144 @@ def _monitor_new_symbols(self):
 
 ---
 
-### 方法4: _get_all_symbols_from_exchange() - 动态币种发现
+### 方法4: _analyze_and_alert() - 实时分析与告警
+
+```python
+def _analyze_and_alert(self, symbol: str, timeframe: str):
+    """
+    单币种实时分析（每根K线闭合后触发）
+
+    核心流程：
+    1. 查询历史数据（从TimescaleDB）
+    2. 调用 utils/analysis_core.py 进行分析
+    3. 异常检测 → 飞书告警
+    4. 保存分析结果
+    """
+    try:
+        # 查找匹配的分析配置
+        period = None
+        for tf, pd in self.ANALYSIS_CONFIGS:
+            if tf == timeframe:
+                period = pd
+                break
+
+        if not period:
+            return  # 不分析1m等非配置周期
+
+        # 1. 查询历史数据
+        now = datetime.now(timezone.utc)
+        period_delta = self._parse_period_to_timedelta(period)
+        start_time = now - period_delta
+
+        # 查询当前币种和基础币种的历史K线
+        alt_history = self.kline_repo.query_range(symbol, timeframe, start_time, now)
+        base_history = self.kline_repo.query_range(self.base_symbol, timeframe, start_time, now)
+
+        if len(alt_history) < 20 or len(base_history) < 20:
+            logger.debug(f"历史数据不足 | {symbol} | {timeframe}")
+            return
+
+        # 2. 调用 utils/analysis_core.py 进行分析
+        from utils.analysis_core import (
+            calculate_correlation,
+            test_cointegration,
+            calculate_zscore,
+            detect_anomaly
+        )
+
+        # 相关性检测
+        correlation = calculate_correlation(base_history, alt_history)
+        if correlation < 0.5:
+            logger.debug(f"相关性不足 | {symbol} | corr={correlation:.3f}")
+            return
+
+        # 协整检验
+        is_cointegrated, pvalue = test_cointegration(base_history, alt_history)
+        if not is_cointegrated:
+            logger.debug(f"协整检验失败 | {symbol} | p={pvalue:.4f}")
+            return
+
+        # 计算Z-score
+        zscore = calculate_zscore(base_history, alt_history)
+
+        # 异常检测
+        is_anomaly, direction = detect_anomaly(zscore, threshold=2.0)
+
+        # 3. 如果异常，发送飞书告警
+        if is_anomaly:
+            self._send_feishu_alert(
+                symbol=symbol,
+                timeframe=timeframe,
+                zscore=zscore,
+                correlation=correlation,
+                direction=direction
+            )
+
+            # 4. 保存分析结果
+            result_data = {
+                'symbol': symbol,
+                'base_symbol': self.base_symbol,
+                f'corr_{timeframe}_{period}': correlation,
+                f'zscore_{timeframe}': zscore,
+                'cointegration_passed': True,
+                'adf_pvalue': pvalue,
+                'is_anomaly': True,
+                'trading_direction': direction,
+                'signal_strength': 'strong' if abs(zscore) > 2.5 else 'medium'
+            }
+            self.analysis_repo.save_result(result_data)
+
+            logger.info(
+                f"⚠️ 异常信号 | {symbol} | {timeframe} | "
+                f"zscore={zscore:.2f} | corr={correlation:.3f} | {direction}"
+            )
+
+    except Exception as e:
+        logger.error(f"实时分析失败 | {symbol} | {timeframe} | {e}", exc_info=True)
+
+def _send_feishu_alert(self, symbol: str, timeframe: str, zscore: float,
+                       correlation: float, direction: str):
+    """发送飞书告警"""
+    from utils.lark_bot import send_lark_msg_with_card
+
+    message = f"""
+**实时套利信号检测**
+
+**币种**: {symbol}
+**周期**: {timeframe}
+**基准**: {self.base_symbol}
+
+**指标**:
+- Z-score: {zscore:.2f}
+- 相关系数: {correlation:.3f}
+- 交易方向: {direction}
+
+**时间**: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
+    """
+
+    try:
+        send_lark_msg_with_card("实时套利信号", message)
+    except Exception as e:
+        logger.error(f"飞书告警发送失败: {e}")
+
+def _parse_period_to_timedelta(self, period: str) -> timedelta:
+    """解析周期字符串为timedelta"""
+    unit = period[-1]
+    value = int(period[:-1])
+
+    if unit == 'd':
+        return timedelta(days=value)
+    elif unit == 'h':
+        return timedelta(hours=value)
+    elif unit == 'm':
+        return timedelta(minutes=value)
+    else:
+        raise ValueError(f"不支持的周期单位: {unit}")
+```
+
+---
+
+### 方法5: _get_all_symbols_from_exchange() - 动态币种发现
 
 ```python
 def _get_all_symbols_from_exchange(self) -> List[str]:
@@ -580,8 +752,11 @@ docker-compose logs -f realtime-kline | grep "批量写入"
 
 | 指标 | 目标值 | 说明 |
 |------|--------|------|
+| **分析延迟** | <5秒 | 从K线闭合到飞书告警完成 |
+| **分析频率** | 12次/分钟 | 8(5m) + 3.3(1h) + 0.83(4h) |
 | **WebSocket延迟** | <500ms | K线闭合后推送延迟 |
 | **写入吞吐量** | >1000条/秒 | COPY命令批量写入 |
+| **DB查询耗时** | <100ms | 单次查询60天历史数据 |
 | **数据完整性** | >95% | 无丢失K线 |
 | **内存占用** | <512MB | 实时服务进程 |
 | **CPU占用** | <50% | 单核利用率 |
@@ -641,26 +816,42 @@ docker-compose logs realtime-kline | grep "新币种"
 
 ## ✅ 验收标准
 
+### 基础功能
 - [ ] WebSocket成功连接Hyperliquid
-- [ ] 订阅的所有币种都能接收到K线推送
+- [ ] 仅订阅5m/1h/4h周期（600个订阅 = 200币种 × 3周期）
 - [ ] K线数据正确写入TimescaleDB
 - [ ] 批量写入性能>500条/次
 - [ ] 断线后自动重连成功
 - [ ] 数据库中的K线时间戳连续（覆盖率>95%）
-- [ ] 服务运行24小时无崩溃
+
+### 实时分析功能
+- [ ] 每根K线闭合后触发实时分析
+- [ ] 分析延迟<5秒（查询DB + 计算 + 告警）
+- [ ] utils/analysis_core.py正确调用
+- [ ] Z-score异常检测正确（|zscore| > 2.0）
+- [ ] 飞书告警及时到达（<10秒）
+- [ ] 分析结果正确保存到analysis_results表
+
+### 可靠性
+- [ ] 服务连续运行24小时无崩溃
 - [ ] 内存占用稳定在512MB以内
+- [ ] CPU占用<50%
 - [ ] 新币种监控线程正常工作
 
 ## 📝 下一步
 
-模块3为可选增强功能，完成后可以：
-- 实现实时套利信号检测（enable_realtime_analysis=True）
-- 添加飞书实时告警
-- 集成到模块4的分析引擎中
+模块3完成后，系统核心功能（P0）已全部完成：
+- ✅ 模块1: 数据库基础设施
+- ✅ 模块2: 数据库访问层
+- ✅ 模块3: 实时分析引擎（本模块）
+
+**可选后续工作**：
+- 模块4（可选）: 如需改造multi_coins3.py支持数据库查询
+- 模块5: 配置和部署文档完善
 
 ---
 
-**版本**: v1.0
-**日期**: 2025-01-11
-**优先级**: P1（可选）
+**版本**: v2.0
+**日期**: 2025-01-12
+**优先级**: P0（核心模块，主分析引擎）
 **作者**: Claude Sonnet 4.5
