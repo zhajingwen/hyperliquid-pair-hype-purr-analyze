@@ -555,15 +555,18 @@ class DelayCorrelationAnalyzer:
             # === 协整健康监控 chatgpt 额外的类方法，综合计算ADF，半衰期，稳定性 ===
             monitor = CointegrationHealthMonitor(window=200)
             # 综合计算ADF，半衰期，稳定性
-            # health_result 是一个 dict，例如：
+            # health_result 是一个 dict，实际结构如下：
             # {
-            #   'health_score': 72,
-            #   'state': 'HEALTHY',
-            #   'adf_score': 80,
-            #   'half_life_score': 65,
-            #   'beta_stability_score': 78,
-            #   'mean_drift_score': 70,
-            #   'should_trade': True
+            #   'health_score': 72.5,        # 综合健康得分 (0-100)
+            #   'state': 'HEALTHY',          # 状态: HEALTHY/WARNING/DANGER/DEAD
+            #   'adf_pvalue': 0.023,         # ADF检验的p值
+            #   'halflife': 15.3,            # 半衰期（周期数）
+            #   'beta': 1.05,                # 协整系数
+            #   'scores': {                  # 各分项得分（嵌套结构）
+            #       'adf': 30.5,             # ADF得分 (0-40)
+            #       'halflife': 22.0,        # 半衰期得分 (0-30)
+            #       'stability': 20.0        # 稳定性得分 (0-30，综合β稳定性、均值漂移、ADF持续性)
+            #   }
             # }
 
             # 2. 计算对数价格（保留索引信息）
@@ -573,7 +576,7 @@ class DelayCorrelationAnalyzer:
                 log_base_series,
                 log_alt_series
             )
-            health_result_content_str = f"健康得分: {health_result['health_score']} | 状态: {health_result['state']} | ADF得分: {health_result['adf_score']} | 半衰期得分: {health_result['half_life_score']} | 稳定性得分: {health_result['beta_stability_score']} | 均值漂移得分: {health_result['mean_drift_score']} | 是否交易: {health_result['should_trade']}"
+            health_result_content_str = f"健康得分: {health_result['health_score']} | 状态: {health_result['state']} | ADF得分: {health_result['scores']['adf']} | 半衰期得分: {health_result['scores']['halflife']} | 稳定性得分: {health_result['scores']['stability']} | ADF p-value: {health_result['adf_pvalue']:.4f} | 半衰期: {health_result['halflife']}"
             logger.info(f"协整健康监控结果 | 币种: {coin} | 健康结果: {health_result_content_str}")
 
         # 协整检验（基于配置周期数据）(老方案)，全量数据
