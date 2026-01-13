@@ -568,6 +568,9 @@ class DelayCorrelationAnalyzer:
             # 计算窗口差异
             score_diff = abs(result_long['health_score'] - result_short['health_score'])
 
+            # health_result_content_str = f"健康得分: {health_result['health_score']} | 状态: {health_result['state']} | ADF得分: {health_result['scores']['adf']} | 半衰期得分: {health_result['scores']['halflife']} | 稳定性得分: {health_result['scores']['stability']} | ADF p-value: {health_result['adf_pvalue']:.4f} | 半衰期: {health_result['halflife']}"
+            # logger.info(f"协整健康监控结果 | 币种: {coin} | 健康结果: {health_result_content_str}")
+
             # === 增强日志输出 ===
             logger.info(f"""
             ╔════════════════════════════════════════════════════════════════
