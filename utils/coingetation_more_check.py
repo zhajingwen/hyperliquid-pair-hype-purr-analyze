@@ -6,9 +6,11 @@ from statsmodels.tsa.stattools import adfuller
 
 class CointegrationHealthMonitor:
     """
-    Cointegration Health Monitor
-    - 4H level structure monitor
-    - Outputs health score (0-100) + state
+    协整健康监控器 - 观察期优化版本
+    - 4H 级别结构监控
+    - 输出健康得分 (0-100) + 状态 + 诊断信息
+    - 修复：使用滚动窗口替代失效的历史累积机制
+    - 新增：模型诊断和异常原因追踪
     """
 
     # ===== 状态枚举 =====
@@ -20,42 +22,61 @@ class CointegrationHealthMonitor:
     def __init__(
         self,
         window=200,
-        beta_window=20,
-        adf_history=10,
         max_halflife=30,
         min_halflife=5,
-        state_thresholds=(80, 60, 40),
+        state_thresholds=(25, 18, 12),  # 调整为实际可达到的分数范围
+        enable_diagnostics=True,
     ):
+        """
+        初始化健康监控器
+
+        Args:
+            window: 滚动窗口大小（建议100或200）
+            max_halflife: 最大半衰期阈值（期数）
+            min_halflife: 最小半衰期阈值（期数）
+            state_thresholds: 状态阈值 (HEALTHY, WARNING, DANGER)
+            enable_diagnostics: 是否启用诊断信息
+        """
         self.window = window
-        self.beta_window = beta_window
-        self.adf_history = adf_history
         self.max_halflife = max_halflife
         self.min_halflife = min_halflife
         self.state_thresholds = state_thresholds
-
-        # 历史缓存
-        self.beta_history = []
-        self.adf_pass_history = []
+        self.enable_diagnostics = enable_diagnostics
 
     # ==========================================================
     # 主入口
     # ==========================================================
     def update(self, logA: pd.Series, logB: pd.Series):
         """
-        Update with latest 4H window data
+        更新健康监控数据
+
+        Returns:
+            dict: {
+                'health_score': 综合得分(0-100),
+                'state': 健康状态,
+                'adf_pvalue': ADF检验p值,
+                'halflife': 半衰期,
+                'halflife_reason': 半衰期计算原因,
+                'beta': 协整系数,
+                'scores': {各分项得分},
+                'diagnostics': {诊断信息} (可选)
+            }
         """
         if len(logA) < self.window or len(logB) < self.window:
-            raise ValueError("Not enough data for rolling window")
+            raise ValueError(f"数据不足：需要 {self.window} 期，实际 {len(logA)} 期")
 
         logA = logA[-self.window:]
         logB = logB[-self.window:]
 
-        beta, spread = self._estimate_beta_and_spread(logA, logB)
+        # 计算基础参数
+        beta, spread, beta_model = self._estimate_beta_and_spread(logA, logB)
 
+        # 计算各项得分
         adf_score, adf_pvalue = self._adf_strength_score(spread)
-        halflife_score, halflife = self._halflife_score(spread)
-        stability_score = self._stability_score(spread, beta)
+        halflife_score, halflife, halflife_reason, ar1_model = self._halflife_score(spread)
+        stability_score, stability_details = self._stability_score(spread, logA, logB)
 
+        # 综合得分（权重：ADF 40%, 半衰期 30%, 稳定性 30%）
         health_score = (
             0.4 * adf_score
             + 0.3 * halflife_score
@@ -64,126 +85,287 @@ class CointegrationHealthMonitor:
 
         state = self._state_from_score(health_score)
 
-        return {
+        result = {
             "health_score": round(health_score, 2),
             "state": state,
-            "adf_pvalue": adf_pvalue,
-            "halflife": round(halflife, 2),
-            "beta": beta,
+            "adf_pvalue": round(adf_pvalue, 4),
+            "halflife": round(halflife, 2) if not np.isinf(halflife) else "inf",
+            "halflife_reason": halflife_reason,
+            "beta": round(beta, 4),
             "scores": {
                 "adf": round(adf_score, 2),
                 "halflife": round(halflife_score, 2),
                 "stability": round(stability_score, 2),
             },
+            "stability_details": stability_details,
         }
+
+        # 添加诊断信息
+        if self.enable_diagnostics:
+            result["diagnostics"] = self._get_diagnostics(
+                spread, beta_model, ar1_model, stability_details
+            )
+
+        return result
 
     # ==========================================================
     # 内部组件
     # ==========================================================
     def _estimate_beta_and_spread(self, logA, logB):
+        """估算协整系数和价差"""
         X = sm.add_constant(logB)
         model = sm.OLS(logA, X).fit()
         beta = model.params.iloc[1]
-
         spread = logA - beta * logB
+        return beta, spread, model
 
-        self.beta_history.append(beta)
-        self.beta_history = self.beta_history[-self.beta_window:]
-
-        return beta, spread
-
-    # ---------------- ADF 强度 ----------------
+    # ---------------- ADF 强度评分 ----------------
     def _adf_strength_score(self, spread):
-        adf_stat, pvalue, *_ = adfuller(spread, autolag="AIC")
+        """
+        ADF 平稳性检验评分 (0-40分)
 
-        adf_pass = pvalue < 0.05
-        self.adf_pass_history.append(int(adf_pass))
-        self.adf_pass_history = self.adf_pass_history[-self.adf_history:]
+        评分规则：
+        - p > 0.1: 0分（不平稳）
+        - p < 0.01: 40分（强平稳）
+        - 0.01 <= p <= 0.1: 线性插值
+        """
+        try:
+            adf_stat, pvalue, *_ = adfuller(spread, autolag="AIC")
+        except Exception as e:
+            return 0, 1.0  # ADF失败，返回最差得分
 
         if pvalue > 0.1:
             score = 0
         elif pvalue < 0.01:
             score = 40
         else:
+            # 线性插值
             score = 40 * (0.1 - pvalue) / (0.1 - 0.01)
 
         return score, pvalue
 
-    # ---------------- 半衰期 ----------------
+    # ---------------- 半衰期评分 ----------------
     def _halflife_score(self, spread):
-        spread_lag = spread.shift(1).iloc[1:]
-        delta = spread.diff().iloc[1:]
+        """
+        半衰期评分 (0-30分) - 增强稳健性检验
 
-        model = sm.OLS(delta, sm.add_constant(spread_lag)).fit()
-        phi = model.params.iloc[1]
+        评分规则：
+        - halflife <= min_halflife: 30分（快速均值回归）
+        - halflife >= max_halflife: 0分（均值回归太慢）
+        - 中间值：线性插值
 
-        # 计算半衰期，增加边界条件检查避免除零错误
-        if phi >= 0:
-            halflife = np.inf
-        elif phi <= -2:
-            # phi过小，模型不稳定
-            halflife = np.inf
-        else:
-            # 检查 1 + phi 是否接近 0，避免 log(0) 或除零
-            if abs(1 + phi) < 1e-10:
-                halflife = np.inf
+        Returns:
+            (score, halflife, reason, model)
+        """
+        try:
+            spread_lag = spread.shift(1).iloc[1:]
+            delta = spread.diff().iloc[1:]
+
+            model = sm.OLS(delta, sm.add_constant(spread_lag)).fit()
+            phi = model.params.iloc[1]
+            phi_pvalue = model.pvalues.iloc[1]
+            rsquared = model.rsquared
+
+            # 稳健性检验1：phi 不显著
+            if phi_pvalue > 0.05:
+                return 0, np.inf, "PHI_NOT_SIGNIFICANT", model
+
+            # 稳健性检验2：AR(1) 拟合优度太低
+            if rsquared < 0.2:
+                return 0, np.inf, "AR1_POOR_FIT", model
+
+            # 稳健性检验3：phi 边界条件
+            if phi >= 0:
+                return 0, np.inf, "NO_MEAN_REVERSION", model
+            elif phi <= -1:  # 修正：从-2改为-1
+                return 0, np.inf, "OVER_CORRECTION", model
+
+            # 计算半衰期
+            try:
+                halflife = np.log(2) / np.log(1 / (1 + phi))
+            except (ZeroDivisionError, ValueError):
+                return 0, np.inf, "CALCULATION_ERROR", model
+
+            # 处理异常值
+            if np.isnan(halflife) or np.isinf(halflife):
+                return 0, np.inf, "HALFLIFE_INVALID", model
+
+            # 评分
+            if halflife <= self.min_halflife:
+                score = 30
+                reason = "VERY_FAST"
+            elif halflife >= self.max_halflife:
+                score = 0
+                reason = "TOO_SLOW"
             else:
-                log_val = np.log(1 + phi)
-                # 检查 log 值是否接近 0，避免除零
-                if abs(log_val) < 1e-10:
-                    halflife = np.inf
-                else:
-                    halflife = np.log(2) / -log_val
+                score = 30 * (
+                    (self.max_halflife - halflife)
+                    / (self.max_halflife - self.min_halflife)
+                )
+                reason = "NORMAL"
 
-        # 处理可能的 inf 或 nan
-        if np.isnan(halflife) or np.isinf(halflife):
-            score = 0
-        elif halflife <= self.min_halflife:
-            score = 30
-        elif halflife >= self.max_halflife:
-            score = 0
-        else:
-            score = 30 * (
-                (self.max_halflife - halflife)
-                / (self.max_halflife - self.min_halflife)
-            )
+            return score, halflife, reason, model
 
-        return score, halflife
+        except Exception as e:
+            return 0, np.inf, f"EXCEPTION_{type(e).__name__}", None
 
-    # ---------------- 稳定性 ----------------
-    def _stability_score(self, spread, beta):
+    # ---------------- 稳定性评分（修复版）----------------
+    def _stability_score(self, spread, logA, logB):
+        """
+        稳定性评分 (0-30分) - 使用滚动窗口替代历史累积
+
+        评分维度：
+        1. β稳定性 (0-10分)：滚动窗口中β的变异系数
+        2. 均值漂移 (0-10分)：前后期均值变化
+        3. ADF持续性 (0-10分)：多个子窗口的ADF通过率
+        """
         score = 0
+        details = {}
 
-        # --- β 稳定性 (0–10) ---
-        if len(self.beta_history) >= 5:
-            beta_mean = abs(np.mean(self.beta_history))
-            # 避免除零错误
-            if beta_mean > 1e-10:
-                beta_cv = np.std(self.beta_history) / beta_mean
-                if beta_cv < 0.05:
-                    score += 10
-                elif beta_cv < 0.15:
-                    score += 5
+        # --- β 稳定性 (0-10分) 滚动窗口计算 ---
+        beta_stability_score, beta_cv = self._calc_beta_stability(logA, logB)
+        score += beta_stability_score
+        details["beta_cv"] = round(beta_cv, 4) if not np.isnan(beta_cv) else None
+        details["beta_stability_score"] = round(beta_stability_score, 2)
 
-        # --- 均值漂移 (0–10) ---
-        recent_mean = spread[-20:].mean()
-        old_mean = spread[:20].mean()
-        spread_std = spread.std()
+        # --- 均值漂移 (0-10分) ---
+        mean_shift_score, mean_shift_ratio = self._calc_mean_shift(spread)
+        score += mean_shift_score
+        details["mean_shift_ratio"] = round(mean_shift_ratio, 4)
+        details["mean_shift_score"] = round(mean_shift_score, 2)
 
-        mean_shift = abs(recent_mean - old_mean) / spread_std
-        if mean_shift < 0.5:
-            score += 10
-        elif mean_shift < 1.5:
-            score += 5
+        # --- ADF 持续性 (0-10分) 滚动窗口计算 ---
+        adf_consistency_score, adf_pass_rate = self._calc_adf_consistency(spread)
+        score += adf_consistency_score
+        details["adf_pass_rate"] = round(adf_pass_rate, 4)
+        details["adf_consistency_score"] = round(adf_consistency_score, 2)
 
-        # --- ADF 持续性 (0–10) ---
-        if len(self.adf_pass_history) > 0:
-            score += 10 * (sum(self.adf_pass_history) / len(self.adf_pass_history))
+        return score, details
 
-        return score
+    def _calc_beta_stability(self, logA, logB):
+        """
+        计算β稳定性（滚动窗口）
 
-    # ---------------- 状态机 ----------------
+        方法：将窗口分为5段，每段独立计算β，然后计算变异系数
+        """
+        try:
+            window_size = len(logA)
+            segment_size = window_size // 5
+
+            if segment_size < 20:  # 每段至少20期数据
+                return 0, np.nan
+
+            betas = []
+            for i in range(5):
+                start = i * segment_size
+                end = start + segment_size if i < 4 else window_size
+
+                seg_logA = logA.iloc[start:end]
+                seg_logB = logB.iloc[start:end]
+
+                if len(seg_logA) < 20:
+                    continue
+
+                X = sm.add_constant(seg_logB)
+                model = sm.OLS(seg_logA, X).fit()
+                betas.append(model.params.iloc[1])
+
+            if len(betas) < 4:
+                return 0, np.nan
+
+            beta_mean = np.abs(np.mean(betas))
+            if beta_mean < 1e-10:
+                return 0, np.nan
+
+            beta_cv = np.std(betas) / beta_mean
+
+            # 评分
+            if beta_cv < 0.05:
+                score = 10
+            elif beta_cv < 0.15:
+                score = 5
+            else:
+                score = 0
+
+            return score, beta_cv
+
+        except Exception:
+            return 0, np.nan
+
+    def _calc_mean_shift(self, spread):
+        """
+        计算均值漂移
+
+        方法：比较前20%和后20%数据的均值差异
+        """
+        try:
+            window_size = len(spread)
+            segment_size = max(20, window_size // 5)
+
+            old_mean = spread[:segment_size].mean()
+            recent_mean = spread[-segment_size:].mean()
+            spread_std = spread.std()
+
+            if spread_std < 1e-10:
+                return 0, np.nan
+
+            mean_shift_ratio = abs(recent_mean - old_mean) / spread_std
+
+            # 评分
+            if mean_shift_ratio < 0.5:
+                score = 10
+            elif mean_shift_ratio < 1.5:
+                score = 5
+            else:
+                score = 0
+
+            return score, mean_shift_ratio
+
+        except Exception:
+            return 0, np.nan
+
+    def _calc_adf_consistency(self, spread):
+        """
+        计算 ADF 持续性（滚动窗口）
+
+        方法：在窗口内取5个子窗口，分别做ADF检验，计算通过率
+        """
+        try:
+            window_size = len(spread)
+            sub_window_sizes = [
+                window_size,
+                int(window_size * 0.8),
+                int(window_size * 0.6),
+                int(window_size * 0.4),
+                int(window_size * 0.2),
+            ]
+
+            adf_results = []
+            for size in sub_window_sizes:
+                if size < 30:  # 子窗口至少30期
+                    continue
+
+                sub_spread = spread[-size:]
+                try:
+                    _, pvalue, *_ = adfuller(sub_spread, autolag="AIC")
+                    adf_results.append(int(pvalue < 0.05))
+                except:
+                    continue
+
+            if len(adf_results) == 0:
+                return 0, 0
+
+            pass_rate = sum(adf_results) / len(adf_results)
+            score = 10 * pass_rate
+
+            return score, pass_rate
+
+        except Exception:
+            return 0, 0
+
+    # ---------------- 状态判断 ----------------
     def _state_from_score(self, score):
+        """根据得分判断健康状态"""
         high, mid, low = self.state_thresholds
 
         if score >= high:
@@ -194,3 +376,85 @@ class CointegrationHealthMonitor:
             return self.DANGER
         else:
             return self.DEAD
+
+    # ---------------- 诊断信息 ----------------
+    def _get_diagnostics(self, spread, beta_model, ar1_model, stability_details):
+        """
+        生成诊断信息
+
+        Returns:
+            dict: 包含模型质量、数据质量和异常警告
+        """
+        diagnostics = {
+            "model_quality": {},
+            "data_quality": {},
+            "warnings": [],
+        }
+
+        # 模型质量
+        if beta_model is not None:
+            diagnostics["model_quality"]["beta_rsquared"] = round(beta_model.rsquared, 3)
+            diagnostics["model_quality"]["beta_model_valid"] = beta_model.rsquared > 0.3
+
+        if ar1_model is not None:
+            diagnostics["model_quality"]["ar1_rsquared"] = round(ar1_model.rsquared, 3)
+            diagnostics["model_quality"]["ar1_model_valid"] = ar1_model.rsquared > 0.2
+            diagnostics["model_quality"]["phi"] = round(ar1_model.params.iloc[1], 4)
+            diagnostics["model_quality"]["phi_pvalue"] = round(ar1_model.pvalues.iloc[1], 4)
+
+        # 数据质量
+        diagnostics["data_quality"]["spread_std"] = round(spread.std(), 4)
+        diagnostics["data_quality"]["spread_mean"] = round(spread.mean(), 4)
+        diagnostics["data_quality"]["spread_skewness"] = round(spread.skew(), 3)
+        diagnostics["data_quality"]["spread_kurtosis"] = round(spread.kurtosis(), 3)
+
+        # 稳定性细节
+        diagnostics["stability_breakdown"] = stability_details
+
+        # 异常警告
+        warnings = self._check_warnings(spread, beta_model, ar1_model, stability_details)
+        diagnostics["warnings"] = warnings
+
+        return diagnostics
+
+    def _check_warnings(self, spread, beta_model, ar1_model, stability_details):
+        """检查异常情况"""
+        warnings = []
+
+        # AR(1) 模型质量
+        if ar1_model is not None and ar1_model.rsquared < 0.3:
+            warnings.append("AR1_LOW_FIT")
+
+        # Beta 模型质量
+        if beta_model is not None and beta_model.rsquared < 0.5:
+            warnings.append("BETA_LOW_FIT")
+
+        # 数据分布异常
+        if abs(spread.skew()) > 2:
+            warnings.append("HIGH_SKEWNESS")
+
+        if spread.kurtosis() > 7:
+            warnings.append("FAT_TAILS")
+
+        # 波动率突变
+        mid = len(spread) // 2
+        if mid > 20:
+            first_half_std = spread[:mid].std()
+            second_half_std = spread[mid:].std()
+            if max(first_half_std, second_half_std) / min(first_half_std, second_half_std) > 2:
+                warnings.append("VOLATILITY_REGIME_CHANGE")
+
+        # 稳定性问题
+        if stability_details.get("beta_cv") is not None:
+            if stability_details["beta_cv"] > 0.2:
+                warnings.append("BETA_UNSTABLE")
+
+        if stability_details.get("mean_shift_ratio") is not None:
+            if stability_details["mean_shift_ratio"] > 1.5:
+                warnings.append("MEAN_SHIFT_LARGE")
+
+        if stability_details.get("adf_pass_rate") is not None:
+            if stability_details["adf_pass_rate"] < 0.5:
+                warnings.append("ADF_INCONSISTENT")
+
+        return warnings

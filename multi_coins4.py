@@ -552,32 +552,68 @@ class DelayCorrelationAnalyzer:
         多周期协整检验
         """
         if stats_period_key == ('4h', '60d'):
-            # === 协整健康监控 chatgpt 额外的类方法，综合计算ADF，半衰期，稳定性 ===
-            monitor = CointegrationHealthMonitor(window=200)
-            # 综合计算ADF，半衰期，稳定性
-            # health_result 是一个 dict，实际结构如下：
-            # {
-            #   'health_score': 72.5,        # 综合健康得分 (0-100)
-            #   'state': 'HEALTHY',          # 状态: HEALTHY/WARNING/DANGER/DEAD
-            #   'adf_pvalue': 0.023,         # ADF检验的p值
-            #   'halflife': 15.3,            # 半衰期（周期数）
-            #   'beta': 1.05,                # 协整系数
-            #   'scores': {                  # 各分项得分（嵌套结构）
-            #       'adf': 30.5,             # ADF得分 (0-40)
-            #       'halflife': 22.0,        # 半衰期得分 (0-30)
-            #       'stability': 20.0        # 稳定性得分 (0-30，综合β稳定性、均值漂移、ADF持续性)
-            #   }
-            # }
-
-            # 2. 计算对数价格（保留索引信息）
+            # === 协整健康监控（优化版）- 双窗口对比分析 ===
+            # 计算对数价格（保留索引信息）
             log_base_series = np.log(base_prices)
             log_alt_series = np.log(alt_prices)
-            health_result = monitor.update(
-                log_base_series,
-                log_alt_series
-            )
-            health_result_content_str = f"健康得分: {health_result['health_score']} | 状态: {health_result['state']} | ADF得分: {health_result['scores']['adf']} | 半衰期得分: {health_result['scores']['halflife']} | 稳定性得分: {health_result['scores']['stability']} | ADF p-value: {health_result['adf_pvalue']:.4f} | 半衰期: {health_result['halflife']}"
-            logger.info(f"协整健康监控结果 | 币种: {coin} | 健康结果: {health_result_content_str}")
+
+            # 长期监控（200期 = 33天）- 评估长期结构稳定性
+            monitor_long = CointegrationHealthMonitor(window=200, enable_diagnostics=True)
+            result_long = monitor_long.update(log_base_series, log_alt_series)
+
+            # 短期监控（100期 = 16.7天）- 与交易信号窗口对齐
+            monitor_short = CointegrationHealthMonitor(window=100, enable_diagnostics=True)
+            result_short = monitor_short.update(log_base_series, log_alt_series)
+
+            # 计算窗口差异
+            score_diff = abs(result_long['health_score'] - result_short['health_score'])
+
+            # === 增强日志输出 ===
+            logger.info(f"""
+            ╔════════════════════════════════════════════════════════════════
+            ║ 协整健康监控 | 币种: {coin}
+            ╠════════════════════════════════════════════════════════════════
+            ║ 【长期窗口 200期】
+            ║   综合得分: {result_long['health_score']} | 状态: {result_long['state']}
+            ║   ADF: p={result_long['adf_pvalue']:.4f} (得分:{result_long['scores']['adf']})
+            ║   半衰期: {result_long['halflife']} 期 (得分:{result_long['scores']['halflife']}) | 原因:{result_long['halflife_reason']}
+            ║   稳定性: {result_long['scores']['stability']} (β变异:{result_long['stability_details'].get('beta_cv', 'N/A')}, 均值漂移:{result_long['stability_details'].get('mean_shift_ratio', 'N/A'):.3f}, ADF持续:{result_long['stability_details'].get('adf_pass_rate', 'N/A'):.1%})
+            ║
+            ║ 【短期窗口 100期】
+            ║   综合得分: {result_short['health_score']} | 状态: {result_short['state']}
+            ║   ADF: p={result_short['adf_pvalue']:.4f} (得分:{result_short['scores']['adf']})
+            ║   半衰期: {result_short['halflife']} 期 (得分:{result_short['scores']['halflife']}) | 原因:{result_short['halflife_reason']}
+            ║   稳定性: {result_short['scores']['stability']} (β变异:{result_short['stability_details'].get('beta_cv', 'N/A')}, 均值漂移:{result_short['stability_details'].get('mean_shift_ratio', 'N/A'):.3f}, ADF持续:{result_short['stability_details'].get('adf_pass_rate', 'N/A'):.1%})
+            ║
+            ║ 【窗口对比】
+            ║   得分差异: {score_diff:.2f} {'⚠️ 显著差异' if score_diff > 10 else '✓ 差异正常'}
+            ║   趋势判断: {'📈 短期改善' if result_short['health_score'] > result_long['health_score'] else '📉 短期恶化' if result_short['health_score'] < result_long['health_score'] else '➡️ 稳定'}
+            ║
+            ║ 【诊断信息 - 长期】
+            ║   模型质量: Beta R²={result_long['diagnostics']['model_quality'].get('beta_rsquared', 'N/A')}, AR1 R²={result_long['diagnostics']['model_quality'].get('ar1_rsquared', 'N/A')}, phi={result_long['diagnostics']['model_quality'].get('phi', 'N/A')}
+            ║   数据质量: Spread σ={result_long['diagnostics']['data_quality']['spread_std']:.4f}, 偏度={result_long['diagnostics']['data_quality']['spread_skewness']:.2f}, 峰度={result_long['diagnostics']['data_quality']['spread_kurtosis']:.2f}
+            ║   异常警告: {', '.join(result_long['diagnostics']['warnings']) if result_long['diagnostics']['warnings'] else '无异常'}
+            ╚════════════════════════════════════════════════════════════════
+                        """.strip())
+
+            # 如果有严重问题，额外输出警告
+            if result_long['diagnostics']['warnings']:
+                warning_details = []
+                for warning in result_long['diagnostics']['warnings']:
+                    if warning == 'AR1_LOW_FIT':
+                        warning_details.append(f"AR(1)模型拟合优度低(R²={result_long['diagnostics']['model_quality'].get('ar1_rsquared', 'N/A')}), 半衰期可能不可靠")
+                    elif warning == 'BETA_UNSTABLE':
+                        warning_details.append(f"β系数不稳定(变异系数={result_long['stability_details'].get('beta_cv', 'N/A')}), 协整关系可能恶化")
+                    elif warning == 'MEAN_SHIFT_LARGE':
+                        warning_details.append(f"均值显著漂移(漂移比={result_long['stability_details'].get('mean_shift_ratio', 'N/A'):.2f}), 价差中枢改变")
+                    elif warning == 'ADF_INCONSISTENT':
+                        warning_details.append(f"ADF检验不一致(通过率={result_long['stability_details'].get('adf_pass_rate', 'N/A'):.1%}), 平稳性存疑")
+                    elif warning == 'VOLATILITY_REGIME_CHANGE':
+                        warning_details.append("波动率状态突变, 可能发生结构性变化")
+                    else:
+                        warning_details.append(warning)
+
+                logger.warning(f"⚠️ 币种 {coin} 健康监控异常 | 问题: {' | '.join(warning_details)}")
 
         # 协整检验（基于配置周期数据）(老方案)，全量数据
         ols_params = DelayCorrelationAnalyzer._calculate_cointegration_params(
