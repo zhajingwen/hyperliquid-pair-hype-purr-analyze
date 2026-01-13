@@ -83,7 +83,7 @@ class CointegrationHealthMonitor:
     def _estimate_beta_and_spread(self, logA, logB):
         X = sm.add_constant(logB)
         model = sm.OLS(logA, X).fit()
-        beta = model.params[1]
+        beta = model.params.iloc[1]
 
         spread = logA - beta * logB
 
@@ -115,7 +115,7 @@ class CointegrationHealthMonitor:
         delta = spread.diff().iloc[1:]
 
         model = sm.OLS(delta, sm.add_constant(spread_lag)).fit()
-        phi = model.params[1]
+        phi = model.params.iloc[1]
 
         if phi >= 0:
             halflife = np.inf
