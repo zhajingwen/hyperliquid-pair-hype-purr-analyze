@@ -117,12 +117,28 @@ class CointegrationHealthMonitor:
         model = sm.OLS(delta, sm.add_constant(spread_lag)).fit()
         phi = model.params.iloc[1]
 
+        # 计算半衰期，增加边界条件检查避免除零错误
         if phi >= 0:
             halflife = np.inf
+        elif phi <= -2:
+            # phi过小，模型不稳定
+            halflife = np.inf
         else:
-            halflife = np.log(2) / -np.log(1 + phi)
+            # 检查 1 + phi 是否接近 0，避免 log(0) 或除零
+            if abs(1 + phi) < 1e-10:
+                halflife = np.inf
+            else:
+                log_val = np.log(1 + phi)
+                # 检查 log 值是否接近 0，避免除零
+                if abs(log_val) < 1e-10:
+                    halflife = np.inf
+                else:
+                    halflife = np.log(2) / -log_val
 
-        if halflife <= self.min_halflife:
+        # 处理可能的 inf 或 nan
+        if np.isnan(halflife) or np.isinf(halflife):
+            score = 0
+        elif halflife <= self.min_halflife:
             score = 30
         elif halflife >= self.max_halflife:
             score = 0
@@ -140,11 +156,14 @@ class CointegrationHealthMonitor:
 
         # --- β 稳定性 (0–10) ---
         if len(self.beta_history) >= 5:
-            beta_cv = np.std(self.beta_history) / abs(np.mean(self.beta_history))
-            if beta_cv < 0.05:
-                score += 10
-            elif beta_cv < 0.15:
-                score += 5
+            beta_mean = abs(np.mean(self.beta_history))
+            # 避免除零错误
+            if beta_mean > 1e-10:
+                beta_cv = np.std(self.beta_history) / beta_mean
+                if beta_cv < 0.05:
+                    score += 10
+                elif beta_cv < 0.15:
+                    score += 5
 
         # --- 均值漂移 (0–10) ---
         recent_mean = spread[-20:].mean()
