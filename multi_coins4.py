@@ -558,11 +558,19 @@ class DelayCorrelationAnalyzer:
             log_alt_series = np.log(alt_prices)
 
             # 长期监控（200期 = 33天）- 评估长期结构稳定性
-            monitor_long = CointegrationHealthMonitor(window=200, enable_diagnostics=True)
+            monitor_long = CointegrationHealthMonitor(
+                window=200,
+                enable_diagnostics=True,
+                state_thresholds=(18, 14, 10)  # 调整为合理阈值
+            )
             result_long = monitor_long.update(log_base_series, log_alt_series)
 
             # 短期监控（100期 = 16.7天）- 与交易信号窗口对齐
-            monitor_short = CointegrationHealthMonitor(window=100, enable_diagnostics=True)
+            monitor_short = CointegrationHealthMonitor(
+                window=100,
+                enable_diagnostics=True,
+                state_thresholds=(18, 14, 10)  # 调整为合理阈值
+            )
             result_short = monitor_short.update(log_base_series, log_alt_series)
 
             # 计算窗口差异
