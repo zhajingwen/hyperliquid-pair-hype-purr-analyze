@@ -11,6 +11,7 @@ import pandas as pd
 from enum import Enum
 from retry import retry
 from statsmodels.tsa.stattools import adfuller
+import statsmodels.api as sm
 from sklearn.linear_model import LinearRegression
 from typing import Union, Tuple, Optional
 from utils.lark_bot import sender
@@ -413,32 +414,53 @@ class DelayCorrelationAnalyzer:
             log_base_series = np.log(base_prices)
             log_alt_series = np.log(alt_prices)
 
-            # 提取数值用于OLS回归（需要reshape用于LinearRegression）
-            log_base = log_base_series.values.reshape(-1, 1)
-            log_alt = log_alt_series.values
-
-            # 3. OLS回归：log_alt = α + β * log_base + ε
+            # 3. statsmodels OLS回归（带常数项）：log_alt = α + β * log_base + ε
             # 注意：此函数用于验证性分析，使用全样本是标准做法（Engle-Granger两步法）
             # 虽然存在 look-ahead bias，但这是协整检验的标准方法
-            model = LinearRegression()
-            model.fit(log_base, log_alt)
+            X = sm.add_constant(log_base_series)
+            model = sm.OLS(log_alt_series, X).fit()
 
-            alpha = model.intercept_
-            beta = model.coef_[0]
+            alpha = model.params.iloc[0]      # 常数项
+            beta = model.params.iloc[1]       # 斜率
+            alpha_pvalue = model.pvalues.iloc[0]  # α的p值
+            beta_pvalue = model.pvalues.iloc[1]   # β的p值
+            rsquared = model.rsquared    # 拟合优度
 
-            # 4. 计算OLS价差（残差）
-            # 使用 pandas Series 运算以保留索引信息
-            spread_ols = log_alt_series - (alpha + beta * log_base_series)
+            # 4. 根据α显著性选择价差计算方法
+            if alpha_pvalue < 0.05:
+                # α显著 → 使用标准EG模型（减α）
+                spread_ols = log_alt_series - (alpha + beta * log_base_series)
+                model_type = "standard_EG"  # 标准Engle-Granger
+                use_alpha = True
+            else:
+                # α不显著 → 使用无常数项模型（不减α）
+                spread_ols = log_alt_series - beta * log_base_series
+                model_type = "no_intercept"
+                use_alpha = False
 
             # 5. ADF检验价差平稳性（使用数值数组）
             adf_result = adfuller(spread_ols.values, autolag='AIC')
             adf_pvalue = adf_result[1]
 
+            # 6. 日志输出（便于调试）
+            if coin:
+                logger.debug(
+                    f"协整参数 | 币种: {coin} | α={alpha:.4f} (p={alpha_pvalue:.4f}) | "
+                    f"β={beta:.4f} (p={beta_pvalue:.4f}) | R²={rsquared:.4f} | "
+                    f"模型: {model_type} | ADF p={adf_pvalue:.4f}"
+                )
+
             return {
                 'alpha': alpha,
                 'beta': beta,
                 'spread': spread_ols,  # 保留原始索引的 pandas Series
-                'adf_pvalue': adf_pvalue
+                'adf_pvalue': adf_pvalue,
+                # 新增统计信息
+                'alpha_pvalue': alpha_pvalue,
+                'beta_pvalue': beta_pvalue,
+                'rsquared': rsquared,
+                'model_type': model_type,
+                'use_alpha': use_alpha  # 标记是否使用了α
             }
         except Exception as e:
             coin_info = f" | 币种: {coin}" if coin else ""
@@ -463,19 +485,34 @@ class DelayCorrelationAnalyzer:
         ols_alt = recent_alt_full.iloc[:-1]
 
         # 计算对数价格
-        log_base_ols = np.log(ols_base).values.reshape(-1, 1)
-        log_alt_ols = np.log(ols_alt).values
+        log_base_ols = np.log(ols_base)
+        log_alt_ols = np.log(ols_alt)
 
-        # OLS回归
-        model = LinearRegression()
-        model.fit(log_base_ols, log_alt_ols)
-        alpha = model.intercept_
-        beta_ols = model.coef_[0]
+        # statsmodels OLS回归
+        X = sm.add_constant(log_base_ols)
+        model = sm.OLS(log_alt_ols, X).fit()
 
-        # 价差构建（用于计算ADF ADF检验用100期）
+        alpha = model.params.iloc[0]          # 常数项
+        beta_ols = model.params.iloc[1]       # 斜率
+        alpha_pvalue = model.pvalues.iloc[0]  # α的p值
+        beta_pvalue = model.pvalues.iloc[1]   # β的p值
+        rsquared = model.rsquared         # 拟合优度
+
+        # 根据α显著性选择价差计算方法（用于ADF检验）
         log_base_full = np.log(recent_base_full)  # 全部100期
         log_alt_full = np.log(recent_alt_full)
-        spread_full = log_alt_full - (alpha + beta_ols * log_base_full)
+
+        if alpha_pvalue < 0.05:
+            # α显著 → 标准EG模型
+            spread_full = log_alt_full - (alpha + beta_ols * log_base_full)
+            model_type = "standard_EG"
+            use_alpha = True
+        else:
+            # α不显著 → 无常数项模型
+            spread_full = log_alt_full - beta_ols * log_base_full
+            model_type = "no_intercept"
+            use_alpha = False
+
         # ADF检验价差平稳性
         adf_result = adfuller(spread_full.values, autolag='AIC')
         adf_pvalue = adf_result[1]
@@ -486,13 +523,24 @@ class DelayCorrelationAnalyzer:
         recent_alt = recent_alt_full.iloc[-zscore_window:]
         log_base = np.log(recent_base)
         log_alt = np.log(recent_alt)
-        spread = log_alt - (alpha + beta_ols * log_base)
+
+        # 使用相同的模型选择
+        if use_alpha:
+            spread = log_alt - (alpha + beta_ols * log_base)
+        else:
+            spread = log_alt - beta_ols * log_base
 
         return {
-            'alpha': alpha, # 截距项（价格溢价/折价）
-            'beta': beta_ols, # OLS回归系数
-            'spread': spread, # 用于Z-score计算的价差序列
-            'adf_pvalue': adf_pvalue # ADF检验价差平稳性
+            'alpha': alpha,           # 截距项（价格溢价/折价）
+            'beta': beta_ols,         # OLS回归系数
+            'spread': spread,         # 用于Z-score计算的价差序列
+            'adf_pvalue': adf_pvalue, # ADF检验价差平稳性
+            # 新增统计信息
+            'alpha_pvalue': alpha_pvalue,
+            'beta_pvalue': beta_pvalue,
+            'rsquared': rsquared,
+            'model_type': model_type,
+            'use_alpha': use_alpha
         }
 
     def cointegration_analysis(
@@ -631,10 +679,26 @@ class DelayCorrelationAnalyzer:
             base_prices, alt_prices, coin=coin, base_symbol=self.base_symbol
         )
         cointegration_status_total_period = self.cointegration_analysis(ols_params, 'old', coin, stats_period_key)
+        # 输出Old方法的模型选择信息
+        if ols_params:
+            logger.info(
+                f"Old方法 | 币种: {coin} | 模型类型: {ols_params.get('model_type')} | "
+                f"α显著性: p={ols_params.get('alpha_pvalue', 'N/A'):.4f} | "
+                f"β显著性: p={ols_params.get('beta_pvalue', 'N/A'):.4f} | "
+                f"R²={ols_params.get('rsquared', 'N/A'):.4f}"
+            )
         
         # 双窗口策略：OLS回归使用长窗口（稳定），统计量使用短窗口（敏感）。
         cointegration_result = DelayCorrelationAnalyzer.price_diff_spread_ols_window(base_prices, alt_prices, beta_window, zscore_window)
         cointegration_status_short_period = self.cointegration_analysis(cointegration_result, 'new', coin, stats_period_key)
+        # 输出New方法的模型选择信息
+        if cointegration_result:
+            logger.info(
+                f"New方法 | 币种: {coin} | 模型类型: {cointegration_result.get('model_type')} | "
+                f"α显著性: p={cointegration_result.get('alpha_pvalue', 'N/A'):.4f} | "
+                f"β显著性: p={cointegration_result.get('beta_pvalue', 'N/A'):.4f} | "
+                f"R²={cointegration_result.get('rsquared', 'N/A'):.4f}"
+            )
         
         # 返回协整检验状态，短周期协整检验状态，协整检验结果
         return cointegration_status_total_period, cointegration_status_short_period, cointegration_result
