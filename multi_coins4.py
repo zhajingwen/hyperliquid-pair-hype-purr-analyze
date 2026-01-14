@@ -631,9 +631,11 @@ class DelayCorrelationAnalyzer:
             base_prices, alt_prices, coin=coin, base_symbol=self.base_symbol
         )
         cointegration_status_total_period = self.cointegration_analysis(ols_params, 'old', coin, stats_period_key)
+        
         # 双窗口策略：OLS回归使用长窗口（稳定），统计量使用短窗口（敏感）。
         cointegration_result = DelayCorrelationAnalyzer.price_diff_spread_ols_window(base_prices, alt_prices, beta_window, zscore_window)
         cointegration_status_short_period = self.cointegration_analysis(cointegration_result, 'new', coin, stats_period_key)
+        
         # 返回协整检验状态，短周期协整检验状态，协整检验结果
         return cointegration_status_total_period, cointegration_status_short_period, cointegration_result
 
