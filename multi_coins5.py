@@ -426,17 +426,32 @@ class DelayCorrelationAnalyzer:
             beta_pvalue = model.pvalues.iloc[1]   # β的p值
             rsquared = model.rsquared    # 拟合优度
 
-            # 4. 根据α显著性选择价差计算方法
-            if alpha_pvalue < 0.05:
-                # α显著 → 使用标准EG模型（减α）
+            # 4. 根据α显著性和绝对值大小选择价差计算方法（智能模型选择）
+            if alpha_pvalue < 0.05 and abs(alpha) > 5:
+                # α显著且绝对值很大 → 跨资产类配对（如NEAR/BTC）
+                # 使用无α模型更稳健（避免α时变性问题）
+                spread_ols = log_alt_series - beta * log_base_series
+                model_type = "no_intercept_forced"
+                use_alpha = False
+                model_reason = f"|α|={abs(alpha):.1f}>5, 跨资产类配对"
+                
+            elif alpha_pvalue < 0.05 and abs(alpha) < 2:
+                # α显著且绝对值较小 → 同类资产配对（如UNI/SUSHI）
+                # α代表真实的溢价关系，应当包含
                 spread_ols = log_alt_series - (alpha + beta * log_base_series)
                 model_type = "standard_EG"  # 标准Engle-Granger
                 use_alpha = True
+                model_reason = f"|α|={abs(alpha):.1f}<2, 同类资产配对"
+                
             else:
-                # α不显著 → 使用无常数项模型（不减α）
+                # α不显著或中等范围（2<=|α|<=5）→ 使用无α模型
                 spread_ols = log_alt_series - beta * log_base_series
                 model_type = "no_intercept"
                 use_alpha = False
+                if alpha_pvalue >= 0.05:
+                    model_reason = "α不显著"
+                else:
+                    model_reason = f"|α|={abs(alpha):.1f}∈[2,5], 中等范围"
 
             # 5. ADF检验价差平稳性（使用数值数组）
             adf_result = adfuller(spread_ols.values, autolag='AIC')
@@ -447,7 +462,7 @@ class DelayCorrelationAnalyzer:
                 logger.debug(
                     f"协整参数 | 币种: {coin} | α={alpha:.4f} (p={alpha_pvalue:.4f}) | "
                     f"β={beta:.4f} (p={beta_pvalue:.4f}) | R²={rsquared:.4f} | "
-                    f"模型: {model_type} | ADF p={adf_pvalue:.4f}"
+                    f"模型: {model_type} | 原因: {model_reason} | ADF p={adf_pvalue:.4f}"
                 )
 
             return {
@@ -460,7 +475,8 @@ class DelayCorrelationAnalyzer:
                 'beta_pvalue': beta_pvalue,
                 'rsquared': rsquared,
                 'model_type': model_type,
-                'use_alpha': use_alpha  # 标记是否使用了α
+                'use_alpha': use_alpha,  # 标记是否使用了α
+                'model_reason': model_reason  # 模型选择原因
             }
         except Exception as e:
             coin_info = f" | 币种: {coin}" if coin else ""
@@ -498,20 +514,35 @@ class DelayCorrelationAnalyzer:
         beta_pvalue = model.pvalues.iloc[1]   # β的p值
         rsquared = model.rsquared         # 拟合优度
 
-        # 根据α显著性选择价差计算方法（用于ADF检验）
+        # 根据α显著性和绝对值大小选择价差计算方法（智能模型选择）
         log_base_full = np.log(recent_base_full)  # 全部100期
         log_alt_full = np.log(recent_alt_full)
 
-        if alpha_pvalue < 0.05:
-            # α显著 → 标准EG模型
+        if alpha_pvalue < 0.05 and abs(alpha) > 5:
+            # α显著且绝对值很大 → 跨资产类配对（如NEAR/BTC）
+            # 使用无α模型更稳健（避免α时变性问题）
+            spread_full = log_alt_full - beta_ols * log_base_full
+            model_type = "no_intercept_forced"
+            use_alpha = False
+            model_reason = f"|α|={abs(alpha):.1f}>5, 跨资产类配对"
+            
+        elif alpha_pvalue < 0.05 and abs(alpha) < 2:
+            # α显著且绝对值较小 → 同类资产配对（如UNI/SUSHI）
+            # α代表真实的溢价关系，应当包含
             spread_full = log_alt_full - (alpha + beta_ols * log_base_full)
             model_type = "standard_EG"
             use_alpha = True
+            model_reason = f"|α|={abs(alpha):.1f}<2, 同类资产配对"
+            
         else:
-            # α不显著 → 无常数项模型
+            # α不显著或中等范围（2<=|α|<=5）→ 使用无α模型
             spread_full = log_alt_full - beta_ols * log_base_full
             model_type = "no_intercept"
             use_alpha = False
+            if alpha_pvalue >= 0.05:
+                model_reason = "α不显著"
+            else:
+                model_reason = f"|α|={abs(alpha):.1f}∈[2,5], 中等范围"
 
         # ADF检验价差平稳性
         adf_result = adfuller(spread_full.values, autolag='AIC')
@@ -540,7 +571,8 @@ class DelayCorrelationAnalyzer:
             'beta_pvalue': beta_pvalue,
             'rsquared': rsquared,
             'model_type': model_type,
-            'use_alpha': use_alpha
+            'use_alpha': use_alpha,
+            'model_reason': model_reason  # 模型选择原因
         }
 
     def cointegration_analysis(
