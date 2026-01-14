@@ -171,7 +171,8 @@ class CointegrationHealthMonitor:
                 return 0, np.inf, "PHI_NOT_SIGNIFICANT", model
 
             # 稳健性检验2：AR(1) 拟合优度太低
-            if rsquared < 0.2:
+            # 阈值从0.2降低到0.05（2026-01-14优化）
+            if rsquared < 0.05:
                 return 0, np.inf, "AR1_POOR_FIT", model
 
             # 稳健性检验3：phi 边界条件
