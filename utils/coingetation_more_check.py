@@ -47,9 +47,13 @@ class CointegrationHealthMonitor:
     # ==========================================================
     # 主入口
     # ==========================================================
-    def update(self, logA: pd.Series, logB: pd.Series):
+    def update(self, log_base: pd.Series, log_alt: pd.Series):
         """
         更新健康监控数据
+
+        Args:
+            log_base: 基准币种对数价格序列（BASE）
+            log_alt: 目标币种对数价格序列（ALT）
 
         Returns:
             dict: {
@@ -65,19 +69,20 @@ class CointegrationHealthMonitor:
                 'diagnostics': {诊断信息} (可选)
             }
         """
-        if len(logA) < self.window or len(logB) < self.window:
-            raise ValueError(f"数据不足：需要 {self.window} 期，实际 {len(logA)} 期")
+        if len(log_base) < self.window or len(log_alt) < self.window:
+            raise ValueError(f"数据不足：需要 {self.window} 期，实际 {len(log_base)} 期")
 
-        logA = logA[-self.window:]
-        logB = logB[-self.window:]
+        # 统一回归方向：ALT ~ BASE（与 new/old 方法一致）
+        log_base = log_base[-self.window:]
+        log_alt = log_alt[-self.window:]
 
         # 计算基础参数
-        beta, spread, beta_model = self._estimate_beta_and_spread(logA, logB)
+        beta, spread, beta_model = self._estimate_beta_and_spread(log_base, log_alt)
 
         # 计算各项得分
         adf_score, adf_pvalue = self._adf_strength_score(spread)
         halflife_score, halflife, halflife_reason, ar1_model = self._halflife_score(spread)
-        stability_score, stability_details = self._stability_score(spread, logA, logB)
+        stability_score, stability_details = self._stability_score(spread, log_base, log_alt)
         
         # 新增：计算 Hurst 指数
         hurst, hurst_reason = self._calculate_hurst_external(spread)
@@ -130,12 +135,12 @@ class CointegrationHealthMonitor:
     # ==========================================================
     # 内部组件
     # ==========================================================
-    def _estimate_beta_and_spread(self, logA, logB):
-        """估算协整系数和价差"""
-        X = sm.add_constant(logB)
-        model = sm.OLS(logA, X).fit()
+    def _estimate_beta_and_spread(self, log_base, log_alt):
+        """估算协整系数和价差（log_base=BASE, log_alt=ALT）"""
+        X = sm.add_constant(log_base)
+        model = sm.OLS(log_alt, X).fit()
         beta = model.params.iloc[1]
-        spread = logA - beta * logB
+        spread = log_alt - beta * log_base
         return beta, spread, model
 
     # ---------------- ADF 强度评分 ----------------
@@ -328,7 +333,7 @@ class CointegrationHealthMonitor:
             return np.nan, f"EXCEPTION_{type(e).__name__}"
 
     # ---------------- 稳定性评分（修复版）----------------
-    def _stability_score(self, spread, logA, logB):
+    def _stability_score(self, spread, log_base, log_alt):
         """
         稳定性评分 (0-30分) - 使用滚动窗口替代历史累积
 
@@ -341,7 +346,7 @@ class CointegrationHealthMonitor:
         details = {}
 
         # --- β 稳定性 (0-10分) 滚动窗口计算 ---
-        beta_stability_score, beta_cv = self._calc_beta_stability(logA, logB)
+        beta_stability_score, beta_cv = self._calc_beta_stability(log_base, log_alt)
         score += beta_stability_score
         details["beta_cv"] = round(beta_cv, 4) if not np.isnan(beta_cv) else None
         details["beta_stability_score"] = round(beta_stability_score, 2)
@@ -360,14 +365,14 @@ class CointegrationHealthMonitor:
 
         return score, details
 
-    def _calc_beta_stability(self, logA, logB):
+    def _calc_beta_stability(self, log_base, log_alt):
         """
         计算β稳定性（滚动窗口）
 
         方法：将窗口分为5段，每段独立计算β，然后计算变异系数
         """
         try:
-            window_size = len(logA)
+            window_size = len(log_base)
             segment_size = window_size // 5
 
             if segment_size < 20:  # 每段至少20期数据
@@ -378,14 +383,14 @@ class CointegrationHealthMonitor:
                 start = i * segment_size
                 end = start + segment_size if i < 4 else window_size
 
-                seg_logA = logA.iloc[start:end]
-                seg_logB = logB.iloc[start:end]
+                seg_log_base = log_base.iloc[start:end]
+                seg_log_alt = log_alt.iloc[start:end]
 
-                if len(seg_logA) < 20:
+                if len(seg_log_base) < 20:
                     continue
 
-                X = sm.add_constant(seg_logB)
-                model = sm.OLS(seg_logA, X).fit()
+                X = sm.add_constant(seg_log_base)
+                model = sm.OLS(seg_log_alt, X).fit()
                 betas.append(model.params.iloc[1])
 
             if len(betas) < 4:
