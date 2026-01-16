@@ -3,6 +3,22 @@ import pandas as pd
 import statsmodels.api as sm
 from statsmodels.tsa.stattools import adfuller
 
+# ===== Hurst 指数计算库检查 =====
+_USE_NOLDS = False
+_USE_HURST_LIB = False
+
+try:
+    import nolds
+    _USE_NOLDS = True
+except ImportError:
+    pass
+
+try:
+    from hurst import compute_Hc
+    _USE_HURST_LIB = True
+except ImportError:
+    pass
+
 
 class CointegrationHealthMonitor:
     """
@@ -58,6 +74,8 @@ class CointegrationHealthMonitor:
                 'halflife': 半衰期,
                 'halflife_reason': 半衰期计算原因,
                 'beta': 协整系数,
+                'phi': 一阶自相关系数,  # 新增
+                'hurst': Hurst指数,     # 新增
                 'scores': {各分项得分},
                 'diagnostics': {诊断信息} (可选)
             }
@@ -75,6 +93,17 @@ class CointegrationHealthMonitor:
         adf_score, adf_pvalue = self._adf_strength_score(spread)
         halflife_score, halflife, halflife_reason, ar1_model = self._halflife_score(spread)
         stability_score, stability_details = self._stability_score(spread, logA, logB)
+        
+        # 新增：计算 Hurst 指数
+        hurst, hurst_reason = self._calculate_hurst_external(spread)
+        
+        # 新增：提取 phi 值（一阶自相关系数）
+        phi = None
+        if ar1_model is not None:
+            try:
+                phi = ar1_model.params.iloc[1]
+            except (IndexError, AttributeError):
+                pass
 
         # 综合得分（权重：ADF 40%, 半衰期 30%, 稳定性 30%）
         health_score = (
@@ -92,6 +121,8 @@ class CointegrationHealthMonitor:
             "halflife": round(halflife, 2) if not np.isinf(halflife) else "inf",
             "halflife_reason": halflife_reason,
             "beta": round(beta, 4),
+            "phi": round(phi, 4) if phi is not None else None,  # 新增
+            "hurst": round(hurst, 4) if not np.isnan(hurst) else None,  # 新增
             "scores": {
                 "adf": round(adf_score, 2),
                 "halflife": round(halflife_score, 2),
@@ -105,6 +136,9 @@ class CointegrationHealthMonitor:
             result["diagnostics"] = self._get_diagnostics(
                 spread, beta_model, ar1_model, stability_details
             )
+            # 在诊断信息中添加 Hurst 相关细节
+            if not np.isnan(hurst):
+                result["diagnostics"]["hurst_reason"] = hurst_reason
 
         return result
 
@@ -209,6 +243,72 @@ class CointegrationHealthMonitor:
 
         except Exception as e:
             return 0, np.inf, f"EXCEPTION_{type(e).__name__}", None
+
+    # ---------------- Hurst 指数计算 ----------------
+    def _calculate_hurst_external(self, spread: pd.Series) -> tuple[float, str]:
+        """
+        使用外部库计算 Hurst 指数（R/S 分析）
+        
+        优先使用 nolds 库，其次使用 hurst 库
+        
+        Args:
+            spread: 价差序列
+        
+        Returns:
+            (hurst_value, reason)
+            - hurst_value: Hurst 指数，范围通常在 [0, 1]
+              H < 0.5: 均值回归（anti-persistent）
+              H = 0.5: 随机游走
+              H > 0.5: 趋势延续（persistent）
+            - reason: 计算状态说明
+        """
+        try:
+            values = spread.dropna().values
+            n = len(values)
+            
+            # 数据量检查
+            if n < 50:
+                return np.nan, "INSUFFICIENT_DATA"
+            
+            # 如果序列是常数，返回 NaN
+            if np.std(values) < 1e-10:
+                return np.nan, "CONSTANT_SERIES"
+            
+            # 方法1：使用 nolds 库（推荐，更准确）
+            if _USE_NOLDS:
+                try:
+                    hurst = nolds.hurst_rs(values)
+                    # 边界检查
+                    if np.isnan(hurst) or np.isinf(hurst):
+                        return np.nan, "NOLDS_CALCULATION_ERROR"
+                    # Hurst 指数通常在 [0, 1] 范围内
+                    if hurst < 0:
+                        return 0.0, "HURST_NEGATIVE"
+                    elif hurst > 2:
+                        return 2.0, "HURST_TOO_LARGE"
+                    return float(hurst), "SUCCESS_NOLDS"
+                except Exception as e:
+                    return np.nan, f"NOLDS_EXCEPTION_{type(e).__name__}"
+            
+            # 方法2：使用 hurst 库
+            if _USE_HURST_LIB:
+                try:
+                    H, c, data = compute_Hc(values, kind='price', simplified=True)
+                    if np.isnan(H) or np.isinf(H):
+                        return np.nan, "HURST_LIB_CALCULATION_ERROR"
+                    if H < 0:
+                        return 0.0, "HURST_NEGATIVE"
+                    elif H > 2:
+                        return 2.0, "HURST_TOO_LARGE"
+                    return float(H), "SUCCESS_HURST_LIB"
+                except Exception as e:
+                    return np.nan, f"HURST_LIB_EXCEPTION_{type(e).__name__}"
+            
+            # 如果都没有安装，返回 NaN
+            return np.nan, "NO_LIBRARY_AVAILABLE"
+            
+        except Exception as e:
+            return np.nan, f"EXCEPTION_{type(e).__name__}"
 
     # ---------------- 稳定性评分（修复版）----------------
     def _stability_score(self, spread, logA, logB):
