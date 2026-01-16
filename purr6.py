@@ -667,12 +667,14 @@ class DelayCorrelationAnalyzer:
             ║   综合得分: {result_long['health_score']} | 状态: {result_long['state']}
             ║   ADF: p={result_long['adf_pvalue']:.4f} (得分:{result_long['scores']['adf']})
             ║   半衰期: {result_long['halflife']} 期 (得分:{result_long['scores']['halflife']}) | 原因:{result_long['halflife_reason']}
+            ║   phi: {result_long.get('phi', 'N/A')} | Hurst: {result_long.get('hurst', 'N/A')}
             ║   稳定性: {result_long['scores']['stability']} (β变异:{result_long['stability_details'].get('beta_cv', 'N/A')}, 均值漂移:{result_long['stability_details'].get('mean_shift_ratio', 'N/A'):.3f}, ADF持续:{result_long['stability_details'].get('adf_pass_rate', 'N/A'):.1%})
             ║
             ║ 【短期窗口 100期】
             ║   综合得分: {result_short['health_score']} | 状态: {result_short['state']}
             ║   ADF: p={result_short['adf_pvalue']:.4f} (得分:{result_short['scores']['adf']})
             ║   半衰期: {result_short['halflife']} 期 (得分:{result_short['scores']['halflife']}) | 原因:{result_short['halflife_reason']}
+            ║   phi: {result_short.get('phi', 'N/A')} | Hurst: {result_short.get('hurst', 'N/A')}
             ║   稳定性: {result_short['scores']['stability']} (β变异:{result_short['stability_details'].get('beta_cv', 'N/A')}, 均值漂移:{result_short['stability_details'].get('mean_shift_ratio', 'N/A'):.3f}, ADF持续:{result_short['stability_details'].get('adf_pass_rate', 'N/A'):.1%})
             ║
             ║ 【窗口对比】
@@ -680,7 +682,7 @@ class DelayCorrelationAnalyzer:
             ║   趋势判断: {'📈 短期改善' if result_short['health_score'] > result_long['health_score'] else '📉 短期恶化' if result_short['health_score'] < result_long['health_score'] else '➡️ 稳定'}
             ║
             ║ 【诊断信息 - 长期】
-            ║   模型质量: Beta R²={result_long['diagnostics']['model_quality'].get('beta_rsquared', 'N/A')}, AR1 R²={result_long['diagnostics']['model_quality'].get('ar1_rsquared', 'N/A')}, phi={result_long['diagnostics']['model_quality'].get('phi', 'N/A')}
+            ║   模型质量: Beta R²={result_long['diagnostics']['model_quality'].get('beta_rsquared', 'N/A')}, AR1 R²={result_long['diagnostics']['model_quality'].get('ar1_rsquared', 'N/A')}, phi={result_long.get('phi', 'N/A')}
             ║   数据质量: Spread σ={result_long['diagnostics']['data_quality']['spread_std']:.4f}, 偏度={result_long['diagnostics']['data_quality']['spread_skewness']:.2f}, 峰度={result_long['diagnostics']['data_quality']['spread_kurtosis']:.2f}
             ║   异常警告: {', '.join(result_long['diagnostics']['warnings']) if result_long['diagnostics']['warnings'] else '无异常'}
             ╚════════════════════════════════════════════════════════════════
