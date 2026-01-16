@@ -229,17 +229,57 @@ class CointegrationHealthMonitor:
         except Exception as e:
             return 0, np.inf, f"EXCEPTION_{type(e).__name__}", None
 
+    # ---------------- 去趋势处理 ----------------
+    def _detrend_series(self, series: pd.Series) -> np.ndarray:
+        """
+        去除序列的线性趋势
+
+        Args:
+            series: 输入序列
+
+        Returns:
+            去趋势后的数组
+        """
+        values = series.dropna().values
+        n = len(values)
+
+        # 使用线性回归去趋势
+        X = np.arange(n).reshape(-1, 1)
+        y = values.reshape(-1, 1)
+
+        # 简单线性回归（使用 numpy，避免依赖 sklearn）
+        # y = a + b*x
+        x_mean = X.mean()
+        y_mean = y.mean()
+
+        # 计算斜率 b
+        numerator = np.sum((X.flatten() - x_mean) * (y.flatten() - y_mean))
+        denominator = np.sum((X.flatten() - x_mean) ** 2)
+        b = numerator / denominator if denominator != 0 else 0
+
+        # 计算截距 a
+        a = y_mean - b * x_mean
+
+        # 计算趋势线
+        trend = a + b * X.flatten()
+
+        # 去趋势
+        detrended = values - trend
+
+        return detrended
+
     # ---------------- Hurst 指数计算 ----------------
-    def _calculate_hurst_external(self, spread: pd.Series) -> tuple[float, str]:
+    def _calculate_hurst_external(self, spread: pd.Series, detrend: bool = False) -> tuple[float, str]:
         """
         使用 nolds 库计算 Hurst 指数（R/S 分析）
-        
+
         Args:
             spread: 价差序列
-        
+            detrend: 是否去趋势（默认 False）
+
         Returns:
             (hurst_value, reason)
-            - hurst_value: Hurst 指数，范围通常在 [0, 1]
+            - hurst_value: Hurst 指数，理论范围 [0, 1]
               H < 0.5: 均值回归（anti-persistent）
               H = 0.5: 随机游走
               H > 0.5: 趋势延续（persistent）
@@ -248,30 +288,42 @@ class CointegrationHealthMonitor:
         try:
             values = spread.dropna().values
             n = len(values)
-            
-            # 数据量检查
-            if n < 50:
+
+            # 数据量检查（提高到 100）
+            # R/S 分析需要足够数据点，建议至少 100 个
+            if n < 100:
                 return np.nan, "INSUFFICIENT_DATA"
-            
+
             # 如果序列是常数，返回 NaN
             if np.std(values) < 1e-10:
                 return np.nan, "CONSTANT_SERIES"
-            
-            # 使用 nolds 库计算 Hurst 指数
-            hurst = nolds.hurst_rs(values)
-            
+
+            # 可选去趋势
+            if detrend:
+                values = self._detrend_series(spread)
+
+            # 使用 nolds 库计算 Hurst 指数（添加显式参数）
+            # nvals: 分段数量，默认 None 让 nolds 自动选择
+            # fit: 拟合方法，'poly' 使用多项式拟合更稳健
+            hurst = nolds.hurst_rs(
+                values,
+                nvals=None,     # 自动选择分段数量
+                fit='poly',     # 使用多项式拟合（更稳健）
+                debug_plot=False,
+                plot_file=None
+            )
+
             # 边界检查
             if np.isnan(hurst) or np.isinf(hurst):
                 return np.nan, "CALCULATION_ERROR"
-            
-            # Hurst 指数通常在 [0, 1] 范围内
-            if hurst < 0:
-                return 0.0, "HURST_NEGATIVE"
-            elif hurst > 2:
-                return 2.0, "HURST_TOO_LARGE"
-            
+
+            # Hurst 指数理论范围 [0, 1]，允许小幅超出以适应数值误差
+            # 允许到 1.2 是合理容差，超出则视为计算异常
+            if hurst < 0 or hurst > 1.2:
+                return np.nan, "HURST_OUT_OF_RANGE"
+
             return float(hurst), "SUCCESS"
-            
+
         except Exception as e:
             return np.nan, f"EXCEPTION_{type(e).__name__}"
 
