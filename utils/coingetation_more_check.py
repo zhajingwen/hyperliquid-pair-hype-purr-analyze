@@ -2,22 +2,7 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 from statsmodels.tsa.stattools import adfuller
-
-# ===== Hurst 指数计算库检查 =====
-_USE_NOLDS = False
-_USE_HURST_LIB = False
-
-try:
-    import nolds
-    _USE_NOLDS = True
-except ImportError:
-    pass
-
-try:
-    from hurst import compute_Hc
-    _USE_HURST_LIB = True
-except ImportError:
-    pass
+import nolds
 
 
 class CointegrationHealthMonitor:
@@ -247,9 +232,7 @@ class CointegrationHealthMonitor:
     # ---------------- Hurst 指数计算 ----------------
     def _calculate_hurst_external(self, spread: pd.Series) -> tuple[float, str]:
         """
-        使用外部库计算 Hurst 指数（R/S 分析）
-        
-        优先使用 nolds 库，其次使用 hurst 库
+        使用 nolds 库计算 Hurst 指数（R/S 分析）
         
         Args:
             spread: 价差序列
@@ -274,38 +257,20 @@ class CointegrationHealthMonitor:
             if np.std(values) < 1e-10:
                 return np.nan, "CONSTANT_SERIES"
             
-            # 方法1：使用 nolds 库（推荐，更准确）
-            if _USE_NOLDS:
-                try:
-                    hurst = nolds.hurst_rs(values)
-                    # 边界检查
-                    if np.isnan(hurst) or np.isinf(hurst):
-                        return np.nan, "NOLDS_CALCULATION_ERROR"
-                    # Hurst 指数通常在 [0, 1] 范围内
-                    if hurst < 0:
-                        return 0.0, "HURST_NEGATIVE"
-                    elif hurst > 2:
-                        return 2.0, "HURST_TOO_LARGE"
-                    return float(hurst), "SUCCESS_NOLDS"
-                except Exception as e:
-                    return np.nan, f"NOLDS_EXCEPTION_{type(e).__name__}"
+            # 使用 nolds 库计算 Hurst 指数
+            hurst = nolds.hurst_rs(values)
             
-            # 方法2：使用 hurst 库
-            if _USE_HURST_LIB:
-                try:
-                    H, c, data = compute_Hc(values, kind='price', simplified=True)
-                    if np.isnan(H) or np.isinf(H):
-                        return np.nan, "HURST_LIB_CALCULATION_ERROR"
-                    if H < 0:
-                        return 0.0, "HURST_NEGATIVE"
-                    elif H > 2:
-                        return 2.0, "HURST_TOO_LARGE"
-                    return float(H), "SUCCESS_HURST_LIB"
-                except Exception as e:
-                    return np.nan, f"HURST_LIB_EXCEPTION_{type(e).__name__}"
+            # 边界检查
+            if np.isnan(hurst) or np.isinf(hurst):
+                return np.nan, "CALCULATION_ERROR"
             
-            # 如果都没有安装，返回 NaN
-            return np.nan, "NO_LIBRARY_AVAILABLE"
+            # Hurst 指数通常在 [0, 1] 范围内
+            if hurst < 0:
+                return 0.0, "HURST_NEGATIVE"
+            elif hurst > 2:
+                return 2.0, "HURST_TOO_LARGE"
+            
+            return float(hurst), "SUCCESS"
             
         except Exception as e:
             return np.nan, f"EXCEPTION_{type(e).__name__}"
