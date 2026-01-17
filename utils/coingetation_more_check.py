@@ -302,7 +302,7 @@ class CointegrationHealthMonitor:
         使用 nolds 库计算 Hurst 指数（R/S 分析）
 
         Args:
-            spread: 价差序列
+            spread: 价差序列（协整残差，应为平稳的 I(0) 序列）
             detrend: 是否去趋势（默认 True）
 
         Returns:
@@ -314,20 +314,19 @@ class CointegrationHealthMonitor:
             - reason: 计算状态说明
 
         Note:
-            对价差取一阶差分后计算 Hurst，避免累积序列导致的 H 值系统性偏高
+            直接在价差序列上计算 Hurst（不做差分），因为协整残差本身应为平稳序列。
+            对平稳序列取差分属于过度差分，会改变 Hurst 指数的物理含义。
         """
         try:
-            # 关键修复：对价差取一阶差分，避免累积序列导致 H 值偏高
-            spread_diff = spread.diff().dropna()
-            values = spread_diff.values
+            # 直接使用价差序列（不做差分）
+            values = spread.dropna().values
             n = len(values)
 
-            # 数据量检查（提高到 100）
-            # R/S 分析需要足够数据点，建议至少 100 个
+            # 数据量检查（R/S 分析需要足够数据点，建议至少 100 个）
             if n < 100:
                 return np.nan, "INSUFFICIENT_DATA"
 
-            # 默认开启去趋势，避免趋势被误判为持续性
+            # 先去趋势（在原始序列上），避免趋势被误判为持续性
             if detrend:
                 values = self._detrend_values(values)
 
@@ -335,13 +334,13 @@ class CointegrationHealthMonitor:
             if np.std(values) < 1e-10:
                 return np.nan, "CONSTANT_SERIES"
 
-            # 使用 nolds 库计算 Hurst 指数（添加显式参数）
+            # 使用 nolds 库计算 Hurst 指数
             # nvals: 分段数量，默认 None 让 nolds 自动选择
-            # fit: 拟合方法，'poly' 使用多项式拟合更稳健
+            # fit: 使用 RANSAC 拟合更稳健（对异常值不敏感）
             hurst = nolds.hurst_rs(
                 values,
-                nvals=None,     # 自动选择分段数量
-                fit='poly',     # 使用多项式拟合（更稳健）
+                nvals=None,      # 自动选择分段数量
+                fit='RANSAC',    # 使用 RANSAC 拟合（更稳健）
                 debug_plot=False,
                 plot_file=None
             )
