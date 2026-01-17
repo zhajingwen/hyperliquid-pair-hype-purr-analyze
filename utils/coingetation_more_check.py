@@ -297,13 +297,13 @@ class CointegrationHealthMonitor:
         trend = a + b * X
         return values - trend
 
-    def _calculate_hurst_external(self, spread: pd.Series, detrend: bool = False) -> tuple[float, str]:
+    def _calculate_hurst_external(self, spread: pd.Series, detrend: bool = True) -> tuple[float, str]:
         """
         使用 nolds 库计算 Hurst 指数（R/S 分析）
 
         Args:
             spread: 价差序列
-            detrend: 是否去趋势（默认 False）
+            detrend: 是否去趋势（默认 True）
 
         Returns:
             (hurst_value, reason)
@@ -312,9 +312,14 @@ class CointegrationHealthMonitor:
               H = 0.5: 随机游走
               H > 0.5: 趋势延续（persistent）
             - reason: 计算状态说明
+
+        Note:
+            对价差取一阶差分后计算 Hurst，避免累积序列导致的 H 值系统性偏高
         """
         try:
-            values = spread.dropna().values
+            # 关键修复：对价差取一阶差分，避免累积序列导致 H 值偏高
+            spread_diff = spread.diff().dropna()
+            values = spread_diff.values
             n = len(values)
 
             # 数据量检查（提高到 100）
@@ -322,7 +327,7 @@ class CointegrationHealthMonitor:
             if n < 100:
                 return np.nan, "INSUFFICIENT_DATA"
 
-            # 可选去趋势 - 移到标准差检查之前
+            # 默认开启去趋势，避免趋势被误判为持续性
             if detrend:
                 values = self._detrend_values(values)
 
@@ -345,9 +350,9 @@ class CointegrationHealthMonitor:
             if np.isnan(hurst) or np.isinf(hurst):
                 return np.nan, "CALCULATION_ERROR"
 
-            # Hurst 指数理论范围 [0, 1]，收紧容差到 1.05
-            if hurst < 0 or hurst > 1.05:
-                return np.nan, "HURST_OUT_OF_RANGE"
+            # Hurst 指数理论范围 [0, 1]，超出范围则截断并标记
+            if hurst < 0 or hurst > 1:
+                return float(np.clip(hurst, 0, 1)), "HURST_CLIPPED"
 
             return float(hurst), "SUCCESS"
 
