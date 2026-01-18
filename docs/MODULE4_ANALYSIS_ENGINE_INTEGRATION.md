@@ -1,14 +1,14 @@
-# 模块4: multi_coins3.py改造指南 (可选)
+# 模块4: multi_coins.py改造指南 (可选)
 
 ## 📋 模块概述
 
-⚠️ **注意**: 这是一个**可选模块**，优先级为P1。实时分析系统已由模块3实现，multi_coins3.py将保持原样作为历史回测工具。
+⚠️ **注意**: 这是一个**可选模块**，优先级为P1。实时分析系统已由模块3实现，multi_coins.py将保持原样作为历史回测工具。
 
-本模块提供将 `multi_coins3.py` 改造为支持TimescaleDB查询的指南，适用于需要批量分析或历史回测的场景。
+本模块提供将 `multi_coins.py` 改造为支持TimescaleDB查询的指南，适用于需要批量分析或历史回测的场景。
 
 ### 模块定位
 - **主分析引擎**: 模块3 realtime_kline_service.py（实时分析）
-- **批量分析工具**: 本模块 multi_coins3.py（可选改造，用于回测）
+- **批量分析工具**: 本模块 multi_coins.py（可选改造，用于回测）
 - **代码复用**: utils/analysis_core.py（公共分析逻辑）
 
 ### 可选改造职责
@@ -41,7 +41,7 @@
 
 ### 改造点1: __init__() - 初始化数据库连接
 
-**位置**: `multi_coins3.py` 第153-176行
+**位置**: `multi_coins.py` 第153-176行
 
 **改造前**:
 ```python
@@ -104,7 +104,7 @@ def __init__(self, exchange_name="hyperliquid", timeout=30000,
 
 ### 改造点2: download_ccxt_data() - 智能增量更新
 
-**位置**: `multi_coins3.py` 第256-303行
+**位置**: `multi_coins.py` 第256-303行
 
 **改造策略**:
 1. 检查数据库覆盖率
@@ -252,7 +252,7 @@ def _df_to_records(self, df: pd.DataFrame) -> List[tuple]:
 
 ### 改造点3: one_coin_analysis() - 分析结果持久化
 
-**位置**: `multi_coins3.py` 第1322-1424行
+**位置**: `multi_coins.py` 第1322-1424行
 
 **改造后代码**:
 ```python
@@ -458,13 +458,13 @@ python tests/benchmark_integration.py
 - ✅ 模块3: 实时分析引擎（主引擎）
 
 **可选后续工作**：
-- 模块4（本模块）: 改造multi_coins3.py（仅在需要批量回测时实施）
+- 模块4（本模块）: 改造multi_coins.py（仅在需要批量回测时实施）
 - 模块5: 配置和部署文档完善
 
 **建议**：
 - 优先完成模块3的实时分析系统
 - 如无批量回测需求，可跳过本模块
-- multi_coins3.py可保持原样作为备用工具
+- multi_coins.py可保持原样作为备用工具
 
 ---
 

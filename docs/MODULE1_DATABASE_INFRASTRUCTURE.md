@@ -752,7 +752,7 @@ command: >
 
 模块1完成后，继续实施：
 - **模块2**: 数据库访问层 (utils/timescaledb.py)
-- **模块4**: 分析引擎集成 (multi_coins3.py改造)
+- **模块4**: 分析引擎集成 (multi_coins.py改造)
 
 ---
 

@@ -2,7 +2,7 @@
 
 ## 📋 项目概述
 
-构建基于TimescaleDB的**实时套利信号分析系统**，完全替代multi_coins3.py的批量分析模式，实现每根K线闭合后的即时分析和告警。
+构建基于TimescaleDB的**实时套利信号分析系统**，完全替代multi_coins.py的批量分析模式，实现每根K线闭合后的即时分析和告警。
 
 ### 核心目标
 
@@ -75,7 +75,7 @@
          └───────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────┐
-│         multi_coins3.py (保留，用于历史回测)                 │
+│         multi_coins.py (保留，用于历史回测)                 │
 │         - 可选改造支持数据库查询（模块4）                     │
 │         - 或保持原样作为备用工具                             │
 └──────────────────────────────────────────────────────────────┘
@@ -133,7 +133,7 @@
 ### 模块3: 实时分析引擎 (Real-time Analysis Engine) - P0 ⭐
 **设计文档**: [MODULE3_REALTIME_DATAFLOW.md](MODULE3_REALTIME_DATAFLOW.md)
 
-**核心模块**：系统主分析引擎，完全替代multi_coins3.py的批量分析模式。
+**核心模块**：系统主分析引擎，完全替代multi_coins.py的批量分析模式。
 
 **职责**:
 - WebSocket连接管理（仅订阅5m/1h/4h周期）
@@ -145,7 +145,7 @@
 
 **交付物**:
 - `realtime_kline_service.py` - 实时分析引擎（主引擎）
-- `utils/analysis_core.py` - 公共分析模块（从multi_coins3.py提取）
+- `utils/analysis_core.py` - 公共分析模块（从multi_coins.py提取）
 - `Dockerfile.realtime` - 实时服务容器
 - `tests/test_realtime_service.py` - 集成测试
 
@@ -160,19 +160,19 @@
 
 ---
 
-### 模块4: multi_coins3.py改造指南 (可选) - P1
+### 模块4: multi_coins.py改造指南 (可选) - P1
 **设计文档**: [MODULE4_ANALYSIS_ENGINE_INTEGRATION.md](MODULE4_ANALYSIS_ENGINE_INTEGRATION.md)
 
-**可选模块**：仅在需要批量历史回测时实施，multi_coins3.py可保持原样作为备用工具。
+**可选模块**：仅在需要批量历史回测时实施，multi_coins.py可保持原样作为备用工具。
 
 **职责**:
-- `multi_coins3.py` 改造（可选）
+- `multi_coins.py` 改造（可选）
 - 数据下载方法增量更新
 - 数据库查询集成
 - 分析结果持久化
 
 **交付物**:
-- 修改后的 `multi_coins3.py`（可选）
+- 修改后的 `multi_coins.py`（可选）
 - `tests/test_integration.py` - 端到端测试
 
 **依赖**: 模块1、模块2（需要数据库和访问层）
@@ -303,7 +303,7 @@
   - 健康检查通过
 ```
 
-### Phase 5: multi_coins3.py改造 (可选，2小时)
+### Phase 5: multi_coins.py改造 (可选，2小时)
 ```yaml
 优先级: P1 (可选，仅用于批量回测)
 模块: 模块4
@@ -313,7 +313,7 @@
   - 数据覆盖率>95%
   - 分析结果正确持久化
 说明:
-  - multi_coins3.py可保持原样作为备用工具
+  - multi_coins.py可保持原样作为备用工具
   - 仅在需要批量历史回测时实施此阶段
 ```
 
@@ -387,17 +387,17 @@ docs/
 | 日期 | 版本 | 说明 |
 |------|------|------|
 | 2025-01-11 | v1.0 | 初始版本，模块化设计 |
-| 2025-01-12 | v2.0 | **重大架构调整**：<br>• 模块3从P1提升为P0，成为主分析引擎<br>• 新增utils/analysis_core.py公共分析模块<br>• WebSocket订阅仅5m/1h/4h（节省90%存储）<br>• 实时分析：每根K线闭合后立即分析<br>• 模块4降级为P1可选（multi_coins3.py保持原样）<br>• 完全替代批量分析模式为实时分析模式 |
+| 2025-01-12 | v2.0 | **重大架构调整**：<br>• 模块3从P1提升为P0，成为主分析引擎<br>• 新增utils/analysis_core.py公共分析模块<br>• WebSocket订阅仅5m/1h/4h（节省90%存储）<br>• 实时分析：每根K线闭合后立即分析<br>• 模块4降级为P1可选（multi_coins.py保持原样）<br>• 完全替代批量分析模式为实时分析模式 |
 
 ---
 
 **下一步**:
 1. 按照核心路径实施：**Phase 1 → Phase 2 → Phase 3**
 2. Phase 3（实时分析引擎）完成后，系统即可上线运行
-3. 可选实施Phase 4、Phase 5（配置部署和multi_coins3.py改造）
+3. 可选实施Phase 4、Phase 5（配置部署和multi_coins.py改造）
 
 **关键文件**:
 - 主分析引擎：`realtime_kline_service.py`
 - 公共分析模块：`utils/analysis_core.py`
 - 数据库访问层：`utils/timescaledb.py`
-- 历史回测工具：`multi_coins3.py`（保持原样）
+- 历史回测工具：`multi_coins.py`（保持原样）

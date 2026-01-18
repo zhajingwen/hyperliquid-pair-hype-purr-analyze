@@ -69,8 +69,8 @@
   - 批量写入TimescaleDB
   - 动态币种订阅和新币种监控
 - **交付物**:
-  - `realtime_kline_service.py`（主分析引擎，完全替代multi_coins3.py）
-  - `utils/analysis_core.py`（公共分析模块，从multi_coins3.py提取）
+  - `realtime_kline_service.py`（主分析引擎，完全替代multi_coins.py）
+  - `utils/analysis_core.py`（公共分析模块，从multi_coins.py提取）
   - `Dockerfile.realtime`
   - `tests/test_realtime_service.py`
 - **依赖**: 模块1、模块2
@@ -95,19 +95,19 @@
 
 ### 4️⃣ [MODULE4_ANALYSIS_ENGINE_INTEGRATION.md](MODULE4_ANALYSIS_ENGINE_INTEGRATION.md)
 
-**multi_coins3.py改造指南（可选）**
+**multi_coins.py改造指南（可选）**
 
 - **定位**: 批量历史回测工具（可选改造）
-- **职责**: multi_coins3.py改造支持数据库查询（仅在需要批量回测时实施）
+- **职责**: multi_coins.py改造支持数据库查询（仅在需要批量回测时实施）
 - **交付物**:
-  - 修改后的 `multi_coins3.py`（可选）
+  - 修改后的 `multi_coins.py`（可选）
   - `tests/test_integration.py`
 - **依赖**: 模块1、模块2
 - **预计时间**: 2小时
 - **优先级**: P1 (可选，仅用于批量回测)
 
 **说明**:
-- multi_coins3.py可保持原样作为备用工具
+- multi_coins.py可保持原样作为备用工具
 - 仅在需要批量历史回测时实施此模块
 - 主分析引擎已由模块3的realtime_kline_service.py实现
 
@@ -171,7 +171,7 @@ Phase 3: 模块3（实时分析引擎）- 6小时 ⭐
 
 ```
 Phase 4: 模块5（配置和部署）- 1小时（可选）
-Phase 5: 模块4（multi_coins3.py改造）- 2小时（可选）
+Phase 5: 模块4（multi_coins.py改造）- 2小时（可选）
 ```
 
 **可选验收标准**:
@@ -245,4 +245,4 @@ Phase 5: 模块4（multi_coins3.py改造）- 2小时（可选）
 - ✅ 每根K线闭合后立即分析（<1分钟延迟）
 - ✅ 订阅5m/1h/4h周期（节省90%存储）
 - ✅ utils/analysis_core.py公共分析模块
-- ✅ multi_coins3.py保持原样（备用工具）
+- ✅ multi_coins.py保持原样（备用工具）

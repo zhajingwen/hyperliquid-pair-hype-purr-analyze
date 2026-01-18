@@ -667,7 +667,7 @@ print(f"✅ {len(results)}个并发查询全部成功")
 ## 📝 下一步
 
 模块2完成后，继续实施：
-- **模块4**: 分析引擎集成 (multi_coins3.py改造)
+- **模块4**: 分析引擎集成 (multi_coins.py改造)
 - **模块3**: 实时数据流 (realtime_kline_service.py)
 
 ---

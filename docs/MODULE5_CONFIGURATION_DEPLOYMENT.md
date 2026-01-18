@@ -423,7 +423,7 @@ pip install -e .[realtime]
 
 ```bash
 # 首次运行（会下载所有历史数据并保存到数据库）
-python multi_coins3.py
+python multi_coins.py
 
 # 预期输出:
 # ✅ TimescaleDB已启用并成功连接
@@ -678,7 +678,7 @@ echo "========================================="
 echo "  ✅ 部署验证通过！"
 echo "========================================="
 echo ""
-echo "下一步: 运行 python multi_coins3.py 开始分析"
+echo "下一步: 运行 python multi_coins.py 开始分析"
 ```
 
 **使用方法**:
