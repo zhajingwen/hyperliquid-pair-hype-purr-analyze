@@ -183,8 +183,6 @@ class TimescaleDBClient:
         """
         try:
             with self.get_connection() as conn:
-                # 启用 autocommit 模式（避免事务状态警告）
-                conn.autocommit = True
                 with conn.cursor(row_factory=dict_row) as cur:
                     cur.execute(query, params)
                     if fetch_one:
