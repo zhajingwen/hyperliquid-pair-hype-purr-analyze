@@ -74,7 +74,7 @@ class PerformanceMonitor:
             统计数据字典
         """
         try:
-            with self.db.pool.connection() as conn:
+            with self.db.get_connection() as conn:
                 with conn.cursor() as cur:
                     # 消息总数（从K线表统计最近10秒）
                     cur.execute("""
