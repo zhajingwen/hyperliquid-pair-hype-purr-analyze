@@ -136,10 +136,15 @@ class TimescaleDBClient:
         """
         获取数据库连接（上下文管理器）
 
+        自动处理事务提交/回滚：
+        - 正常退出：自动提交事务（conn.commit()）
+        - 异常退出：自动回滚事务（conn.rollback()）
+
         使用示例：
             with client.get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute("SELECT 1")
+                # 自动提交事务
 
         Yields:
             Connection: psycopg 3.x 连接对象
@@ -148,6 +153,8 @@ class TimescaleDBClient:
         try:
             conn = self._pool.getconn()
             yield conn
+            # 正常退出时自动提交事务
+            conn.commit()
         except Exception as e:
             if conn:
                 conn.rollback()
@@ -176,6 +183,8 @@ class TimescaleDBClient:
         """
         try:
             with self.get_connection() as conn:
+                # 启用 autocommit 模式（避免事务状态警告）
+                conn.autocommit = True
                 with conn.cursor(row_factory=dict_row) as cur:
                     cur.execute(query, params)
                     if fetch_one:
