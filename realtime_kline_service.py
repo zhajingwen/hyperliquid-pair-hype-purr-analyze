@@ -1,0 +1,680 @@
+"""
+实时K线分析服务 (Realtime Kline Analysis Service)
+
+核心功能：
+- WebSocket 实时数据接收（600订阅: 200币种 × 3周期）
+- 异步批量写入数据库（1000-2000条或5秒触发）
+- 每根K线闭合后立即分析
+- Z-score 异常检测 + 飞书告警
+- 新币种自动监控
+
+性能目标：
+- 分析延迟: <5秒
+- 告警延迟: <10秒
+- 内存占用: <512MB
+- CPU占用: <50%
+
+Author: Claude Code
+Date: 2026-01-19
+"""
+
+import time
+import queue
+import logging
+import threading
+from typing import List, Dict, Optional
+from datetime import datetime, timezone, timedelta
+from collections import defaultdict
+
+from hyperliquid.info import Info
+import hyperliquid.utils.constants as constants
+
+from utils.enhanced_ws_manager import EnhancedWebSocketManager, ConnectionState
+from utils.timescaledb import (
+    TimescaleDBClient,
+    KlineRepository,
+    SymbolMetadataRepository,
+    AnalysisResultRepository
+)
+from utils.analysis_core import analyze_pair
+from utils.lark_bot import LarkBot
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+# =====================================================
+# 实时K线分析服务
+# =====================================================
+
+class RealtimeKlineService:
+    """
+    实时K线分析服务（主分析引擎）
+
+    架构：
+    ┌─────────────────────────────────────────────────┐
+    │ Hyperliquid WebSocket API                       │
+    └──────────────────┬──────────────────────────────┘
+                       ↓
+    ┌─────────────────────────────────────────────────┐
+    │ EnhancedWebSocketManager                        │
+    │ (假活检测 + 自动重连)                            │
+    └──────────────────┬──────────────────────────────┘
+                       ↓
+              on_message() 回调
+                       ↓
+         ┌─────────────┴─────────────┐
+         ↓                           ↓
+    kline_buffer              _analyze_and_alert()
+    (Queue队列)               (实时分析引擎)
+         ↓                           ↓
+    _batch_writer()           飞书告警
+    (批量写入线程)
+         ↓
+    TimescaleDB
+    """
+
+    def __init__(
+        self,
+        base_symbol: str = 'BTC/USDC:USDC',
+        timeframes: List[str] = None,
+        batch_size: int = 1000,
+        batch_timeout: float = 5.0
+    ):
+        """
+        初始化实时K线分析服务
+
+        Args:
+            base_symbol: 基准币种（用于配对分析）
+            timeframes: 订阅周期列表（默认 ['5m', '1h', '4h']）
+            batch_size: 批量写入大小（默认1000条）
+            batch_timeout: 批量写入超时（默认5秒）
+        """
+        # 基础配置
+        self.base_symbol = base_symbol
+        self.timeframes = timeframes or ['5m', '1h', '4h']
+        self.batch_size = batch_size
+        self.batch_timeout = batch_timeout
+
+        # 数据库客户端
+        self.db_client = TimescaleDBClient()
+        self.kline_repo = KlineRepository(self.db_client)
+        self.symbol_repo = SymbolMetadataRepository(self.db_client)
+        self.analysis_repo = AnalysisResultRepository(self.db_client)
+
+        # 飞书告警
+        self.lark_bot = LarkBot()
+
+        # 获取活跃币种列表
+        self.symbols = self._get_active_symbols()
+        logger.info(f"活跃币种数量: {len(self.symbols)}")
+
+        # 构建订阅列表（600个订阅 = 200币种 × 3周期）
+        self.subscriptions = self._build_subscriptions()
+        logger.info(f"订阅数量: {len(self.subscriptions)}")
+
+        # K线缓冲队列（线程安全，最大10000条）
+        self.kline_buffer = queue.Queue(maxsize=10000)
+
+        # 停止事件
+        self.stop_event = threading.Event()
+
+        # 批量写入线程
+        self.batch_writer_thread = threading.Thread(
+            target=self._batch_writer,
+            daemon=True,
+            name="batch-writer"
+        )
+
+        # 新币种监控线程
+        self.symbol_monitor_thread = threading.Thread(
+            target=self._monitor_new_symbols,
+            daemon=True,
+            name="symbol-monitor"
+        )
+
+        # WebSocket 管理器
+        self.ws_manager = EnhancedWebSocketManager(
+            subscriptions=self.subscriptions,
+            message_callback=self.on_message,
+            on_state_change=self.on_state_change,
+            timeout=30  # 30秒无数据触发重连
+        )
+
+        # 统计信息
+        self.stats = {
+            'messages_received': 0,
+            'klines_written': 0,
+            'analyses_performed': 0,
+            'alerts_sent': 0,
+            'start_time': time.time()
+        }
+
+        logger.info("✅ 实时K线分析服务初始化完成")
+
+    def _get_active_symbols(self) -> List[str]:
+        """
+        获取活跃币种列表
+
+        Returns:
+            活跃币种列表（格式: BTC/USDC:USDC）
+        """
+        try:
+            # 从数据库获取活跃币种
+            active_symbols = self.symbol_repo.get_active_symbols()
+
+            if active_symbols:
+                logger.info(f"从数据库加载 {len(active_symbols)} 个活跃币种")
+                return active_symbols
+
+            # 如果数据库为空，从交易所获取
+            logger.info("数据库无币种数据，从交易所获取...")
+            info = Info(constants.MAINNET_API_URL, skip_ws=True)
+            meta = info.meta()
+
+            symbols = []
+            for asset_info in meta.get('universe', []):
+                name = asset_info.get('name')
+                if name:
+                    # Hyperliquid 格式转换: BTC → BTC/USDC:USDC
+                    symbol = f"{name}/USDC:USDC"
+                    symbols.append(symbol)
+
+                    # 注册币种到数据库
+                    self.symbol_repo.upsert_symbol(
+                        symbol=symbol,
+                        base_asset=name,
+                        quote_asset='USDC',
+                        is_active=True
+                    )
+
+            logger.info(f"从交易所获取 {len(symbols)} 个币种")
+            return symbols
+
+        except Exception as e:
+            logger.error(f"获取币种列表失败: {e}", exc_info=True)
+            # 返回默认币种
+            return ['BTC/USDC:USDC', 'ETH/USDC:USDC']
+
+    def _build_subscriptions(self) -> List[Dict]:
+        """
+        构建 WebSocket 订阅列表
+
+        Returns:
+            订阅列表 [{\"type\": \"candle\", \"coin\": \"BTC\", \"interval\": \"5m\"}, ...]
+        """
+        subscriptions = []
+
+        for symbol in self.symbols:
+            # 提取基础币种: BTC/USDC:USDC → BTC
+            coin = symbol.split('/')[0]
+
+            for timeframe in self.timeframes:
+                subscriptions.append({
+                    "type": "candle",
+                    "coin": coin,
+                    "interval": timeframe
+                })
+
+        return subscriptions
+
+    def _parse_kline(self, msg: Dict) -> Optional[Dict]:
+        """
+        解析 Hyperliquid K线数据为标准格式
+
+        Args:
+            msg: WebSocket 消息
+                {
+                    "channel": "candle",
+                    "data": {
+                        "t": 1704067260000,  // 开盘时间（毫秒时间戳）
+                        "s": "ETH",          // 币种符号
+                        "i": "5m",           // 时间周期
+                        "o": "2295.5",       // 开盘价
+                        "h": "2296.8",       // 最高价
+                        "l": "2295.2",       // 最低价
+                        "c": "2296.3",       // 收盘价
+                        "v": "1234.56"       // 成交量
+                    }
+                }
+
+        Returns:
+            标准K线数据 或 None（解析失败）
+        """
+        try:
+            if msg.get("channel") != "candle":
+                return None
+
+            data = msg.get("data", {})
+
+            # 提取字段
+            coin = data.get('s')  # ETH
+            timeframe = data.get('i')  # 5m
+            timestamp_ms = data.get('t')  # 1704067260000
+            open_price = float(data.get('o', 0))
+            high_price = float(data.get('h', 0))
+            low_price = float(data.get('l', 0))
+            close_price = float(data.get('c', 0))
+            volume = float(data.get('v', 0))
+
+            # 构建币种符号: ETH → ETH/USDC:USDC
+            symbol = f"{coin}/USDC:USDC"
+
+            # 转换时间戳
+            kline_time = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
+
+            # 计算收益率
+            return_pct = (close_price - open_price) / open_price if open_price > 0 else 0.0
+
+            # 计算成交额（USD）
+            volume_usd = close_price * volume
+
+            return {
+                'time': kline_time,
+                'symbol': symbol,
+                'timeframe': timeframe,
+                'open': open_price,
+                'high': high_price,
+                'low': low_price,
+                'close': close_price,
+                'volume': volume,
+                'volume_usd': volume_usd,
+                'return_pct': return_pct
+            }
+
+        except Exception as e:
+            logger.error(f"K线解析失败: {e} | 原始数据: {msg}", exc_info=True)
+            return None
+
+    def on_message(self, msg: Dict):
+        """
+        WebSocket 消息回调（核心处理逻辑）
+
+        流程:
+        1. 解析K线数据
+        2. 放入缓冲队列（异步批量写入）
+        3. 触发实时分析（同步）
+
+        Args:
+            msg: WebSocket 消息
+        """
+        try:
+            # 统计
+            self.stats['messages_received'] += 1
+
+            # 解析K线
+            kline = self._parse_kline(msg)
+            if not kline:
+                return
+
+            # 放入缓冲队列（异步批量写入）
+            try:
+                self.kline_buffer.put_nowait(kline)
+            except queue.Full:
+                logger.warning(f"缓冲队列已满，丢弃K线: {kline['symbol']} @ {kline['timeframe']}")
+
+            # 触发实时分析（同步）
+            self._analyze_and_alert(kline['symbol'], kline['timeframe'])
+
+        except Exception as e:
+            logger.error(f"消息处理失败: {e}", exc_info=True)
+
+    def _batch_writer(self):
+        """
+        批量写入线程
+
+        策略:
+        - 达到 batch_size（1000条） 或 超时 batch_timeout（5秒） 触发写入
+        - 使用 COPY 命令高性能批量插入
+        """
+        logger.info("批量写入线程已启动")
+
+        batch = []
+        last_write_time = time.time()
+
+        while not self.stop_event.is_set():
+            try:
+                # 获取K线数据（超时1秒）
+                try:
+                    kline = self.kline_buffer.get(timeout=1.0)
+                    batch.append(kline)
+                except queue.Empty:
+                    pass
+
+                # 判断是否触发写入
+                should_write = (
+                    len(batch) >= self.batch_size or  # 达到批量大小
+                    (batch and time.time() - last_write_time >= self.batch_timeout)  # 超时
+                )
+
+                if should_write and batch:
+                    # 批量写入数据库
+                    try:
+                        count = self.kline_repo.batch_upsert_copy(batch, on_conflict='update')
+                        self.stats['klines_written'] += count
+
+                        logger.info(
+                            f"批量写入: {count} 条K线 | "
+                            f"缓冲队列: {self.kline_buffer.qsize()} | "
+                            f"总写入: {self.stats['klines_written']}"
+                        )
+
+                        # 重置批次
+                        batch = []
+                        last_write_time = time.time()
+
+                    except Exception as e:
+                        logger.error(f"批量写入失败: {e}", exc_info=True)
+                        # 保留批次数据，下次重试
+
+            except Exception as e:
+                logger.error(f"批量写入线程异常: {e}", exc_info=True)
+
+        logger.info("批量写入线程已停止")
+
+    def _analyze_and_alert(self, symbol: str, timeframe: str):
+        """
+        实时分析 + 飞书告警
+
+        流程:
+        1. 查询数据库获取基准币种和目标币种的K线数据
+        2. 调用 analysis_core.analyze_pair() 进行分析
+        3. 保存分析结果到数据库
+        4. 如果检测到异常，发送飞书告警
+
+        Args:
+            symbol: 目标币种（如 ETH/USDC:USDC）
+            timeframe: 时间周期（如 5m）
+        """
+        try:
+            # 跳过基准币种自身
+            if symbol == self.base_symbol:
+                return
+
+            # 确定分析窗口（根据周期）
+            window_map = {
+                '5m': timedelta(days=7),   # 5分钟周期: 7天数据
+                '1h': timedelta(days=30),  # 1小时周期: 30天数据
+                '4h': timedelta(days=60)   # 4小时周期: 60天数据
+            }
+            window = window_map.get(timeframe, timedelta(days=30))
+
+            # 查询基准币种K线
+            end_time = datetime.now(timezone.utc)
+            start_time = end_time - window
+
+            base_klines = self.kline_repo.query_range(
+                self.base_symbol,
+                timeframe,
+                start_time,
+                end_time,
+                limit=10000
+            )
+
+            # 查询目标币种K线
+            alt_klines = self.kline_repo.query_range(
+                symbol,
+                timeframe,
+                start_time,
+                end_time,
+                limit=10000
+            )
+
+            # 数据点不足，跳过分析
+            if len(base_klines) < 30 or len(alt_klines) < 30:
+                logger.debug(f"数据点不足，跳过分析: {symbol} @ {timeframe}")
+                return
+
+            # 执行配对分析
+            analysis_result = analyze_pair(
+                base_klines=base_klines,
+                alt_klines=alt_klines,
+                corr_threshold=0.5,      # 相关性阈值
+                coint_significance=0.05,  # 协整检验显著性
+                zscore_threshold=2.0      # Z-score 异常阈值
+            )
+
+            # 统计
+            self.stats['analyses_performed'] += 1
+
+            # 保存分析结果到数据库
+            analysis_record = {
+                'analysis_time': datetime.now(timezone.utc),
+                'symbol': symbol,
+                'base_symbol': self.base_symbol,
+                f'corr_{timeframe}_{int(window.days)}d': analysis_result['correlation'],
+                f'zscore_{timeframe}': analysis_result['zscore'],
+                'cointegration_passed': analysis_result['cointegration_passed'],
+                'adf_pvalue': analysis_result['adf_pvalue'],
+                'is_anomaly': analysis_result['is_anomaly'],
+                'trading_direction': analysis_result['trading_direction'],
+                'signal_strength': analysis_result['signal_strength']
+            }
+
+            self.analysis_repo.batch_insert([analysis_record])
+
+            # 如果检测到异常，发送飞书告警
+            if analysis_result['is_anomaly']:
+                self._send_alert(symbol, timeframe, analysis_result)
+
+        except Exception as e:
+            logger.error(f"分析失败: {symbol} @ {timeframe} | {e}", exc_info=True)
+
+    def _send_alert(self, symbol: str, timeframe: str, analysis_result: Dict):
+        """
+        发送飞书告警
+
+        Args:
+            symbol: 币种
+            timeframe: 周期
+            analysis_result: 分析结果
+        """
+        try:
+            # 构建告警消息
+            direction_emoji = "📈" if analysis_result['trading_direction'] == 'long' else "📉"
+            strength_emoji = {
+                'strong': '🔥',
+                'medium': '⚡',
+                'weak': '💡'
+            }.get(analysis_result['signal_strength'], '💡')
+
+            message = f"""
+{direction_emoji} **配对交易信号** {strength_emoji}
+
+**币种**: {symbol}
+**周期**: {timeframe}
+**基准**: {self.base_symbol}
+
+**分析结果**:
+- 相关系数: {analysis_result['correlation']:.3f}
+- Z-score: {analysis_result['zscore']:.2f}
+- 协整检验: {'✅ 通过' if analysis_result['cointegration_passed'] else '❌ 未通过'}
+- p-value: {analysis_result['adf_pvalue']:.4f}
+
+**交易方向**: {analysis_result['trading_direction'].upper()}
+**信号强度**: {analysis_result['signal_strength'].upper()}
+
+**时间**: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
+"""
+
+            # 发送飞书消息
+            self.lark_bot.send_text_message(message)
+
+            # 统计
+            self.stats['alerts_sent'] += 1
+
+            logger.info(
+                f"📢 告警已发送: {symbol} @ {timeframe} | "
+                f"{analysis_result['trading_direction']} | "
+                f"{analysis_result['signal_strength']}"
+            )
+
+        except Exception as e:
+            logger.error(f"飞书告警发送失败: {e}", exc_info=True)
+
+    def _monitor_new_symbols(self):
+        """
+        新币种监控线程
+
+        策略:
+        - 每小时查询一次交易所
+        - 发现新币种自动添加到数据库和订阅列表
+        """
+        logger.info("新币种监控线程已启动")
+
+        while not self.stop_event.is_set():
+            try:
+                # 获取交易所币种列表
+                info = Info(constants.MAINNET_API_URL, skip_ws=True)
+                meta = info.meta()
+
+                exchange_symbols = set()
+                for asset_info in meta.get('universe', []):
+                    name = asset_info.get('name')
+                    if name:
+                        symbol = f"{name}/USDC:USDC"
+                        exchange_symbols.add(symbol)
+
+                # 对比现有币种
+                current_symbols = set(self.symbols)
+                new_symbols = exchange_symbols - current_symbols
+
+                if new_symbols:
+                    logger.info(f"🆕 发现新币种: {len(new_symbols)} 个")
+
+                    for symbol in new_symbols:
+                        # 注册到数据库
+                        base_asset = symbol.split('/')[0]
+                        self.symbol_repo.upsert_symbol(
+                            symbol=symbol,
+                            base_asset=base_asset,
+                            quote_asset='USDC',
+                            is_active=True
+                        )
+
+                        # 添加到订阅列表
+                        self.symbols.append(symbol)
+
+                        logger.info(f"✅ 新币种已注册: {symbol}")
+
+                    # 重建订阅列表（需要重启 WebSocket）
+                    logger.warning("检测到新币种，建议重启服务以更新订阅列表")
+
+            except Exception as e:
+                logger.error(f"新币种监控异常: {e}", exc_info=True)
+
+            # 每小时检查一次
+            self.stop_event.wait(3600)
+
+        logger.info("新币种监控线程已停止")
+
+    def on_state_change(self, state: ConnectionState, error: Optional[Exception] = None):
+        """
+        WebSocket 状态变化回调
+
+        Args:
+            state: 连接状态
+            error: 错误信息（如果有）
+        """
+        logger.info(f"WebSocket 状态: {state.value}")
+
+        if error:
+            logger.error(f"WebSocket 错误: {error}")
+
+    def get_stats(self) -> Dict:
+        """
+        获取服务统计信息
+
+        Returns:
+            统计信息字典
+        """
+        uptime = time.time() - self.stats['start_time']
+
+        return {
+            **self.stats,
+            'uptime_seconds': uptime,
+            'buffer_size': self.kline_buffer.qsize(),
+            'ws_stats': self.ws_manager.get_stats()
+        }
+
+    def start(self):
+        """
+        启动服务（阻塞运行）
+
+        流程:
+        1. 启动批量写入线程
+        2. 启动新币种监控线程
+        3. 启动 WebSocket 服务（阻塞）
+        """
+        logger.info("🚀 启动实时K线分析服务...")
+
+        try:
+            # 启动批量写入线程
+            self.batch_writer_thread.start()
+            logger.info("✅ 批量写入线程已启动")
+
+            # 启动新币种监控线程
+            self.symbol_monitor_thread.start()
+            logger.info("✅ 新币种监控线程已启动")
+
+            # 启动 WebSocket（阻塞）
+            self.ws_manager.start()
+
+        except KeyboardInterrupt:
+            logger.info("接收到中断信号，停止服务...")
+        except Exception as e:
+            logger.error(f"服务异常: {e}", exc_info=True)
+        finally:
+            self.stop()
+
+    def stop(self):
+        """
+        停止服务
+        """
+        logger.info("停止实时K线分析服务...")
+
+        # 设置停止事件
+        self.stop_event.set()
+
+        # 停止 WebSocket
+        self.ws_manager.stop()
+
+        # 等待线程结束
+        if self.batch_writer_thread.is_alive():
+            self.batch_writer_thread.join(timeout=10)
+
+        if self.symbol_monitor_thread.is_alive():
+            self.symbol_monitor_thread.join(timeout=10)
+
+        # 输出统计信息
+        stats = self.get_stats()
+        logger.info(f"📊 服务统计:")
+        logger.info(f"   - 消息接收: {stats['messages_received']}")
+        logger.info(f"   - K线写入: {stats['klines_written']}")
+        logger.info(f"   - 分析次数: {stats['analyses_performed']}")
+        logger.info(f"   - 告警发送: {stats['alerts_sent']}")
+        logger.info(f"   - 运行时长: {stats['uptime_seconds']:.0f}秒")
+
+        logger.info("✅ 服务已停止")
+
+
+# =====================================================
+# 主程序入口
+# =====================================================
+
+def main():
+    """主程序入口"""
+    # 创建服务实例
+    service = RealtimeKlineService(
+        base_symbol='BTC/USDC:USDC',
+        timeframes=['5m', '1h', '4h'],
+        batch_size=1000,
+        batch_timeout=5.0
+    )
+
+    # 启动服务
+    service.start()
+
+
+if __name__ == '__main__':
+    main()

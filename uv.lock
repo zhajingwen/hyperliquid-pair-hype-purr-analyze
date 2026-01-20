@@ -296,6 +296,7 @@ dependencies = [
     { name = "seaborn" },
     { name = "statsmodels" },
     { name = "tabulate" },
+    { name = "websockets" },
     { name = "xgboost" },
     { name = "yfinance" },
 ]
@@ -311,7 +312,7 @@ requires-dist = [
     { name = "arch", specifier = ">=7.2.0" },
     { name = "ccxt", specifier = ">=4.5.14" },
     { name = "hurst", specifier = ">=0.0.5" },
-    { name = "hyperliquid-python-sdk", specifier = ">=0.8.0" },
+    { name = "hyperliquid-python-sdk", specifier = ">=0.21.0" },
     { name = "keras", marker = "python_full_version < '3.14' and extra == 'deep-learning'", specifier = ">=3.0.0" },
     { name = "lightgbm", specifier = ">=4.5.0" },
     { name = "matplotlib", specifier = ">=3.10.7" },
@@ -329,6 +330,7 @@ requires-dist = [
     { name = "statsmodels", specifier = ">=0.14.6" },
     { name = "tabulate", specifier = ">=0.9.0" },
     { name = "tensorflow", marker = "python_full_version < '3.14' and extra == 'deep-learning'", specifier = ">=2.15.0" },
+    { name = "websockets", specifier = ">=16.0" },
     { name = "xgboost", specifier = ">=2.1.0" },
     { name = "yfinance", specifier = ">=1.0" },
 ]
