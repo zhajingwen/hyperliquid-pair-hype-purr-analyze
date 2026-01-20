@@ -37,7 +37,8 @@ from utils.timescaledb import (
     AnalysisResultRepository
 )
 from utils.analysis_core import analyze_pair
-from utils.lark_bot import LarkBot
+from utils.lark_bot import sender_colourful
+from utils.config import lark_bot_id
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -102,8 +103,14 @@ class RealtimeKlineService:
         self.symbol_repo = SymbolMetadataRepository(self.db_client)
         self.analysis_repo = AnalysisResultRepository(self.db_client)
 
-        # 飞书告警
-        self.lark_bot = LarkBot()
+        # 飞书告警配置
+        # 构建 webhook URL: https://open.larksuite.com/open-apis/bot/v2/hook/{bot_id}
+        if lark_bot_id:
+            self.lark_webhook_url = f"https://open.larksuite.com/open-apis/bot/v2/hook/{lark_bot_id}"
+        else:
+            # 使用默认 webhook URL（如果环境变量未配置）
+            self.lark_webhook_url = 'https://open.larksuite.com/open-apis/bot/v2/hook/7bbfc97b-adc9c'
+            logger.warning("未配置 LARKBOT_ID 环境变量，使用默认 webhook URL")
 
         # 获取活跃币种列表
         self.symbols = self._get_active_symbols()
@@ -116,8 +123,24 @@ class RealtimeKlineService:
         # K线缓冲队列（线程安全，最大10000条）
         self.kline_buffer = queue.Queue(maxsize=10000)
 
+        # 分析任务队列（支持25秒缓冲: 200消息/秒 × 25秒）
+        self.analysis_queue = queue.Queue(maxsize=5000)
+
         # 停止事件
         self.stop_event = threading.Event()
+
+        # 分析工作线程（3个并发线程）
+        self.analysis_workers = []
+        for i in range(3):
+            worker = threading.Thread(
+                target=self._analysis_worker,
+                daemon=True,
+                name=f"analysis-worker-{i}"
+            )
+            worker.start()
+            self.analysis_workers.append(worker)
+
+        logger.info("✅ 启动3个分析工作线程")
 
         # 批量写入线程
         self.batch_writer_thread = threading.Thread(
@@ -146,6 +169,9 @@ class RealtimeKlineService:
             'messages_received': 0,
             'klines_written': 0,
             'analyses_performed': 0,
+            'analyses_completed': 0,  # 新增：分析成功次数
+            'analyses_failed': 0,     # 新增：分析失败次数
+            'analysis_queue_drops': 0, # 新增：分析队列丢弃次数
             'alerts_sent': 0,
             'start_time': time.time()
         }
@@ -293,7 +319,7 @@ class RealtimeKlineService:
         流程:
         1. 解析K线数据
         2. 放入缓冲队列（异步批量写入）
-        3. 触发实时分析（同步）
+        3. 【已禁用】触发实时分析（阻塞问题）
 
         Args:
             msg: WebSocket 消息
@@ -313,8 +339,18 @@ class RealtimeKlineService:
             except queue.Full:
                 logger.warning(f"缓冲队列已满，丢弃K线: {kline['symbol']} @ {kline['timeframe']}")
 
-            # 触发实时分析（同步）
-            self._analyze_and_alert(kline['symbol'], kline['timeframe'])
+            # 【异步分析】放入分析队列（非阻塞，<0.1ms）
+            analysis_task = {
+                'symbol': kline['symbol'],
+                'timeframe': kline['timeframe'],
+                'timestamp': kline['time']
+            }
+            try:
+                self.analysis_queue.put_nowait(analysis_task)
+            except queue.Full:
+                logger.warning(f"分析队列已满，跳过分析: {kline['symbol']} @ {kline['timeframe']}")
+                self.stats.setdefault('analysis_queue_drops', 0)
+                self.stats['analysis_queue_drops'] += 1
 
         except Exception as e:
             logger.error(f"消息处理失败: {e}", exc_info=True)
@@ -348,13 +384,21 @@ class RealtimeKlineService:
                 )
 
                 if should_write and batch:
+                    # 去重：按主键 (time, symbol, timeframe) 去重，保留最新记录
+                    dedup_dict = {}
+                    for kline in batch:
+                        key = (kline['time'], kline['symbol'], kline['timeframe'])
+                        dedup_dict[key] = kline  # 后来的覆盖之前的，保留最新
+
+                    dedup_batch = list(dedup_dict.values())
+
                     # 批量写入数据库
                     try:
-                        count = self.kline_repo.batch_upsert_copy(batch, on_conflict='update')
+                        count = self.kline_repo.batch_upsert_copy(dedup_batch, on_conflict='update')
                         self.stats['klines_written'] += count
 
                         logger.info(
-                            f"批量写入: {count} 条K线 | "
+                            f"批量写入: {count} 条K线 (去重前: {len(batch)}) | "
                             f"缓冲队列: {self.kline_buffer.qsize()} | "
                             f"总写入: {self.stats['klines_written']}"
                         )
@@ -365,12 +409,80 @@ class RealtimeKlineService:
 
                     except Exception as e:
                         logger.error(f"批量写入失败: {e}", exc_info=True)
-                        # 保留批次数据，下次重试
+                        # 清空批次，避免重复错误
+                        batch = []
+                        last_write_time = time.time()
 
             except Exception as e:
                 logger.error(f"批量写入线程异常: {e}", exc_info=True)
 
         logger.info("批量写入线程已停止")
+
+    def _analysis_worker(self):
+        """
+        分析工作线程主循环
+
+        功能:
+        1. 从队列取出分析任务
+        2. 执行数据库查询 + 统计分析
+        3. 检测异常并发送飞书告警
+        4. 持久化分析结果到数据库
+
+        去重策略:
+        - 60秒内相同币种+周期不重复分析
+        - 避免资源浪费
+        """
+        logger.info(f"[{threading.current_thread().name}] 分析工作线程已启动")
+
+        # 任务去重字典（避免重复分析相同币种+周期）
+        recent_tasks = {}  # {(symbol, timeframe): timestamp}
+        DEDUP_WINDOW = 60  # 60秒内不重复分析
+
+        while not self.stop_event.is_set():
+            try:
+                # 阻塞获取任务（1秒超时，允许检查stop_event）
+                try:
+                    task = self.analysis_queue.get(timeout=1.0)
+                except queue.Empty:
+                    continue
+
+                symbol = task['symbol']
+                timeframe = task['timeframe']
+                task_key = (symbol, timeframe)
+
+                # 去重检查：60秒内已分析过则跳过
+                current_time = time.time()
+                if task_key in recent_tasks:
+                    last_analysis = recent_tasks[task_key]
+                    if current_time - last_analysis < DEDUP_WINDOW:
+                        logger.debug(f"跳过重复分析: {symbol} @ {timeframe}")
+                        self.analysis_queue.task_done()
+                        continue
+
+                # 记录分析时间戳
+                recent_tasks[task_key] = current_time
+
+                # 执行分析（原 _analyze_and_alert 逻辑）
+                try:
+                    self._analyze_and_alert(symbol, timeframe)
+                    self.stats['analyses_completed'] += 1
+                except Exception as e:
+                    logger.error(f"分析失败: {symbol} @ {timeframe} | {e}", exc_info=True)
+                    self.stats['analyses_failed'] += 1
+
+                # 标记任务完成
+                self.analysis_queue.task_done()
+
+                # 定期清理过期的去重记录（每100次任务）
+                if len(recent_tasks) > 1000:
+                    cutoff_time = current_time - DEDUP_WINDOW
+                    recent_tasks = {k: v for k, v in recent_tasks.items() if v > cutoff_time}
+
+            except Exception as e:
+                logger.error(f"[{threading.current_thread().name}] 工作线程异常: {e}", exc_info=True)
+                time.sleep(1)  # 避免异常循环
+
+        logger.info(f"[{threading.current_thread().name}] 分析工作线程已停止")
 
     def _analyze_and_alert(self, symbol: str, timeframe: str):
         """
@@ -386,6 +498,9 @@ class RealtimeKlineService:
             symbol: 目标币种（如 ETH/USDC:USDC）
             timeframe: 时间周期（如 5m）
         """
+        # 开始计时（用于监控分析延迟）
+        start_time = time.time()
+
         try:
             # 跳过基准币种自身
             if symbol == self.base_symbol:
@@ -457,6 +572,13 @@ class RealtimeKlineService:
             if analysis_result['is_anomaly']:
                 self._send_alert(symbol, timeframe, analysis_result)
 
+            # 输出延迟日志（如果超过5秒则警告）
+            elapsed = time.time() - start_time
+            if elapsed > 5.0:
+                logger.warning(f"⚠️ 分析延迟过高: {symbol} @ {timeframe} | {elapsed:.2f}秒")
+            else:
+                logger.debug(f"分析完成: {symbol} @ {timeframe} | {elapsed:.2f}秒")
+
         except Exception as e:
             logger.error(f"分析失败: {symbol} @ {timeframe} | {e}", exc_info=True)
 
@@ -470,7 +592,7 @@ class RealtimeKlineService:
             analysis_result: 分析结果
         """
         try:
-            # 构建告警消息
+            # 构建告警标题
             direction_emoji = "📈" if analysis_result['trading_direction'] == 'long' else "📉"
             strength_emoji = {
                 'strong': '🔥',
@@ -478,12 +600,14 @@ class RealtimeKlineService:
                 'weak': '💡'
             }.get(analysis_result['signal_strength'], '💡')
 
-            message = f"""
-{direction_emoji} **配对交易信号** {strength_emoji}
+            title = f"{direction_emoji} 配对交易信号 {strength_emoji}"
 
-**币种**: {symbol}
+            # 构建告警内容（Markdown格式）
+            content = f"""**币种**: {symbol}
 **周期**: {timeframe}
 **基准**: {self.base_symbol}
+
+---
 
 **分析结果**:
 - 相关系数: {analysis_result['correlation']:.3f}
@@ -497,8 +621,12 @@ class RealtimeKlineService:
 **时间**: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
 """
 
-            # 发送飞书消息
-            self.lark_bot.send_text_message(message)
+            # 发送飞书消息（彩色卡片）
+            sender_colourful(
+                url=self.lark_webhook_url,
+                content=content,
+                title=title
+            )
 
             # 统计
             self.stats['alerts_sent'] += 1
@@ -594,6 +722,7 @@ class RealtimeKlineService:
             **self.stats,
             'uptime_seconds': uptime,
             'buffer_size': self.kline_buffer.qsize(),
+            'analysis_queue_size': self.analysis_queue.qsize(),  # 新增：分析队列大小
             'ws_stats': self.ws_manager.get_stats()
         }
 
@@ -629,20 +758,44 @@ class RealtimeKlineService:
 
     def stop(self):
         """
-        停止服务
+        停止服务（优雅关闭）
+
+        流程:
+        1. 停止接收新消息
+        2. 等待分析队列清空（最多30秒）
+        3. 设置停止信号
+        4. 等待所有工作线程退出
         """
         logger.info("停止实时K线分析服务...")
 
-        # 设置停止事件
-        self.stop_event.set()
-
-        # 停止 WebSocket
+        # 1. 停止接收新消息
         self.ws_manager.stop()
 
-        # 等待线程结束
+        # 2. 等待分析队列清空（最多30秒）
+        if not self.analysis_queue.empty():
+            queue_size = self.analysis_queue.qsize()
+            logger.info(f"等待分析队列清空: {queue_size} 个任务")
+            try:
+                self.analysis_queue.join()
+                logger.info("✅ 分析队列已清空")
+            except:
+                logger.warning(f"⚠️ 分析队列未完全清空（剩余 {self.analysis_queue.qsize()} 个任务），强制退出")
+
+        # 3. 设置停止信号（工作线程将退出）
+        self.stop_event.set()
+
+        # 4. 等待工作线程退出
+        for worker in self.analysis_workers:
+            if worker.is_alive():
+                worker.join(timeout=5)
+                if worker.is_alive():
+                    logger.warning(f"⚠️ 工作线程 {worker.name} 未能在5秒内退出")
+
+        # 等待批量写入线程结束
         if self.batch_writer_thread.is_alive():
             self.batch_writer_thread.join(timeout=10)
 
+        # 等待新币种监控线程结束
         if self.symbol_monitor_thread.is_alive():
             self.symbol_monitor_thread.join(timeout=10)
 
@@ -651,7 +804,9 @@ class RealtimeKlineService:
         logger.info(f"📊 服务统计:")
         logger.info(f"   - 消息接收: {stats['messages_received']}")
         logger.info(f"   - K线写入: {stats['klines_written']}")
-        logger.info(f"   - 分析次数: {stats['analyses_performed']}")
+        logger.info(f"   - 分析完成: {stats['analyses_completed']}")
+        logger.info(f"   - 分析失败: {stats['analyses_failed']}")
+        logger.info(f"   - 分析队列丢弃: {stats.get('analysis_queue_drops', 0)}")
         logger.info(f"   - 告警发送: {stats['alerts_sent']}")
         logger.info(f"   - 运行时长: {stats['uptime_seconds']:.0f}秒")
 
