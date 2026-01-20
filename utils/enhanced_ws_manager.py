@@ -221,7 +221,7 @@ class EnhancedWebSocketManager:
         self.state_lock = threading.RLock()
 
         # Hyperliquid SDK 组件
-        self.info = Info(constants.MAINNET_API_URL, skip_ws=True)
+        self.info = Info(constants.MAINNET_API_URL, skip_ws=False)
         self.ws_manager: Optional[WebsocketManager] = None
         self.ws_ready_event = threading.Event()
 
@@ -257,15 +257,15 @@ class EnhancedWebSocketManager:
 
     def _is_connected(self) -> bool:
         """检查 WebSocket 是否已连接"""
-        if not self.ws_manager:
+        if not self.info.ws_manager:
             return False
 
         try:
             # 检查底层连接状态
             return (
-                hasattr(self.ws_manager, 'ws') and
-                self.ws_manager.ws is not None and
-                not self.ws_manager.ws.closed
+                hasattr(self.info.ws_manager, 'ws') and
+                self.info.ws_manager.ws is not None and
+                self.info.ws_manager.ws.keep_running
             )
         except Exception:
             return False
@@ -286,12 +286,9 @@ class EnhancedWebSocketManager:
         try:
             self._update_state(ConnectionState.CONNECTING)
 
-            # 创建 WebSocket 管理器
-            self.ws_manager = self.info.ws_manager(
-                subscriptions=self.subscriptions,
-                callback=self._wrapped_callback,
-                skip_disconnects=self.skip_disconnects
-            )
+            # 使用 Info.subscribe() 方法订阅所有频道
+            for subscription in self.subscriptions:
+                self.info.subscribe(subscription, self._wrapped_callback)
 
             # 等待连接就绪
             self.ws_ready_event.set()
@@ -330,12 +327,14 @@ class EnhancedWebSocketManager:
 
             try:
                 # 关闭旧连接
-                if self.ws_manager:
+                if self.info.ws_manager:
                     try:
-                        self.ws_manager.close()
+                        self.info.disconnect_websocket()
                     except Exception:
                         pass
-                    self.ws_manager = None
+
+                # 重新创建 Info 对象（会自动创建新的 WebSocket 连接）
+                self.info = Info(constants.MAINNET_API_URL, skip_ws=False)
 
                 # 尝试重连
                 self._connect()
@@ -437,9 +436,9 @@ class EnhancedWebSocketManager:
         self.stop_event.set()
 
         # 关闭连接
-        if self.ws_manager:
+        if self.info.ws_manager:
             try:
-                self.ws_manager.close()
+                self.info.disconnect_websocket()
             except Exception as e:
                 logger.error(f"关闭连接失败: {e}")
 

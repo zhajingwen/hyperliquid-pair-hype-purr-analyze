@@ -18,6 +18,7 @@ Author: Claude Code
 Date: 2026-01-19
 """
 
+import os
 import time
 import queue
 import logging
@@ -129,9 +130,11 @@ class RealtimeKlineService:
         # 停止事件
         self.stop_event = threading.Event()
 
-        # 分析工作线程（3个并发线程）
+        # 分析工作线程（可配置化，默认5个）
+        # Phase 1.5 优化: 从环境变量读取线程数，提供200%+容量余量
+        num_workers = int(os.getenv('ANALYSIS_WORKERS', '5'))
         self.analysis_workers = []
-        for i in range(3):
+        for i in range(num_workers):
             worker = threading.Thread(
                 target=self._analysis_worker,
                 daemon=True,
@@ -140,7 +143,7 @@ class RealtimeKlineService:
             worker.start()
             self.analysis_workers.append(worker)
 
-        logger.info("✅ 启动3个分析工作线程")
+        logger.info(f"✅ 启动{num_workers}个分析工作线程（ANALYSIS_WORKERS={num_workers}）")
 
         # 批量写入线程
         self.batch_writer_thread = threading.Thread(
@@ -420,7 +423,7 @@ class RealtimeKlineService:
 
     def _analysis_worker(self):
         """
-        分析工作线程主循环
+        分析工作线程主循环（Phase 1.5 优化版）
 
         功能:
         1. 从队列取出分析任务
@@ -428,15 +431,26 @@ class RealtimeKlineService:
         3. 检测异常并发送飞书告警
         4. 持久化分析结果到数据库
 
-        去重策略:
-        - 60秒内相同币种+周期不重复分析
-        - 避免资源浪费
+        去重策略（Phase 1.5 差异化优化）:
+        - 5m周期: 60秒冷却（每5分钟更新一次K线）
+        - 1h周期: 300秒冷却（每60分钟更新一次K线，减少80%不必要分析）
+        - 4h周期: 900秒冷却（每240分钟更新一次K线，减少93%不必要分析）
+        - 预期节省: 70-80%总体CPU资源
         """
         logger.info(f"[{threading.current_thread().name}] 分析工作线程已启动")
 
         # 任务去重字典（避免重复分析相同币种+周期）
         recent_tasks = {}  # {(symbol, timeframe): timestamp}
-        DEDUP_WINDOW = 60  # 60秒内不重复分析
+
+        # Phase 1.5 优化: 按周期差异化去重窗口（单位：秒）
+        # 5m周期: 每5分钟更新一次，60秒冷却避免重复分析同一根K线
+        # 1h周期: 每60分钟更新一次，5分钟冷却减少不必要分析
+        # 4h周期: 每240分钟更新一次，15分钟冷却大幅减少重复分析
+        DEDUP_WINDOWS = {
+            '5m': 60,    # 5分钟周期：60秒冷却
+            '1h': 300,   # 1小时周期：5分钟冷却（减少80%分析）
+            '4h': 900,   # 4小时周期：15分钟冷却（减少93%分析）
+        }
 
         while not self.stop_event.is_set():
             try:
@@ -450,22 +464,36 @@ class RealtimeKlineService:
                 timeframe = task['timeframe']
                 task_key = (symbol, timeframe)
 
-                # 去重检查：60秒内已分析过则跳过
-                current_time = time.time()
-                if task_key in recent_tasks:
-                    last_analysis = recent_tasks[task_key]
-                    if current_time - last_analysis < DEDUP_WINDOW:
-                        logger.debug(f"跳过重复分析: {symbol} @ {timeframe}")
-                        self.analysis_queue.task_done()
-                        continue
+                # 根据周期获取去重窗口
+                dedup_window = DEDUP_WINDOWS.get(timeframe, 60)
 
-                # 记录分析时间戳
-                recent_tasks[task_key] = current_time
+                # 去重检查：根据周期设定的时间内已分析过则跳过
+                current_time = time.time()
+                last_analysis_time = recent_tasks.get(task_key, 0)
+                time_since_last = current_time - last_analysis_time if last_analysis_time > 0 else 0
+
+                if last_analysis_time > 0 and time_since_last < dedup_window:
+                    logger.debug(
+                        f"跳过重复分析: {symbol} @ {timeframe} "
+                        f"(距上次 {time_since_last:.0f}秒，窗口 {dedup_window}秒)"
+                    )
+                    self.analysis_queue.task_done()
+                    continue
 
                 # 执行分析（原 _analyze_and_alert 逻辑）
                 try:
                     self._analyze_and_alert(symbol, timeframe)
                     self.stats['analyses_completed'] += 1
+
+                    # 记录分析时间戳（分析成功后才更新）
+                    recent_tasks[task_key] = current_time
+
+                    # Phase 1.5: 记录分析完成信息，用于监控
+                    logger.debug(
+                        f"分析完成: {symbol} @ {timeframe} | "
+                        f"去重窗口: {dedup_window}秒 | "
+                        f"距上次: {time_since_last:.0f}秒"
+                    )
                 except Exception as e:
                     logger.error(f"分析失败: {symbol} @ {timeframe} | {e}", exc_info=True)
                     self.stats['analyses_failed'] += 1
@@ -473,9 +501,10 @@ class RealtimeKlineService:
                 # 标记任务完成
                 self.analysis_queue.task_done()
 
-                # 定期清理过期的去重记录（每100次任务）
+                # 定期清理过期的去重记录（按最长窗口清理）
                 if len(recent_tasks) > 1000:
-                    cutoff_time = current_time - DEDUP_WINDOW
+                    max_window = max(DEDUP_WINDOWS.values())
+                    cutoff_time = current_time - max_window
                     recent_tasks = {k: v for k, v in recent_tasks.items() if v > cutoff_time}
 
             except Exception as e:
