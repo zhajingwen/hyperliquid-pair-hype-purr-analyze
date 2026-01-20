@@ -109,7 +109,7 @@ def calculate_correlation(
 # 协整检验
 # =====================================================
 
-def test_cointegration(
+def check_cointegration(
     base_klines: List[Dict],
     alt_klines: List[Dict],
     significance_level: float = 0.05
@@ -318,7 +318,7 @@ def analyze_pair(
             return result
 
         # 2. 协整检验
-        is_cointegrated, pvalue = test_cointegration(base_klines, alt_klines, coint_significance)
+        is_cointegrated, pvalue = check_cointegration(base_klines, alt_klines, coint_significance)
         result['cointegration_passed'] = is_cointegrated
         result['adf_pvalue'] = pvalue
 
@@ -359,7 +359,7 @@ def analyze_pair(
 __all__ = [
     'prepare_price_series',
     'calculate_correlation',
-    'test_cointegration',
+    'check_cointegration',
     'calculate_zscore',
     'detect_anomaly',
     'analyze_pair'

@@ -374,9 +374,11 @@ class RealtimeKlineService:
         while not self.stop_event.is_set():
             try:
                 # 获取K线数据（超时1秒）
+                kline_fetched = False
                 try:
                     kline = self.kline_buffer.get(timeout=1.0)
                     batch.append(kline)
+                    kline_fetched = True
                 except queue.Empty:
                     pass
 
@@ -389,6 +391,7 @@ class RealtimeKlineService:
                 if should_write and batch:
                     # 去重：按主键 (time, symbol, timeframe) 去重，保留最新记录
                     dedup_dict = {}
+                    batch_count = len(batch)
                     for kline in batch:
                         key = (kline['time'], kline['symbol'], kline['timeframe'])
                         dedup_dict[key] = kline  # 后来的覆盖之前的，保留最新
@@ -401,10 +404,14 @@ class RealtimeKlineService:
                         self.stats['klines_written'] += count
 
                         logger.info(
-                            f"批量写入: {count} 条K线 (去重前: {len(batch)}) | "
+                            f"批量写入: {count} 条K线 (去重前: {batch_count}) | "
                             f"缓冲队列: {self.kline_buffer.qsize()} | "
                             f"总写入: {self.stats['klines_written']}"
                         )
+
+                        # 标记所有任务完成
+                        for _ in range(batch_count):
+                            self.kline_buffer.task_done()
 
                         # 重置批次
                         batch = []
@@ -412,12 +419,42 @@ class RealtimeKlineService:
 
                     except Exception as e:
                         logger.error(f"批量写入失败: {e}", exc_info=True)
+                        # 标记所有任务完成（即使失败）
+                        for _ in range(batch_count):
+                            self.kline_buffer.task_done()
                         # 清空批次，避免重复错误
                         batch = []
                         last_write_time = time.time()
+                elif kline_fetched and not should_write:
+                    # 已获取数据但不需要写入，先不标记task_done，等待批量写入时统一标记
+                    pass
 
             except Exception as e:
                 logger.error(f"批量写入线程异常: {e}", exc_info=True)
+
+        # 停止前处理剩余批次
+        if batch:
+            try:
+                dedup_dict = {}
+                batch_count = len(batch)
+                for kline in batch:
+                    key = (kline['time'], kline['symbol'], kline['timeframe'])
+                    dedup_dict[key] = kline
+                
+                dedup_batch = list(dedup_dict.values())
+                count = self.kline_repo.batch_upsert_copy(dedup_batch, on_conflict='update')
+                self.stats['klines_written'] += count
+                
+                logger.info(f"停止前最后批量写入: {count} 条K线")
+                
+                # 标记所有任务完成
+                for _ in range(batch_count):
+                    self.kline_buffer.task_done()
+            except Exception as e:
+                logger.error(f"停止前批量写入失败: {e}", exc_info=True)
+                # 标记所有任务完成（即使失败）
+                for _ in range(batch_count):
+                    self.kline_buffer.task_done()
 
         logger.info("批量写入线程已停止")
 

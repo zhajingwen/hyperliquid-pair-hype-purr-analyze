@@ -80,7 +80,7 @@
 **关键内容**:
 - WebSocket订阅600个频道（200币种 × 3周期：5m/1h/4h）
 - 实时分析流程：on_message() → 写入DB（异步） + 分析（同步）
-- utils/analysis_core.py公共函数：calculate_correlation(), test_cointegration(), calculate_zscore(), detect_anomaly()
+- utils/analysis_core.py公共函数：calculate_correlation(), check_cointegration(), calculate_zscore(), detect_anomaly()
 - 分析频率：12次/分钟 = 8(5m) + 3.3(1h) + 0.83(4h)
 - 飞书实时告警集成
 - 缓冲队列+异步批量写入线程

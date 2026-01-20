@@ -70,7 +70,7 @@
 │                │  1. 查询历史数据 (7d/30d/60d)         │     │
 │                │  2. 调用 utils/analysis_core.py:     │     │
 │                │     - calculate_correlation()        │     │
-│                │     - test_cointegration()           │     │
+│                │     - check_cointegration()           │     │
 │                │     - calculate_zscore()             │     │
 │                │     - detect_anomaly()               │     │
 │                │  3. if 异常: send_feishu_alert()     │     │
@@ -362,7 +362,7 @@ def _analyze_and_alert(self, symbol: str, timeframe: str):
         # 2. 调用 utils/analysis_core.py 进行分析
         from utils.analysis_core import (
             calculate_correlation,
-            test_cointegration,
+            check_cointegration,
             calculate_zscore,
             detect_anomaly
         )
@@ -374,7 +374,7 @@ def _analyze_and_alert(self, symbol: str, timeframe: str):
             return
 
         # 协整检验
-        is_cointegrated, pvalue = test_cointegration(base_history, alt_history)
+        is_cointegrated, pvalue = check_cointegration(base_history, alt_history)
         if not is_cointegrated:
             logger.debug(f"协整检验失败 | {symbol} | p={pvalue:.4f}")
             return
