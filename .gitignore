@@ -19,3 +19,6 @@ files/
 *.pdf.xz
 *.epub.xz
 *.log
+test*
+test/
+tests/
