@@ -105,17 +105,19 @@ class RealtimeKlineService:
         self.analysis_repo = AnalysisResultRepository(self.db_client)
 
         # 飞书告警配置
-        # 构建 webhook URL: https://open.larksuite.com/open-apis/bot/v2/hook/{bot_id}
-        if lark_bot_id:
-            self.lark_webhook_url = f"https://open.larksuite.com/open-apis/bot/v2/hook/{lark_bot_id}"
-        else:
-            # 使用默认 webhook URL（如果环境变量未配置）
-            self.lark_webhook_url = 'https://open.larksuite.com/open-apis/bot/v2/hook/7bbfc97b-adc9c'
-            logger.warning("未配置 LARKBOT_ID 环境变量，使用默认 webhook URL")
+        # 从config导入webhook URL（已经在config中构建好）
+        from utils.config import lark_webhook_url
+        self.lark_webhook_url = lark_webhook_url
+
+        if not self.lark_webhook_url:
+            logger.warning("未配置飞书告警，LARK_WEBHOOK_URL 或 LARKBOT_ID 环境变量未设置")
 
         # 获取活跃币种列表
         self.symbols = self._get_active_symbols()
         logger.info(f"活跃币种数量: {len(self.symbols)}")
+
+        # 修复竞态条件: 添加线程锁保护symbols列表
+        self.symbols_lock = threading.RLock()
 
         # 构建订阅列表（600个订阅 = 200币种 × 3周期）
         self.subscriptions = self._build_subscriptions()
@@ -234,7 +236,11 @@ class RealtimeKlineService:
         """
         subscriptions = []
 
-        for symbol in self.symbols:
+        # 修复竞态条件: 使用锁保护symbols访问
+        with self.symbols_lock:
+            symbols_copy = list(self.symbols)
+
+        for symbol in symbols_copy:
             # 提取基础币种: BTC/USDC:USDC → BTC
             coin = symbol.split('/')[0]
 
@@ -365,10 +371,13 @@ class RealtimeKlineService:
         策略:
         - 达到 batch_size（1000条） 或 超时 batch_timeout（5秒） 触发写入
         - 使用 COPY 命令高性能批量插入
+
+        修复: 正确跟踪从队列获取的元素数量，避免task_done计数不匹配
         """
         logger.info("批量写入线程已启动")
 
         batch = []
+        items_to_mark_done = 0  # 跟踪需要标记完成的项数
         last_write_time = time.time()
 
         while not self.stop_event.is_set():
@@ -378,6 +387,7 @@ class RealtimeKlineService:
                 try:
                     kline = self.kline_buffer.get(timeout=1.0)
                     batch.append(kline)
+                    items_to_mark_done += 1  # 每次成功获取，计数+1
                     kline_fetched = True
                 except queue.Empty:
                     pass
@@ -409,24 +419,26 @@ class RealtimeKlineService:
                             f"总写入: {self.stats['klines_written']}"
                         )
 
-                        # 标记所有任务完成
-                        for _ in range(batch_count):
+                        # 标记实际从队列获取的任务完成
+                        for _ in range(items_to_mark_done):
                             self.kline_buffer.task_done()
 
-                        # 重置批次
+                        # 重置批次和计数器
                         batch = []
+                        items_to_mark_done = 0
                         last_write_time = time.time()
 
                     except Exception as e:
                         logger.error(f"批量写入失败: {e}", exc_info=True)
-                        # 标记所有任务完成（即使失败）
-                        for _ in range(batch_count):
+                        # 标记实际从队列获取的任务完成（即使失败）
+                        for _ in range(items_to_mark_done):
                             self.kline_buffer.task_done()
-                        # 清空批次，避免重复错误
+                        # 清空批次和计数器，避免重复错误
                         batch = []
+                        items_to_mark_done = 0
                         last_write_time = time.time()
                 elif kline_fetched and not should_write:
-                    # 已获取数据但不需要写入，先不标记task_done，等待批量写入时统一标记
+                    # 已获取数据但不需要写入，等待批量写入时统一标记
                     pass
 
             except Exception as e:
@@ -440,20 +452,20 @@ class RealtimeKlineService:
                 for kline in batch:
                     key = (kline['time'], kline['symbol'], kline['timeframe'])
                     dedup_dict[key] = kline
-                
+
                 dedup_batch = list(dedup_dict.values())
                 count = self.kline_repo.batch_upsert_copy(dedup_batch, on_conflict='update')
                 self.stats['klines_written'] += count
-                
+
                 logger.info(f"停止前最后批量写入: {count} 条K线")
-                
-                # 标记所有任务完成
-                for _ in range(batch_count):
+
+                # 标记实际从队列获取的任务完成
+                for _ in range(items_to_mark_done):
                     self.kline_buffer.task_done()
             except Exception as e:
                 logger.error(f"停止前批量写入失败: {e}", exc_info=True)
-                # 标记所有任务完成（即使失败）
-                for _ in range(batch_count):
+                # 标记实际从队列获取的任务完成（即使失败）
+                for _ in range(items_to_mark_done):
                     self.kline_buffer.task_done()
 
         logger.info("批量写入线程已停止")
@@ -489,12 +501,20 @@ class RealtimeKlineService:
             '4h': 900,   # 4小时周期：15分钟冷却（减少93%分析）
         }
 
+        # 内存泄漏修复: 定时清理配置
+        CLEANUP_INTERVAL = 300  # 5分钟定时清理
+        MAX_RECENT_TASKS = 5000  # 硬性上限
+        last_cleanup_time = time.time()
+
         while not self.stop_event.is_set():
             try:
                 # 阻塞获取任务（1秒超时，允许检查stop_event）
                 try:
                     task = self.analysis_queue.get(timeout=1.0)
                 except queue.Empty:
+                    # 修复CPU占用: 队列为空时使用wait等待，避免CPU空转
+                    if self.stop_event.wait(0.1):  # 100ms检查一次
+                        break
                     continue
 
                 symbol = task['symbol']
@@ -538,11 +558,27 @@ class RealtimeKlineService:
                 # 标记任务完成
                 self.analysis_queue.task_done()
 
-                # 定期清理过期的去重记录（按最长窗口清理）
-                if len(recent_tasks) > 1000:
+                # 内存泄漏修复: 定时清理过期记录（优先级高于长度检查）
+                if current_time - last_cleanup_time > CLEANUP_INTERVAL:
                     max_window = max(DEDUP_WINDOWS.values())
-                    cutoff_time = current_time - max_window
+                    cutoff_time = current_time - max_window * 2  # 保留2倍窗口时间的记录
+                    old_count = len(recent_tasks)
                     recent_tasks = {k: v for k, v in recent_tasks.items() if v > cutoff_time}
+                    last_cleanup_time = current_time
+                    logger.debug(
+                        f"定时清理任务缓存: {old_count} → {len(recent_tasks)} "
+                        f"(清理了 {old_count - len(recent_tasks)} 条过期记录)"
+                    )
+
+                # 内存泄漏修复: 硬性上限检查，防止无限增长
+                if len(recent_tasks) > MAX_RECENT_TASKS:
+                    # 移除最旧的50%记录
+                    sorted_tasks = sorted(recent_tasks.items(), key=lambda x: x[1])
+                    keep_count = MAX_RECENT_TASKS // 2
+                    recent_tasks = dict(sorted_tasks[-keep_count:])
+                    logger.warning(
+                        f"任务缓存超限 ({MAX_RECENT_TASKS})，强制清理至 {len(recent_tasks)}"
+                    )
 
             except Exception as e:
                 logger.error(f"[{threading.current_thread().name}] 工作线程异常: {e}", exc_info=True)
@@ -729,25 +765,26 @@ class RealtimeKlineService:
                         symbol = f"{name}/USDC:USDC"
                         exchange_symbols.add(symbol)
 
-                # 对比现有币种
-                current_symbols = set(self.symbols)
-                new_symbols = exchange_symbols - current_symbols
+                # 对比现有币种（修复竞态条件：使用锁保护）
+                with self.symbols_lock:
+                    current_symbols = set(self.symbols)
+                    new_symbols = exchange_symbols - current_symbols
 
-                if new_symbols:
-                    logger.info(f"🆕 发现新币种: {len(new_symbols)} 个")
+                    if new_symbols:
+                        logger.info(f"🆕 发现新币种: {len(new_symbols)} 个")
 
-                    for symbol in new_symbols:
-                        # 注册到数据库
-                        base_asset = symbol.split('/')[0]
-                        self.symbol_repo.upsert_symbol(
-                            symbol=symbol,
-                            base_asset=base_asset,
-                            quote_asset='USDC',
-                            is_active=True
-                        )
+                        for symbol in new_symbols:
+                            # 注册到数据库
+                            base_asset = symbol.split('/')[0]
+                            self.symbol_repo.upsert_symbol(
+                                symbol=symbol,
+                                base_asset=base_asset,
+                                quote_asset='USDC',
+                                is_active=True
+                            )
 
-                        # 添加到订阅列表
-                        self.symbols.append(symbol)
+                            # 添加到订阅列表
+                            self.symbols.append(symbol)
 
                         logger.info(f"✅ 新币种已注册: {symbol}")
 

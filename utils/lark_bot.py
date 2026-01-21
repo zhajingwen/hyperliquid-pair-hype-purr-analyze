@@ -1,6 +1,8 @@
 import requests
 import json
 import logging
+import time
+from utils.config import lark_webhook_url, lark_alert_email
 
 logger = logging.getLogger('Lark Alert')
 logger.propagate = False  # 阻止日志传播到根 logger，避免重复打印
@@ -18,7 +20,10 @@ def sender(msg, url=None, title='', del_blank_row=True):
     :param msg: 需要发送的消息
     """
     if not url:
-        url = 'https://open.larksuite.com/open-apis/bot/v2/hook/7bbfc97b-adc9c'
+        url = lark_webhook_url
+        if not url:
+            logger.error("未配置飞书Webhook URL，无法发送消息")
+            return None
     msg_list = []
     for i in msg.strip().split('\n'):
         i = i.strip()
@@ -48,7 +53,6 @@ def sender(msg, url=None, title='', del_blank_row=True):
         msg_list.append(msg_row)
 
     data = {
-        "email": "drake.shi@bitget.com",
         "msg_type": "post",
         "content": {
             "post": {
@@ -59,18 +63,35 @@ def sender(msg, url=None, title='', del_blank_row=True):
             }
         }
     }
+
+    # 如果配置了告警邮箱，添加到消息中
+    if lark_alert_email:
+        data["email"] = lark_alert_email
     headers = {'Content-Type': 'application/json'}
-    num = 0
-    while True:
+
+    # 修复死循环: 明确重试次数、添加超时和指数退避
+    max_retries = 3
+    for attempt in range(max_retries):
         try:
-            res = requests.request("POST", url, headers=headers, data=json.dumps(data))
+            res = requests.request(
+                "POST",
+                url,
+                headers=headers,
+                data=json.dumps(data),
+                timeout=10  # 添加10秒超时
+            )
+            res.raise_for_status()  # 检查HTTP错误
             logger.info(f'lark 告警调用成功：{res.text}')
             return res.text
         except requests.exceptions.RequestException as e:
-            num += 1
-            if num > 3:
-                logger.error(f'lark 告警调用失败：{str(e)} | URL: {url} | 重试次数: {num}', exc_info=True)
-                break
+            logger.warning(f'lark 告警调用失败 (尝试 {attempt+1}/{max_retries}): {e}')
+            if attempt == max_retries - 1:
+                # 最后一次失败，记录错误并返回None
+                logger.error(f'lark 告警最终失败: {e} | URL: {url}', exc_info=True)
+                return None
+            # 指数退避: 等待2^attempt秒
+            time.sleep(2 ** attempt)
+
     return None
 
 def sender_colourful(url, content, title=''):
@@ -78,7 +99,6 @@ def sender_colourful(url, content, title=''):
     https://open.larksuite.com/document/common-capabilities/message-card/message-cards-content/using-markdown-tags
     """
     message = {
-        "email": "drake.shi@bitget.com",
         "msg_type": "interactive",
         "card": {
             "config": {
@@ -97,19 +117,34 @@ def sender_colourful(url, content, title=''):
             }]
         }
     }
+
+    # 如果配置了告警邮箱，添加到消息中
+    if lark_alert_email:
+        message["email"] = lark_alert_email
     headers = {
         'Content-Type': 'application/json'
     }
 
-    num = 0  # 初始化重试计数器
-    while True:
+    # 修复死循环: 明确重试次数、添加超时和指数退避
+    max_retries = 3
+    for attempt in range(max_retries):
         try:
-            response = requests.post(url, headers=headers, data=json.dumps(message))
+            response = requests.post(
+                url,
+                headers=headers,
+                data=json.dumps(message),
+                timeout=10  # 添加10秒超时
+            )
+            response.raise_for_status()  # 检查HTTP错误
             logger.info(f'lark 彩色告警调用成功：{response.text}')
-            return response.text  # 成功后返回，避免无限循环
+            return response.text
         except requests.exceptions.RequestException as e:
-            num += 1
-            if num > 3:
-                logger.error(f'lark 告警调用失败：{str(e)} | URL: {url} | 重试次数: {num}', exc_info=True)
-                break
+            logger.warning(f'lark 彩色告警调用失败 (尝试 {attempt+1}/{max_retries}): {e}')
+            if attempt == max_retries - 1:
+                # 最后一次失败，记录错误并返回None
+                logger.error(f'lark 彩色告警最终失败: {e} | URL: {url}', exc_info=True)
+                return None
+            # 指数退避: 等待2^attempt秒
+            time.sleep(2 ** attempt)
+
     return None

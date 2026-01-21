@@ -56,13 +56,22 @@ class TimescaleDBConfig:
 
     @property
     def connection_string(self) -> str:
-        """生成 PostgreSQL 连接字符串"""
+        """生成 PostgreSQL 连接字符串（包含密码，仅用于实际连接）"""
         return (
             f"postgresql://{self.user}:{self.password}"
             f"@{self.host}:{self.port}/{self.database}"
         )
 
+    @property
+    def connection_string_safe(self) -> str:
+        """生成安全的连接字符串（密码掩码，用于日志记录）"""
+        return (
+            f"postgresql://{self.user}:***"
+            f"@{self.host}:{self.port}/{self.database}"
+        )
+
     def __repr__(self) -> str:
+        """返回安全的字符串表示（不包含密码）"""
         return (
             f"TimescaleDBConfig(host={self.host}, port={self.port}, "
             f"database={self.database}, user={self.user})"
@@ -140,6 +149,8 @@ class TimescaleDBClient:
         - 正常退出：自动提交事务（conn.commit()）
         - 异常退出：自动回滚事务（conn.rollback()）
 
+        修复: 检测并移除污染的连接，防止连接池污染
+
         使用示例：
             with client.get_connection() as conn:
                 with conn.cursor() as cur:
@@ -150,19 +161,46 @@ class TimescaleDBClient:
             Connection: psycopg 3.x 连接对象
         """
         conn = None
+        connection_valid = True  # 跟踪连接是否健康
+
         try:
             conn = self._pool.getconn()
+            if conn is None:
+                raise ConnectionError("无法从连接池获取连接")
+
+            # 验证连接状态（快速检查）
+            conn.isolation_level  # 触发异常如果连接无效
+
             yield conn
             # 正常退出时自动提交事务
             conn.commit()
+
         except Exception as e:
             if conn:
-                conn.rollback()
+                try:
+                    conn.rollback()
+                    # 关键改进: 测试连接是否仍然可用
+                    with conn.cursor() as test_cur:
+                        test_cur.execute("SELECT 1")
+                except Exception as test_e:
+                    # 连接已污染，标记为无效
+                    logger.error(f"连接已污染，将其移除: {test_e}")
+                    connection_valid = False
             logger.error(f"数据库连接错误: {e}")
             raise
+
         finally:
             if conn:
-                self._pool.putconn(conn)
+                if connection_valid:
+                    # 仅返回健康的连接到池中
+                    self._pool.putconn(conn)
+                else:
+                    # 关闭污染的连接，不要放回池中
+                    try:
+                        self._pool.putconn(conn, close=True)
+                        logger.warning("已从连接池移除污染的连接")
+                    except Exception as close_e:
+                        logger.error(f"关闭污染连接失败: {close_e}")
 
     def execute_query(
         self,

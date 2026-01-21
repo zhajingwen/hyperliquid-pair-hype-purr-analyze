@@ -1,13 +1,17 @@
 import redis
+import logging
 from utils.config import redis_password, redis_host
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 def redis_cli() -> redis.Redis:
     """
     创建并返回Redis客户端连接
     """
-    print(f'redis_password: {redis_password}')
+    # 安全日志：使用掩码记录密码配置状态
+    logger.info(f"Redis认证: {'已配置' if redis_password else '未配置'}")
     
     # 创建连接池配置
     pool_kwargs = {
@@ -29,12 +33,12 @@ def redis_cli() -> redis.Redis:
     # 测试连接
     try:
         client.ping()
-        print("Redis 连接成功")
+        logger.info("Redis 连接成功")
     except redis.AuthenticationError:
-        print("Redis 认证失败，请检查密码")
+        logger.error("Redis 认证失败，请检查密码")
         raise
     except redis.ConnectionError:
-        print("Redis 连接失败，请检查 Redis 是否运行")
+        logger.error("Redis 连接失败，请检查 Redis 是否运行")
         raise
     
     return client

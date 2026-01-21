@@ -1,6 +1,7 @@
 import traceback
 import os
 from utils.lark_bot import sender
+from utils.config import lark_webhook_url
 # from config import env
 
 def ErrorMonitor(spider_name, user=None):
@@ -10,7 +11,7 @@ def ErrorMonitor(spider_name, user=None):
     :param user: 用户名
     24个小时内单个爬虫的故障只告警一次
     """
-    webhook = 'https://open.larksuite.com/open-apis/bot/v2/hook/'
+    webhook = lark_webhook_url  # 使用配置的webhook URL
     title = f'{spider_name}\n  @{user}'
     key_base = 'process:failed:filter:{}'
         

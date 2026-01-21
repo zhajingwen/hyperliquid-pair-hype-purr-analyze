@@ -326,12 +326,17 @@ class EnhancedWebSocketManager:
                 break
 
             try:
-                # 关闭旧连接
+                # 关闭旧连接（修复：详细日志+强制关闭）
                 if self.info.ws_manager:
                     try:
+                        logger.info("尝试关闭旧WebSocket连接...")
                         self.info.disconnect_websocket()
-                    except Exception:
-                        pass
+                        time.sleep(0.5)  # 等待连接完全释放
+                        logger.info("旧连接已关闭")
+                    except Exception as e:
+                        logger.error(f"关闭旧连接失败: {e}", exc_info=True)
+                        # 记录但继续重连，避免重连完全失败
+                        # 注意：这可能导致连接泄漏，需要外部监控
 
                 # 重新创建 Info 对象（会自动创建新的 WebSocket 连接）
                 self.info = Info(constants.MAINNET_API_URL, skip_ws=False)
