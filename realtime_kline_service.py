@@ -582,12 +582,12 @@ class RealtimeKlineService:
 
             # 查询基准币种K线
             end_time = datetime.now(timezone.utc)
-            start_time = end_time - window
+            query_start_time = end_time - window
 
             base_klines = self.kline_repo.query_range(
                 self.base_symbol,
                 timeframe,
-                start_time,
+                query_start_time,
                 end_time,
                 limit=10000
             )
@@ -596,7 +596,7 @@ class RealtimeKlineService:
             alt_klines = self.kline_repo.query_range(
                 symbol,
                 timeframe,
-                start_time,
+                query_start_time,
                 end_time,
                 limit=10000
             )
