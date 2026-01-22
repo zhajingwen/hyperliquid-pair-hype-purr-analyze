@@ -497,6 +497,7 @@ class RealtimeKlineService:
         # 从环境变量读取配置（可配置化）
         batch_size = int(os.getenv('ANALYSIS_RESULT_BATCH_SIZE', '100'))
         batch_timeout = float(os.getenv('ANALYSIS_RESULT_BATCH_TIMEOUT', '2.0'))
+        use_copy_method = os.getenv('ANALYSIS_USE_COPY_METHOD', 'false').lower() in ('true', '1', 'yes')
 
         batch = []
         items_to_mark_done = 0  # 跟踪需要标记完成的项数
@@ -535,9 +536,12 @@ class RealtimeKlineService:
                     dedup_batch = list(dedup_dict.values())
                     dedup_count = batch_count - len(dedup_batch)
 
-                    # 批量写入数据库
+                    # 批量写入数据库（根据配置选择写入方法）
                     try:
-                        count = self.analysis_repo.batch_insert(dedup_batch)
+                        if use_copy_method:
+                            count = self.analysis_repo.batch_insert_copy(dedup_batch)
+                        else:
+                            count = self.analysis_repo.batch_insert(dedup_batch)
                         self.stats['analysis_results_written'] += count
                         self.stats['analysis_results_deduped'] += dedup_count
 
@@ -587,7 +591,11 @@ class RealtimeKlineService:
                 dedup_batch = list(dedup_dict.values())
                 dedup_count = batch_count - len(dedup_batch)
 
-                count = self.analysis_repo.batch_insert(dedup_batch)
+                # 根据配置选择写入方法
+                if use_copy_method:
+                    count = self.analysis_repo.batch_insert_copy(dedup_batch)
+                else:
+                    count = self.analysis_repo.batch_insert(dedup_batch)
                 self.stats['analysis_results_written'] += count
                 self.stats['analysis_results_deduped'] += dedup_count
 
