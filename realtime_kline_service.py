@@ -129,6 +129,9 @@ class RealtimeKlineService:
         # 分析任务队列（支持25秒缓冲: 200消息/秒 × 25秒）
         self.analysis_queue = queue.Queue(maxsize=5000)
 
+        # 分析结果缓冲队列（支持峰值: 200条/秒 × 25秒）
+        self.analysis_result_buffer = queue.Queue(maxsize=5000)
+
         # 停止事件
         self.stop_event = threading.Event()
 
@@ -161,6 +164,13 @@ class RealtimeKlineService:
             name="symbol-monitor"
         )
 
+        # 分析结果批量写入线程
+        self.analysis_result_writer_thread = threading.Thread(
+            target=self._analysis_result_batch_writer,
+            daemon=True,
+            name="analysis-result-writer"
+        )
+
         # WebSocket 管理器
         self.ws_manager = EnhancedWebSocketManager(
             subscriptions=self.subscriptions,
@@ -178,6 +188,9 @@ class RealtimeKlineService:
             'analyses_failed': 0,     # 新增：分析失败次数
             'analysis_queue_drops': 0, # 新增：分析队列丢弃次数
             'alerts_sent': 0,
+            'analysis_results_written': 0,      # 新增：分析结果成功写入数
+            'analysis_results_deduped': 0,      # 新增：分析结果去重数
+            'analysis_result_buffer_drops': 0,  # 新增：分析结果缓冲队列丢弃数
             'start_time': time.time()
         }
 
@@ -470,6 +483,127 @@ class RealtimeKlineService:
 
         logger.info("批量写入线程已停止")
 
+    def _analysis_result_batch_writer(self):
+        """
+        分析结果批量写入线程
+
+        策略:
+        - 达到 batch_size（100条） 或 超时 batch_timeout（2秒） 触发写入
+        - 去重策略：分钟级时间 + symbol + base_symbol
+        - 环境变量可配置批量大小和超时时间
+        """
+        logger.info("分析结果批量写入线程已启动")
+
+        # 从环境变量读取配置（可配置化）
+        batch_size = int(os.getenv('ANALYSIS_RESULT_BATCH_SIZE', '100'))
+        batch_timeout = float(os.getenv('ANALYSIS_RESULT_BATCH_TIMEOUT', '2.0'))
+
+        batch = []
+        items_to_mark_done = 0  # 跟踪需要标记完成的项数
+        last_write_time = time.time()
+
+        while not self.stop_event.is_set():
+            try:
+                # 获取分析结果（超时1秒）
+                result_fetched = False
+                try:
+                    analysis_record = self.analysis_result_buffer.get(timeout=1.0)
+                    batch.append(analysis_record)
+                    items_to_mark_done += 1  # 每次成功获取，计数+1
+                    result_fetched = True
+                except queue.Empty:
+                    pass
+
+                # 判断是否触发写入
+                should_write = (
+                    len(batch) >= batch_size or  # 达到批量大小
+                    (batch and time.time() - last_write_time >= batch_timeout)  # 超时
+                )
+
+                if should_write and batch:
+                    # 去重：按 (分钟级时间, symbol, base_symbol) 去重
+                    dedup_dict = {}
+                    batch_count = len(batch)
+                    for record in batch:
+                        # 将时间精确到分钟
+                        minute_time = record['analysis_time'].replace(
+                            second=0, microsecond=0
+                        )
+                        key = (minute_time, record['symbol'], record['base_symbol'])
+                        dedup_dict[key] = record  # 后来的覆盖之前的，保留最新
+
+                    dedup_batch = list(dedup_dict.values())
+                    dedup_count = batch_count - len(dedup_batch)
+
+                    # 批量写入数据库
+                    try:
+                        count = self.analysis_repo.batch_insert(dedup_batch)
+                        self.stats['analysis_results_written'] += count
+                        self.stats['analysis_results_deduped'] += dedup_count
+
+                        logger.info(
+                            f"批量写入分析结果: {count} 条 (去重前: {batch_count}, 去重: {dedup_count}) | "
+                            f"缓冲队列: {self.analysis_result_buffer.qsize()}"
+                        )
+
+                        # 标记实际从队列获取的任务完成
+                        for _ in range(items_to_mark_done):
+                            self.analysis_result_buffer.task_done()
+
+                        # 重置批次和计数器
+                        batch = []
+                        items_to_mark_done = 0
+                        last_write_time = time.time()
+
+                    except Exception as e:
+                        logger.error(f"分析结果批量写入失败: {e}", exc_info=True)
+                        # 标记实际从队列获取的任务完成（即使失败）
+                        for _ in range(items_to_mark_done):
+                            self.analysis_result_buffer.task_done()
+                        # 清空批次和计数器，避免重复错误
+                        batch = []
+                        items_to_mark_done = 0
+                        last_write_time = time.time()
+                elif result_fetched and not should_write:
+                    # 已获取数据但不需要写入，等待批量写入时统一标记
+                    pass
+
+            except Exception as e:
+                logger.error(f"分析结果批量写入线程异常: {e}", exc_info=True)
+
+        # 停止前处理剩余批次
+        if batch:
+            try:
+                # 去重
+                dedup_dict = {}
+                batch_count = len(batch)
+                for record in batch:
+                    minute_time = record['analysis_time'].replace(
+                        second=0, microsecond=0
+                    )
+                    key = (minute_time, record['symbol'], record['base_symbol'])
+                    dedup_dict[key] = record
+
+                dedup_batch = list(dedup_dict.values())
+                dedup_count = batch_count - len(dedup_batch)
+
+                count = self.analysis_repo.batch_insert(dedup_batch)
+                self.stats['analysis_results_written'] += count
+                self.stats['analysis_results_deduped'] += dedup_count
+
+                logger.info(f"停止前最后批量写入分析结果: {count} 条 (去重前: {batch_count}, 去重: {dedup_count})")
+
+                # 标记实际从队列获取的任务完成
+                for _ in range(items_to_mark_done):
+                    self.analysis_result_buffer.task_done()
+            except Exception as e:
+                logger.error(f"停止前分析结果批量写入失败: {e}", exc_info=True)
+                # 标记实际从队列获取的任务完成（即使失败）
+                for _ in range(items_to_mark_done):
+                    self.analysis_result_buffer.task_done()
+
+        logger.info("分析结果批量写入线程已停止")
+
     def _analysis_worker(self):
         """
         分析工作线程主循环（Phase 1.5 优化版）
@@ -668,7 +802,12 @@ class RealtimeKlineService:
                 'signal_strength': analysis_result['signal_strength']
             }
 
-            self.analysis_repo.batch_insert([analysis_record])
+            # 批量缓冲写入（非阻塞）
+            try:
+                self.analysis_result_buffer.put_nowait(analysis_record)
+            except queue.Full:
+                logger.warning(f"分析结果缓冲队列已满，丢弃: {symbol}")
+                self.stats['analysis_result_buffer_drops'] += 1
 
             # 如果检测到异常，发送飞书告警
             if analysis_result['is_anomaly']:
@@ -826,6 +965,7 @@ class RealtimeKlineService:
             'uptime_seconds': uptime,
             'buffer_size': self.kline_buffer.qsize(),
             'analysis_queue_size': self.analysis_queue.qsize(),  # 新增：分析队列大小
+            'analysis_result_buffer_size': self.analysis_result_buffer.qsize(),  # 新增：分析结果缓冲队列大小
             'ws_stats': self.ws_manager.get_stats()
         }
 
@@ -848,6 +988,10 @@ class RealtimeKlineService:
             # 启动新币种监控线程
             self.symbol_monitor_thread.start()
             logger.info("✅ 新币种监控线程已启动")
+
+            # 启动分析结果批量写入线程
+            self.analysis_result_writer_thread.start()
+            logger.info("✅ 分析结果批量写入线程已启动")
 
             # 启动 WebSocket（阻塞）
             self.ws_manager.start()
@@ -884,6 +1028,16 @@ class RealtimeKlineService:
             except:
                 logger.warning(f"⚠️ 分析队列未完全清空（剩余 {self.analysis_queue.qsize()} 个任务），强制退出")
 
+        # 2.5 等待分析结果缓冲队列清空
+        if not self.analysis_result_buffer.empty():
+            buffer_size = self.analysis_result_buffer.qsize()
+            logger.info(f"等待分析结果缓冲队列清空: {buffer_size} 条记录")
+            try:
+                self.analysis_result_buffer.join()
+                logger.info("✅ 分析结果缓冲队列已清空")
+            except:
+                logger.warning(f"⚠️ 分析结果缓冲队列未完全清空（剩余 {self.analysis_result_buffer.qsize()} 条），强制退出")
+
         # 3. 设置停止信号（工作线程将退出）
         self.stop_event.set()
 
@@ -902,6 +1056,10 @@ class RealtimeKlineService:
         if self.symbol_monitor_thread.is_alive():
             self.symbol_monitor_thread.join(timeout=10)
 
+        # 等待分析结果写入线程结束
+        if self.analysis_result_writer_thread.is_alive():
+            self.analysis_result_writer_thread.join(timeout=10)
+
         # 输出统计信息
         stats = self.get_stats()
         logger.info(f"📊 服务统计:")
@@ -910,6 +1068,9 @@ class RealtimeKlineService:
         logger.info(f"   - 分析完成: {stats['analyses_completed']}")
         logger.info(f"   - 分析失败: {stats['analyses_failed']}")
         logger.info(f"   - 分析队列丢弃: {stats.get('analysis_queue_drops', 0)}")
+        logger.info(f"   - 分析结果写入: {stats.get('analysis_results_written', 0)}")
+        logger.info(f"   - 分析结果去重: {stats.get('analysis_results_deduped', 0)}")
+        logger.info(f"   - 分析结果丢弃: {stats.get('analysis_result_buffer_drops', 0)}")
         logger.info(f"   - 告警发送: {stats['alerts_sent']}")
         logger.info(f"   - 运行时长: {stats['uptime_seconds']:.0f}秒")
 
