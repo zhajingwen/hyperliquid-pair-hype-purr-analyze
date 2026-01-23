@@ -839,16 +839,22 @@ class RealtimeKlineService:
                 return
 
             # ===== 通过验证，构建告警记录 =====
+            # ✅ 从 details 中提取每个周期的相关系数（已在 analyze_pair_advanced 中计算）
+            details = multi_period_result.get('details', {})
+            corr_5m_7d = details.get(('5m', '7d'), {}).get('correlation')
+            corr_1h_30d = details.get(('1h', '30d'), {}).get('correlation')
+            corr_4h_60d = details.get(('4h', '60d'), {}).get('correlation')
+
             # 注意：字段需与数据库表 analysis_results 结构一致
             analysis_record = {
                 'analysis_time': datetime.now(timezone.utc),
                 'symbol': symbol,
                 'base_symbol': self.base_symbol,
 
-                # ✅ 相关系数（表中存在，多周期验证不计算这些，设为None）
-                'corr_5m_7d': None,
-                'corr_1h_30d': None,
-                'corr_4h_60d': None,
+                # ✅ 相关系数（从多周期验证结果中提取，保证数据完整性）
+                'corr_5m_7d': corr_5m_7d,      # 短周期相关系数（7天数据）
+                'corr_1h_30d': corr_1h_30d,    # 中周期相关系数（30天数据）
+                'corr_4h_60d': corr_4h_60d,    # 长周期相关系数（60天数据）
 
                 # ✅ 多周期Z-score（表中存在）
                 'zscore_5m': multi_period_result['zscore_list'][0],
@@ -857,7 +863,7 @@ class RealtimeKlineService:
 
                 # ✅ 协整检验（表中存在，基于协整通过数量判断）
                 'cointegration_passed': multi_period_result['cointegration_count'] >= 2,
-                'adf_pvalue': None,  # 多周期验证无单一p值，设为None
+                'adf_pvalue': None,  # 多周期验证无单一p值
 
                 # ✅ 信号判断（表中存在）
                 'is_anomaly': True,  # 通过多周期验证即为异常
