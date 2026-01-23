@@ -19,6 +19,7 @@ Date: 2026-01-19
 """
 
 import os
+import sys
 import time
 import queue
 import logging
@@ -110,7 +111,9 @@ class RealtimeKlineService:
         self.lark_webhook_url = lark_webhook_url
 
         if not self.lark_webhook_url:
-            logger.warning("未配置飞书告警，LARK_WEBHOOK_URL 或 LARKBOT_ID 环境变量未设置")
+            logger.error("❌ 未配置飞书告警，LARK_WEBHOOK_URL 或 LARKBOT_ID 环境变量未设置")
+            logger.error("程序终止：飞书告警是必需功能，请配置环境变量后重试")
+            sys.exit(1)
 
         # 获取活跃币种列表
         self.symbols = self._get_active_symbols()
