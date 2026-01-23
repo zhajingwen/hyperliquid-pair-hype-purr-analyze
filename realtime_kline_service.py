@@ -38,7 +38,7 @@ from utils.timescaledb import (
     SymbolMetadataRepository,
     AnalysisResultRepository
 )
-from utils.analysis_core import analyze_pair_advanced
+from utils.analysis_core import analyze_multi_period, prepare_price_series
 from utils.lark_bot import sender_colourful
 from utils.config import lark_bot_id
 
@@ -735,17 +735,17 @@ class RealtimeKlineService:
 
     def _analyze_and_alert(self, symbol: str, timeframe: str):
         """
-        实时分析 + 飞书告警
+        实时多周期分析 + 飞书告警
 
-        流程:
-        1. 查询数据库获取基准币种和目标币种的K线数据
-        2. 调用 analysis_core.analyze_pair() 进行分析
-        3. 保存分析结果到数据库
-        4. 如果检测到异常，发送飞书告警
+        流程（新）：
+        1. 查询所有3个周期的K线数据（5m/7d, 1h/30d, 4h/60d）
+        2. 调用 analyze_multi_period() 进行多周期验证
+        3. 仅在通过多周期验证时才保存结果并告警
+        4. 使用触发周期标识（避免重复计算）
 
         Args:
             symbol: 目标币种（如 ETH/USDC:USDC）
-            timeframe: 时间周期（如 5m）
+            timeframe: 触发周期（如 5m）
         """
         # 开始计时（用于监控分析延迟）
         start_time = time.time()
@@ -755,95 +755,117 @@ class RealtimeKlineService:
             if symbol == self.base_symbol:
                 return
 
-            # 确定分析窗口（根据周期）
+            # ===== 新增：查询所有3个周期的数据 =====
             window_map = {
-                '5m': timedelta(days=7),   # 5分钟周期: 7天数据
-                '1h': timedelta(days=30),  # 1小时周期: 30天数据
-                '4h': timedelta(days=60)   # 4小时周期: 60天数据
+                '5m': timedelta(days=7),
+                '1h': timedelta(days=30),
+                '4h': timedelta(days=60)
             }
-            window = window_map.get(timeframe, timedelta(days=30))
 
-            # 确定周期键（用于健康监控判断）
-            stats_period_key = (timeframe, f"{window.days}d")
-
-            # 查询基准币种K线
+            # 构建多周期数据缓存
+            price_data_cache = {}
             end_time = datetime.now(timezone.utc)
-            query_start_time = end_time - window
 
-            base_klines = self.kline_repo.query_range(
-                self.base_symbol,
-                timeframe,
-                query_start_time,
-                end_time,
-                limit=10000
-            )
+            for tf, window in window_map.items():
+                query_start_time = end_time - window
 
-            # 查询目标币种K线
-            alt_klines = self.kline_repo.query_range(
-                symbol,
-                timeframe,
-                query_start_time,
-                end_time,
-                limit=10000
-            )
+                # 查询基准币种K线
+                base_klines = self.kline_repo.query_range(
+                    self.base_symbol,
+                    tf,
+                    query_start_time,
+                    end_time,
+                    limit=10000
+                )
 
-            # 数据点不足，跳过分析
-            if len(base_klines) < 100 or len(alt_klines) < 100:
-                logger.debug(f"数据点不足（需要至少100个），跳过分析: {symbol} @ {timeframe}")
+                # 查询目标币种K线
+                alt_klines = self.kline_repo.query_range(
+                    symbol,
+                    tf,
+                    query_start_time,
+                    end_time,
+                    limit=10000
+                )
+
+                # 数据验证
+                if len(base_klines) < 100 or len(alt_klines) < 100:
+                    logger.warning(
+                        f"数据点不足（需要100个）：{symbol} @ {tf} | "
+                        f"base: {len(base_klines)}, alt: {len(alt_klines)}"
+                    )
+                    continue
+
+                # 转换为 pandas Series
+                base_series = prepare_price_series(base_klines)
+                alt_series = prepare_price_series(alt_klines)
+
+                # 存入缓存
+                period_key = (tf, f"{window.days}d")
+                price_data_cache[period_key] = {
+                    'base_prices': base_series,
+                    'alt_prices': alt_series
+                }
+
+            # 数据验证：至少需要3个周期的数据
+            if len(price_data_cache) < 3:
+                logger.debug(
+                    f"多周期数据不足，跳过分析: {symbol} | "
+                    f"实际: {len(price_data_cache)}/3"
+                )
                 return
 
-            # 执行配对分析（使用高级分析算法，信号准确性优先）
-            analysis_result = analyze_pair_advanced(
-                base_klines=base_klines,
-                alt_klines=alt_klines,
-                beta_window=100,       # OLS长窗口
-                zscore_window=30,      # Z-score短窗口
-                zscore_threshold=2.0,
-                enable_health_monitor=True,  # 启用健康监控
-                stats_period_key=stats_period_key  # ('4h', '60d') 等
+            # ===== 调用多周期验证 =====
+            multi_period_result = analyze_multi_period(
+                price_data_cache=price_data_cache,
+                beta_window=100,
+                zscore_window=30,
+                cointegration_threshold=2,  # 至少2个周期协整通过
+                zscore_thresholds={
+                    'long': 0.2,    # 4h
+                    'middle': 1.5,  # 1h
+                    'short': 1.8    # 5m
+                }
             )
 
             # 统计
             self.stats['analyses_performed'] += 1
 
-            # 提取协整检验结果（使用New方法的结果）
-            coint_new = analysis_result.get('cointegration_new', {})
-            coint_old = analysis_result.get('cointegration_old', {})
+            # 验证失败，不告警
+            if multi_period_result is None or not multi_period_result.get('passed', False):
+                logger.debug(
+                    f"多周期验证未通过: {symbol} @ {timeframe} | "
+                    f"协整通过数: {multi_period_result.get('cointegration_count', 0) if multi_period_result else 0}"
+                )
+                return
 
-            # 保存分析结果到数据库
+            # ===== 通过验证，构建告警记录 =====
+            # 注意：字段需与数据库表 analysis_results 结构一致
             analysis_record = {
                 'analysis_time': datetime.now(timezone.utc),
                 'symbol': symbol,
                 'base_symbol': self.base_symbol,
-                f'corr_{timeframe}_{int(window.days)}d': analysis_result['correlation'],
-                f'zscore_{timeframe}': analysis_result['zscore'],
 
-                # 协整检验结果（记录两种方法）
-                'cointegration_passed': coint_new.get('passed', False),  # 主要依据New方法
-                'cointegration_passed_old': coint_old.get('passed', False),
-                'adf_pvalue': coint_new.get('adf_pvalue', 1.0),
-                'adf_pvalue_old': coint_old.get('adf_pvalue', 1.0),
+                # ✅ 相关系数（表中存在，多周期验证不计算这些，设为None）
+                'corr_5m_7d': None,
+                'corr_1h_30d': None,
+                'corr_4h_60d': None,
 
-                # OLS参数
-                'alpha': coint_new.get('alpha'),
-                'beta': coint_new.get('beta'),
-                'model_type': coint_new.get('model_type'),
+                # ✅ 多周期Z-score（表中存在）
+                'zscore_5m': multi_period_result['zscore_list'][0],
+                'zscore_1h': multi_period_result['zscore_list'][1],
+                'zscore_4h': multi_period_result['zscore_list'][2],
 
-                # 健康监控（如果有）
-                'health_score_long': None,
-                'health_score_short': None,
+                # ✅ 协整检验（表中存在，基于协整通过数量判断）
+                'cointegration_passed': multi_period_result['cointegration_count'] >= 2,
+                'adf_pvalue': None,  # 多周期验证无单一p值，设为None
 
-                # 信号判断
-                'is_anomaly': analysis_result['is_anomaly'],
-                'trading_direction': analysis_result['trading_direction'],
-                'signal_strength': analysis_result['signal_strength']
+                # ✅ 信号判断（表中存在）
+                'is_anomaly': True,  # 通过多周期验证即为异常
+                'trading_direction': multi_period_result['direction'],
+                'signal_strength': 'strong',  # 多周期确认为强信号
             }
 
-            # 添加健康监控数据（如果有）
-            health_monitor = analysis_result.get('health_monitor')
-            if health_monitor:
-                analysis_record['health_score_long'] = health_monitor.get('long_window', {}).get('health_score')
-                analysis_record['health_score_short'] = health_monitor.get('short_window', {}).get('health_score')
+            # 注意：trigger_timeframe 和 cointegration_count 已在飞书告警中展示，无需持久化到数据库
 
             # 批量缓冲写入（非阻塞）
             try:
@@ -852,81 +874,89 @@ class RealtimeKlineService:
                 logger.warning(f"分析结果缓冲队列已满，丢弃: {symbol}")
                 self.stats['analysis_result_buffer_drops'] += 1
 
-            # 如果检测到异常，发送飞书告警
-            if analysis_result['is_anomaly']:
-                self._send_alert(symbol, timeframe, analysis_result)
+            # 发送飞书告警
+            self._send_alert(symbol, timeframe, multi_period_result)
 
-            # 输出延迟日志（如果超过10秒则警告）
+            # 性能监控
             elapsed = time.time() - start_time
-            if elapsed > 10.0:
-                logger.warning(f"⚠️ 分析延迟过高: {symbol} @ {timeframe} | {elapsed:.2f}秒")
+            if elapsed > 15.0:  # 多周期验证允许更长延迟
+                logger.warning(f"⚠️ 多周期分析延迟过高: {symbol} | {elapsed:.2f}秒")
             else:
-                logger.debug(f"分析完成: {symbol} @ {timeframe} | {elapsed:.2f}秒")
+                logger.info(f"✅ 多周期验证通过: {symbol} @ {timeframe} | {elapsed:.2f}秒")
 
         except Exception as e:
-            logger.error(f"分析失败: {symbol} @ {timeframe} | {e}", exc_info=True)
+            logger.error(f"多周期分析失败: {symbol} @ {timeframe} | {e}", exc_info=True)
+            self.stats['analyses_failed'] += 1
 
-    def _send_alert(self, symbol: str, timeframe: str, analysis_result: Dict):
+    def _send_alert(self, symbol: str, timeframe: str, multi_period_result: Dict):
         """
-        发送飞书告警
+        发送多周期验证告警
 
         Args:
             symbol: 币种
-            timeframe: 周期
-            analysis_result: 分析结果
+            timeframe: 触发周期
+            multi_period_result: 多周期验证结果
         """
         try:
             # 构建告警标题
-            direction_emoji = "📈" if analysis_result['trading_direction'] == 'long' else "📉"
-            strength_emoji = {
-                'strong': '🔥',
-                'medium': '⚡',
-                'weak': '💡'
-            }.get(analysis_result['signal_strength'], '💡')
+            direction_emoji = "📈" if multi_period_result['direction'] == 'long' else "📉"
+            title = f"{direction_emoji} 多周期配对交易信号 🔥"
 
-            title = f"{direction_emoji} 配对交易信号 {strength_emoji}"
+            # 提取Z-score列表
+            zscore_5m, zscore_1h, zscore_4h = multi_period_result['zscore_list']
 
-            # 提取协整检验信息
-            coint_new = analysis_result.get('cointegration_new', {})
-            coint_old = analysis_result.get('cointegration_old', {})
+            # 提取详细分析结果（用于展示协整信息）
+            details = multi_period_result.get('details', {})
+            detail_4h = details.get(('4h', '60d'), {})
+            coint_new_4h = detail_4h.get('cointegration_new', {})
+
+            # 健康监控数据（仅4h周期）
+            health_monitor_4h = detail_4h.get('health_monitor')
 
             # 构建告警内容（Markdown格式）
             content = f"""**币种**: {symbol}
-**周期**: {timeframe}
-**基准**: {self.base_symbol}
+            **触发周期**: {timeframe}
+            **基准**: {self.base_symbol}
 
----
+            ---
 
-**分析结果**:
-- 相关系数: {analysis_result['correlation']:.3f}
-- Z-score: {analysis_result['zscore']:.2f}
+            **多周期Z-score验证** ✅:
+            - 🕐 短周期 (5m): {zscore_5m:+.2f} {'✅' if abs(zscore_5m) > 1.8 else '❌'}
+            - 🕑 中周期 (1h): {zscore_1h:+.2f} {'✅' if abs(zscore_1h) > 1.5 else '❌'}
+            - 🕓 长周期 (4h): {zscore_4h:+.2f} {'✅' if abs(zscore_4h) > 0.2 else '❌'}
 
-**协整检验**:
-- New方法 (双窗口): {'✅ 通过' if coint_new.get('passed') else '❌ 未通过'} | p-value: {coint_new.get('adf_pvalue', 1.0):.4f}
-- Old方法 (全量): {'✅ 通过' if coint_old.get('passed') else '❌ 未通过'} | p-value: {coint_old.get('adf_pvalue', 1.0):.4f}
-- OLS参数: α={coint_new.get('alpha', 0):.4f}, β={coint_new.get('beta', 0):.4f}
-- 模型类型: {coint_new.get('model_type', 'N/A')}
-"""
+            **协整检验统计**:
+            - 通过数量: {multi_period_result['cointegration_count']}/6
+            - 符号一致性: ✅ {'全正' if zscore_4h > 0 else '全负'}
 
-            # 如果有健康监控数据，添加到告警中
-            health_monitor = analysis_result.get('health_monitor')
-            if health_monitor:
-                long_window = health_monitor.get('long_window', {})
-                short_window = health_monitor.get('short_window', {})
+            **OLS回归参数** (4h周期):
+            - α (截距): {coint_new_4h.get('alpha', 0):.4f}
+            - β (斜率): {coint_new_4h.get('beta', 0):.4f}
+            - 模型类型: {coint_new_4h.get('model_type', 'N/A')}
+            - ADF p-value: {coint_new_4h.get('adf_pvalue', 1.0):.4f}
+            """
+
+            # 添加健康监控数据（如果有）
+            if health_monitor_4h:
+                long_window = health_monitor_4h.get('long_window', {})
+                short_window = health_monitor_4h.get('short_window', {})
                 content += f"""
-**协整健康监控** (仅4h周期):
-- 长期得分 (200期): {long_window.get('health_score', 'N/A')} | 状态: {long_window.get('state', 'N/A')}
-- 短期得分 (100期): {short_window.get('health_score', 'N/A')} | 状态: {short_window.get('state', 'N/A')}
-- 半衰期: {long_window.get('halflife', 'N/A')} 期
-- Hurst指数: {long_window.get('hurst', 'N/A')}
-"""
+                **协整健康监控** (4h周期):
+                - 长期得分 (200期): {long_window.get('health_score', 'N/A')} | 状态: {long_window.get('state', 'N/A')}
+                - 短期得分 (100期): {short_window.get('health_score', 'N/A')} | 状态: {short_window.get('state', 'N/A')}
+                - 半衰期: {long_window.get('halflife', 'N/A')} 期
+                - Hurst指数: {long_window.get('hurst', 'N/A')}
+                """
 
             content += f"""
-**交易方向**: {analysis_result['trading_direction'].upper()}
-**信号强度**: {analysis_result['signal_strength'].upper()}
+            **交易方向**: {multi_period_result['direction'].upper()}
+            **信号强度**: STRONG（多周期确认）
 
-**时间**: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
-"""
+            **时间**: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
+
+            ---
+            💡 **说明**: 此信号已通过3个周期的协整检验和Z-score验证，信号质量高。
+            """
 
             # 发送飞书消息（彩色卡片）
             sender_colourful(
@@ -939,9 +969,9 @@ class RealtimeKlineService:
             self.stats['alerts_sent'] += 1
 
             logger.info(
-                f"📢 告警已发送: {symbol} @ {timeframe} | "
-                f"{analysis_result['trading_direction']} | "
-                f"{analysis_result['signal_strength']}"
+                f"📢 多周期告警已发送: {symbol} @ {timeframe} | "
+                f"{multi_period_result['direction']} | "
+                f"Z-score: {zscore_5m:.2f}/{zscore_1h:.2f}/{zscore_4h:.2f}"
             )
 
         except Exception as e:

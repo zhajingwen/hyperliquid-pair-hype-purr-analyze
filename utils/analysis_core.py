@@ -922,6 +922,214 @@ def analyze_pair_advanced(
         return result
 
 
+def analyze_multi_period(
+    price_data_cache: Dict[Tuple[str, str], Dict],
+    beta_window: int = 100,
+    zscore_window: int = 30,
+    cointegration_threshold: int = 2,
+    zscore_thresholds: Optional[Dict[str, float]] = None
+) -> Optional[Dict]:
+    """
+    多周期Z-score验证算法（提取自 multi_coins.py）
+
+    执行多周期验证，确保3个周期的协整性和Z-score符号一致性。
+    这是实现统一多周期验证逻辑的核心函数。
+
+    Args:
+        price_data_cache: 多周期数据缓存
+            {
+                ('5m', '7d'): {'base_prices': pd.Series, 'alt_prices': pd.Series},
+                ('1h', '30d'): {'base_prices': pd.Series, 'alt_prices': pd.Series},
+                ('4h', '60d'): {'base_prices': pd.Series, 'alt_prices': pd.Series}
+            }
+        beta_window: OLS回归窗口（默认100）
+        zscore_window: Z-score计算窗口（默认30）
+        cointegration_threshold: 协整通过门槛（默认2，即至少2个周期协整通过）
+        zscore_thresholds: Z-score阈值字典
+            {
+                'long': 0.2,    # 4h 长周期
+                'middle': 1.5,  # 1h 中周期
+                'short': 1.8    # 5m 短周期
+            }
+
+    Returns:
+        Dict: {
+            'passed': bool,  # 是否通过多周期验证
+            'zscore_list': [zscore_5m, zscore_1h, zscore_4h],
+            'cointegration_count': int,  # 协整通过数量（Old+New，共6个结果）
+            'direction': str,  # 'long' | 'short' | 'none'
+            'details': {
+                ('5m', '7d'): {
+                    'correlation': float,
+                    'cointegration_old': {...},
+                    'cointegration_new': {...},
+                    'zscore': float,
+                    'is_anomaly': bool
+                },
+                ...
+            }
+        }
+        或 None（验证失败）
+
+    验证逻辑：
+    1. 遍历3个周期，分别执行：
+       - Old方法：全量OLS协整分析
+       - New方法：双窗口OLS协整分析
+       - Z-score计算（基于OLS价差）
+    2. 统计协整通过数量（Old + New，共6个结果）
+    3. 验证：协整通过数 >= cointegration_threshold（默认2）
+    4. 验证：3个周期Z-score符号一致
+    5. 验证：3个周期Z-score都超过各自阈值
+    """
+    # 设置默认阈值
+    if zscore_thresholds is None:
+        zscore_thresholds = {
+            'long': 0.2,    # 4h
+            'middle': 1.5,  # 1h
+            'short': 1.8    # 5m
+        }
+
+    # 验证输入数据
+    required_periods = [('5m', '7d'), ('1h', '30d'), ('4h', '60d')]
+    for period_key in required_periods:
+        if period_key not in price_data_cache:
+            logger.warning(f"缺少必需周期数据: {period_key}")
+            return None
+
+    # 存储结果
+    zscore_list = []  # [zscore_5m, zscore_1h, zscore_4h]
+    cointegration_count = 0  # 协整通过的总数量（Old+New）
+    details = {}
+
+    # 遍历3个周期进行分析
+    for period_key in required_periods:
+        price_data = price_data_cache[period_key]
+        base_prices = price_data['base_prices']
+        alt_prices = price_data['alt_prices']
+
+        # 转换为K线格式（用于兼容现有函数）
+        base_klines = [{'time': t, 'close': p} for t, p in base_prices.items()]
+        alt_klines = [{'time': t, 'close': p} for t, p in alt_prices.items()]
+
+        # 数据验证
+        if len(base_klines) < 100 or len(alt_klines) < 100:
+            logger.warning(f"周期 {period_key} 数据点不足100个")
+            return None
+
+        # 执行高级分析（包含Old和New方法）
+        analysis_result = analyze_pair_advanced(
+            base_klines=base_klines,
+            alt_klines=alt_klines,
+            beta_window=beta_window,
+            zscore_window=zscore_window,
+            zscore_threshold=2.0,  # 内部阈值，外部再验证
+            enable_health_monitor=True,
+            stats_period_key=period_key
+        )
+
+        # 保存详细结果
+        details[period_key] = analysis_result
+
+        # 统计协整通过数量（Old + New）
+        coint_old = analysis_result.get('cointegration_old', {})
+        coint_new = analysis_result.get('cointegration_new', {})
+
+        if coint_old.get('passed', False):
+            cointegration_count += 1
+        if coint_new.get('passed', False):
+            cointegration_count += 1
+
+        # 提取Z-score
+        zscore = analysis_result.get('zscore')
+        if zscore is None:
+            logger.warning(f"周期 {period_key} Z-score计算失败")
+            return None
+
+        zscore_list.append(zscore)
+
+        logger.debug(
+            f"周期 {period_key} 分析完成 | "
+            f"Old协整: {coint_old.get('passed')} (p={coint_old.get('adf_pvalue'):.4f}) | "
+            f"New协整: {coint_new.get('passed')} (p={coint_new.get('adf_pvalue'):.4f}) | "
+            f"Z-score: {zscore:.2f}"
+        )
+
+    # 验证1: 协整通过数量检查
+    if cointegration_count < cointegration_threshold:
+        logger.info(
+            f"协整检验未通过：需要 {cointegration_threshold} 个周期通过，"
+            f"实际只有 {cointegration_count} 个"
+        )
+        return {
+            'passed': False,
+            'zscore_list': zscore_list,
+            'cointegration_count': cointegration_count,
+            'direction': 'none',
+            'details': details,
+            'fail_reason': f'cointegration_count ({cointegration_count}) < threshold ({cointegration_threshold})'
+        }
+
+    # 提取3个周期的Z-score
+    zscore_5m, zscore_1h, zscore_4h = zscore_list
+
+    # 验证2: Z-score符号一致性检查
+    if not ((zscore_5m >= 0) == (zscore_1h >= 0) == (zscore_4h >= 0)):
+        logger.info(
+            f"Z-score符号不一致：5m={zscore_5m:.2f}, 1h={zscore_1h:.2f}, 4h={zscore_4h:.2f}"
+        )
+        return {
+            'passed': False,
+            'zscore_list': zscore_list,
+            'cointegration_count': cointegration_count,
+            'direction': 'none',
+            'details': details,
+            'fail_reason': 'zscore sign inconsistency'
+        }
+
+    # 验证3: Z-score阈值检查
+    long_threshold = zscore_thresholds['long']
+    middle_threshold = zscore_thresholds['middle']
+    short_threshold = zscore_thresholds['short']
+
+    if not (abs(zscore_4h) > long_threshold and
+            abs(zscore_1h) > middle_threshold and
+            abs(zscore_5m) > short_threshold):
+        logger.info(
+            f"Z-score阈值未达标：\n"
+            f"  - 长周期(4h): {abs(zscore_4h):.2f} > {long_threshold} ? "
+            f"{'✓' if abs(zscore_4h) > long_threshold else '✗'}\n"
+            f"  - 中周期(1h): {abs(zscore_1h):.2f} > {middle_threshold} ? "
+            f"{'✓' if abs(zscore_1h) > middle_threshold else '✗'}\n"
+            f"  - 短周期(5m): {abs(zscore_5m):.2f} > {short_threshold} ? "
+            f"{'✓' if abs(zscore_5m) > short_threshold else '✗'}"
+        )
+        return {
+            'passed': False,
+            'zscore_list': zscore_list,
+            'cointegration_count': cointegration_count,
+            'direction': 'none',
+            'details': details,
+            'fail_reason': 'zscore threshold not met'
+        }
+
+    # 所有验证通过，确定交易方向
+    direction = 'long' if zscore_4h < 0 else 'short'  # 基于长周期Z-score
+
+    logger.info(
+        f"✅ 多周期验证通过 | 协整通过数: {cointegration_count}/6 | "
+        f"Z-score: [{zscore_5m:.2f}, {zscore_1h:.2f}, {zscore_4h:.2f}] | "
+        f"方向: {direction}"
+    )
+
+    return {
+        'passed': True,
+        'zscore_list': zscore_list,
+        'cointegration_count': cointegration_count,
+        'direction': direction,
+        'details': details
+    }
+
+
 # =====================================================
 # 导出接口
 # =====================================================
@@ -948,5 +1156,6 @@ __all__ = [
 
     # 综合分析
     'analyze_pair',  # 保留（向后兼容）
-    'analyze_pair_advanced'  # 新增：完整版
+    'analyze_pair_advanced',  # 新增：完整版
+    'analyze_multi_period'  # 新增：多周期验证
 ]

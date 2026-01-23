@@ -21,7 +21,8 @@ from utils.analysis_core import (
     calculate_cointegration_params_ols,
     calculate_cointegration_params_dual_window,
     calculate_zscore_ols,
-    prepare_price_series
+    prepare_price_series,
+    analyze_multi_period  # 🆕 新增：多周期验证核心函数
 )
 
 def setup_logging(level=logging.DEBUG):
@@ -1150,80 +1151,58 @@ class DelayCorrelationAnalyzer:
 
     def zscore_analysis(self, coin: str, price_data_cache: dict) -> bool:
         """
-        分析单个币种的
-        多周期，多算法的协整检验结果
-        和双窗口策略计算得到的Z-score
+        分析单个币种的多周期Z-score（使用共享验证逻辑）
+
+        重构版本：调用共享的 analyze_multi_period 函数，实现统一的多周期验证逻辑。
+
+        Args:
+            coin: 币种名称
+            price_data_cache: 多周期数据缓存
+                {
+                    ('5m', '7d'): {'base_prices': pd.Series, 'alt_prices': pd.Series},
+                    ('1h', '30d'): {...},
+                    ('4h', '60d'): {...}
+                }
+
+        Returns:
+            list[zscore_5m, zscore_1h, zscore_4h] 或 None
         """
-        # ========== Z-score 验证（如果启用且检测到异常）==========
-        zscore_result = None
-        # 保存所有周期数据的Z-score结果(短周期在前面， 长周期在后面)
-        zscore_result_list = []
-        # 遍历所有周期数据，计算Z-score 和 协整检验结果
-        cointegration_result_list = []
-        if self.ENABLE_ZSCORE_CHECK:
-            for stats_period_key in price_data_cache:
-                # 获取当前周期数据
-                price_data = price_data_cache[stats_period_key]
-                # 获取当前周期数据的协整检验结果
-                cointegration_status_total_period, cointegration_status_short_period, cointegration_result = self.multiple_cointegration_analysis(
-                    price_data['base_prices'],
-                    price_data['alt_prices'],
-                    coin=coin,
-                    stats_period_key=stats_period_key,
-                    beta_window=self.BETA_WINDOW,
-                    zscore_window=self.ZSCORE_WINDOW
-                )
-                # 保存当前周期数据的协整检验结果
-                cointegration_result_list.extend([cointegration_status_total_period, cointegration_status_short_period])
-
-                # 方法：OLS回归（Engle-Granger两步法）
-                # 双窗口策略：OLS回归使用长窗口（BETA_WINDOW）计算协整参数（α, β），统计量使用短窗口（ZSCORE_WINDOW）
-                # 转换为K线格式
-                base_klines_zscore = self._prepare_klines_from_series(price_data['base_prices'])
-                alt_klines_zscore = self._prepare_klines_from_series(price_data['alt_prices'])
-
-                # 使用共享函数
-                zscore_result = calculate_zscore_ols(
-                    base_klines=base_klines_zscore,
-                    alt_klines=alt_klines_zscore,
-                    window=self.ZSCORE_WINDOW,
-                    beta_window=self.BETA_WINDOW,  # 双窗口策略：OLS回归窗口
-                    cointegration_result=cointegration_result
-                )
-                logger.info(f"Z-score: 周期 {stats_period_key} | 币种: {coin} | Z-score: {zscore_result}")
-                if zscore_result is not None:
-                    zscore_result_list.append(zscore_result)
-                else:
-                    logger.warning(f"Z-score 计算失败，{stats_period_key} | 币种: {coin}")
-        else:
+        if not self.ENABLE_ZSCORE_CHECK:
             return None
 
-        # 计算协整检验结果中为True的数量
-        cointegration_true_count = sum(1 for result in cointegration_result_list if result is True)
-        logger.info(f"协整检验结果统计 | 币种: {coin} | True数量: {cointegration_true_count} | 总数量: {len(cointegration_result_list)}")
+        try:
+            # 调用共享的多周期验证函数
+            multi_period_result = analyze_multi_period(
+                price_data_cache=price_data_cache,
+                beta_window=self.BETA_WINDOW,
+                zscore_window=self.ZSCORE_WINDOW,
+                cointegration_threshold=self.COINTEGRATION_RESULT_APPROVED_THRESHOLD_NUMBER,
+                zscore_thresholds={
+                    'long': self.ZSCORE_THRESHOLD_LONG,
+                    'middle': self.ZSCORE_THRESHOLD_MIDDLE,
+                    'short': self.ZSCORE_THRESHOLD_SHORT
+                }
+            )
 
-        # 检查是否有足够的协整检验结果通过
-        if cointegration_true_count < self.COINTEGRATION_RESULT_APPROVED_THRESHOLD_NUMBER:
-            logger.warning(f"协整检验结果通过的周期数不足，需要 {self.COINTEGRATION_RESULT_APPROVED_THRESHOLD_NUMBER} 个周期通过，实际只有 {cointegration_true_count} 个 | 币种: {coin}")
-            return None
+            # 验证失败
+            if multi_period_result is None or not multi_period_result.get('passed', False):
+                fail_reason = multi_period_result.get('fail_reason', 'unknown') if multi_period_result else 'function returned None'
+                logger.info(f"❌ 多周期验证未通过 | 币种: {coin} | 原因: {fail_reason}")
+                return None
 
-        # 检查是否有足够的Z-score结果
-        if len(zscore_result_list) < 3:
-            logger.warning(f"Z-score 结果不足，需要3个周期，实际只有 {len(zscore_result_list)} 个 | 币种: {coin}")
+            # 验证通过，返回Z-score列表
+            zscore_list = multi_period_result['zscore_list']
+            logger.info(
+                f"✅ 多周期验证通过 | 币种: {coin} | "
+                f"协整通过数: {multi_period_result['cointegration_count']}/6 | "
+                f"Z-score: [{zscore_list[0]:.2f}, {zscore_list[1]:.2f}, {zscore_list[2]:.2f}] | "
+                f"方向: {multi_period_result['direction']}"
+            )
+            return zscore_list
+
+        except Exception as e:
+            logger.error(f"多周期验证异常 | 币种: {coin} | 错误: {e}", exc_info=True)
             return None
-        # 长周期（4H）的Z-score
-        direction = zscore_result_list[-1]
-        # 中间周期（1H）的Z-score
-        middle_zscore = zscore_result_list[-2]
-        # 短周期（5M）的Z-score
-        short_zscore = zscore_result_list[0]
-        # 检查3个Z-score的符号是否一致，如果一致，则认为是一个套利机会
-        if (direction >= 0) == (middle_zscore >= 0) == (short_zscore >= 0):
-            # 长期定方向，中间和短周期做偏离阈值验证，如果都大于阈值，则认为是一个套利机会
-            if abs(direction) > self.ZSCORE_THRESHOLD_LONG and abs(middle_zscore) > self.ZSCORE_THRESHOLD_MIDDLE and abs(short_zscore) > self.ZSCORE_THRESHOLD_SHORT:
-                return zscore_result_list
-        logger.info(f"❌ Z-score 计算不满足告警条件 | 币种: {coin}")
-        return None
 
 
     def one_coin_analysis(self, coin: str) -> bool:
