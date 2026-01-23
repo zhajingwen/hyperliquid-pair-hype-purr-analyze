@@ -920,6 +920,7 @@ class RealtimeKlineService:
                     if new_symbols:
                         logger.info(f"🆕 发现新币种: {len(new_symbols)} 个")
 
+                        registered_symbols = []
                         for symbol in new_symbols:
                             # 注册到数据库
                             base_asset = symbol.split('/')[0]
@@ -932,8 +933,9 @@ class RealtimeKlineService:
 
                             # 添加到订阅列表
                             self.symbols.append(symbol)
+                            registered_symbols.append(symbol)
 
-                        logger.info(f"✅ 新币种已注册: {symbol}")
+                        logger.info(f"✅ 新币种已注册: {len(registered_symbols)} 个币种: {', '.join(registered_symbols)}")
 
                     # 重建订阅列表（需要重启 WebSocket）
                     logger.warning("检测到新币种，建议重启服务以更新订阅列表")
