@@ -220,6 +220,10 @@ class EnhancedWebSocketManager:
         self.state = ConnectionState.DISCONNECTED
         self.state_lock = threading.RLock()
 
+        # 动态订阅管理（修复：新币种监控失效）
+        self.subscriptions_lock = threading.RLock()
+        self.active_subscriptions = set()  # 去重已激活订阅
+
         # Hyperliquid SDK 组件
         self.info = Info(constants.MAINNET_API_URL, skip_ws=False)
         self.ws_manager: Optional[WebsocketManager] = None
@@ -286,9 +290,18 @@ class EnhancedWebSocketManager:
         try:
             self._update_state(ConnectionState.CONNECTING)
 
+            # 使用锁保护订阅列表访问（修复：动态订阅支持）
+            with self.subscriptions_lock:
+                subscriptions_to_use = list(self.subscriptions)
+                # 重建active_subscriptions集合（去重）
+                self.active_subscriptions.clear()
+
             # 使用 Info.subscribe() 方法订阅所有频道
-            for subscription in self.subscriptions:
+            for subscription in subscriptions_to_use:
                 self.info.subscribe(subscription, self._wrapped_callback)
+                # 记录订阅（用于去重）
+                sub_key = (subscription.get('type'), subscription.get('coin'), subscription.get('interval'))
+                self.active_subscriptions.add(sub_key)
 
             # 等待连接就绪
             self.ws_ready_event.set()
@@ -298,7 +311,7 @@ class EnhancedWebSocketManager:
             if self._is_connected():
                 self._update_state(ConnectionState.CONNECTED)
                 self.reconnection_manager.reset()
-                logger.info("✅ WebSocket连接成功")
+                logger.info(f"✅ WebSocket连接成功 | 订阅数: {len(self.active_subscriptions)}")
             else:
                 raise ConnectionError("WebSocket连接验证失败")
 
@@ -306,6 +319,160 @@ class EnhancedWebSocketManager:
             logger.error(f"WebSocket连接失败: {e}", exc_info=True)
             self._update_state(ConnectionState.FAILED, e)
             raise
+
+    def _force_cleanup_connection(self):
+        """
+        强制清理WebSocket连接（修复连接泄漏问题）
+
+        清理步骤（5步确定性清理）:
+        1. 停止WebSocket运行循环
+        2. 调用官方disconnect方法
+        3. 强制关闭底层连接
+        4. 显式终止ping线程
+        5. 清除引用确保GC回收
+
+        设计原则:
+        - 每步独立try-except，互不影响
+        - 详细日志记录每步清理状态（可观测性）
+        - 部分失败不阻塞重连（异常容忍）
+        """
+        logger.info("开始强制清理WebSocket连接...")
+        cleanup_status = []
+
+        # Step 1: 停止WebSocket运行循环
+        try:
+            if self.info.ws_manager and hasattr(self.info.ws_manager, 'ws') and self.info.ws_manager.ws:
+                self.info.ws_manager.ws.keep_running = False
+                cleanup_status.append("✅ Step1: 停止运行循环")
+            else:
+                cleanup_status.append("⏭️ Step1: 无运行循环")
+        except Exception as e:
+            cleanup_status.append(f"❌ Step1: {e}")
+            logger.warning(f"停止运行循环失败: {e}")
+
+        # Step 2: 调用官方disconnect方法
+        try:
+            if self.info.ws_manager:
+                self.info.disconnect_websocket()
+                cleanup_status.append("✅ Step2: 官方disconnect成功")
+            else:
+                cleanup_status.append("⏭️ Step2: 无ws_manager")
+        except Exception as e:
+            cleanup_status.append(f"❌ Step2: {e}")
+            logger.warning(f"官方disconnect失败: {e}")
+
+        # Step 3: 强制关闭底层连接
+        try:
+            if self.info.ws_manager and hasattr(self.info.ws_manager, 'ws') and self.info.ws_manager.ws:
+                self.info.ws_manager.ws.close()
+                cleanup_status.append("✅ Step3: 底层连接已关闭")
+            else:
+                cleanup_status.append("⏭️ Step3: 无底层连接")
+        except Exception as e:
+            cleanup_status.append(f"❌ Step3: {e}")
+            logger.warning(f"关闭底层连接失败: {e}")
+
+        # Step 4: 显式终止ping线程（如果存在）
+        try:
+            if self.info.ws_manager and hasattr(self.info.ws_manager, 'ping_thread'):
+                ping_thread = self.info.ws_manager.ping_thread
+                if ping_thread and ping_thread.is_alive():
+                    ping_thread.join(timeout=2.0)
+                    if ping_thread.is_alive():
+                        cleanup_status.append("⚠️ Step4: ping线程未在2秒内退出")
+                    else:
+                        cleanup_status.append("✅ Step4: ping线程已终止")
+                else:
+                    cleanup_status.append("⏭️ Step4: 无活跃ping线程")
+            else:
+                cleanup_status.append("⏭️ Step4: 无ping线程")
+        except Exception as e:
+            cleanup_status.append(f"❌ Step4: {e}")
+            logger.warning(f"终止ping线程失败: {e}")
+
+        # Step 5: 清除引用确保GC回收
+        try:
+            if self.info.ws_manager:
+                self.info.ws_manager = None
+                cleanup_status.append("✅ Step5: 引用已清除")
+            else:
+                cleanup_status.append("⏭️ Step5: 无需清除")
+        except Exception as e:
+            cleanup_status.append(f"❌ Step5: {e}")
+            logger.warning(f"清除引用失败: {e}")
+
+        # 等待资源释放
+        time.sleep(0.5)
+
+        # 汇总日志
+        logger.info(f"强制清理完成: {' | '.join(cleanup_status)}")
+
+    def add_subscriptions(self, new_subscriptions: List[Dict]) -> bool:
+        """
+        动态添加订阅（运行时热更新）
+
+        Args:
+            new_subscriptions: 新增订阅列表，格式: [{"type": "candle", "coin": "NEWCOIN", "interval": "5m"}, ...]
+
+        Returns:
+            bool: 订阅是否成功
+
+        功能:
+        - 去重：避免重复订阅相同频道
+        - 线程安全：使用锁保护订阅列表
+        - 即时订阅：连接已建立时立即调用Info.subscribe()
+        - 延迟订阅：连接未建立时添加到列表，重连时自动订阅
+        """
+        if not new_subscriptions:
+            return True
+
+        try:
+            added_count = 0
+            skipped_count = 0
+
+            with self.subscriptions_lock:
+                for subscription in new_subscriptions:
+                    # 生成订阅唯一键（去重）
+                    sub_key = (
+                        subscription.get('type'),
+                        subscription.get('coin'),
+                        subscription.get('interval')
+                    )
+
+                    # 检查是否已订阅
+                    if sub_key in self.active_subscriptions:
+                        skipped_count += 1
+                        logger.debug(f"跳过重复订阅: {sub_key}")
+                        continue
+
+                    # 添加到订阅列表
+                    self.subscriptions.append(subscription)
+
+                    # 如果连接已建立，立即订阅
+                    if self._is_connected():
+                        try:
+                            self.info.subscribe(subscription, self._wrapped_callback)
+                            self.active_subscriptions.add(sub_key)
+                            added_count += 1
+                            logger.info(f"✅ 动态订阅成功: {subscription.get('coin')} @ {subscription.get('interval')}")
+                        except Exception as e:
+                            logger.error(f"动态订阅失败: {sub_key} | {e}")
+                            # 订阅失败，从列表移除
+                            self.subscriptions.remove(subscription)
+                    else:
+                        # 连接未建立，只添加到列表（重连时自动订阅）
+                        added_count += 1
+                        logger.info(f"📋 延迟订阅已添加: {subscription.get('coin')} @ {subscription.get('interval')} (重连时生效)")
+
+            logger.info(
+                f"动态订阅完成: 新增 {added_count} 个订阅，跳过 {skipped_count} 个重复订阅 | "
+                f"总订阅数: {len(self.subscriptions)}"
+            )
+            return True
+
+        except Exception as e:
+            logger.error(f"动态添加订阅失败: {e}", exc_info=True)
+            return False
 
     def _reconnect(self):
         """重连逻辑（指数退避策略）"""
@@ -326,17 +493,9 @@ class EnhancedWebSocketManager:
                 break
 
             try:
-                # 关闭旧连接（修复：详细日志+强制关闭）
+                # 强制清理旧连接（修复连接泄漏）
                 if self.info.ws_manager:
-                    try:
-                        logger.info("尝试关闭旧WebSocket连接...")
-                        self.info.disconnect_websocket()
-                        time.sleep(0.5)  # 等待连接完全释放
-                        logger.info("旧连接已关闭")
-                    except Exception as e:
-                        logger.error(f"关闭旧连接失败: {e}", exc_info=True)
-                        # 记录但继续重连，避免重连完全失败
-                        # 注意：这可能导致连接泄漏，需要外部监控
+                    self._force_cleanup_connection()
 
                 # 重新创建 Info 对象（会自动创建新的 WebSocket 连接）
                 self.info = Info(constants.MAINNET_API_URL, skip_ws=False)
@@ -440,12 +599,9 @@ class EnhancedWebSocketManager:
         logger.info("停止WebSocket服务...")
         self.stop_event.set()
 
-        # 关闭连接
+        # 强制清理连接（修复连接泄漏）
         if self.info.ws_manager:
-            try:
-                self.info.disconnect_websocket()
-            except Exception as e:
-                logger.error(f"关闭连接失败: {e}")
+            self._force_cleanup_connection()
 
         self._update_state(ConnectionState.DISCONNECTED)
         logger.info("WebSocket服务已停止")

@@ -405,10 +405,11 @@ class RealtimeKlineService:
                 except queue.Empty:
                     pass
 
-                # 判断是否触发写入
+                # 判断是否触发写入（修复：停机时强制写入）
                 should_write = (
                     len(batch) >= self.batch_size or  # 达到批量大小
-                    (batch and time.time() - last_write_time >= self.batch_timeout)  # 超时
+                    (batch and time.time() - last_write_time >= self.batch_timeout) or  # 超时
+                    (batch and self.stop_event.is_set())  # 停机时立即写入剩余批次
                 )
 
                 if should_write and batch:
@@ -515,10 +516,11 @@ class RealtimeKlineService:
                 except queue.Empty:
                     pass
 
-                # 判断是否触发写入
+                # 判断是否触发写入（修复：停机时强制写入）
                 should_write = (
                     len(batch) >= batch_size or  # 达到批量大小
-                    (batch and time.time() - last_write_time >= batch_timeout)  # 超时
+                    (batch and time.time() - last_write_time >= batch_timeout) or  # 超时
+                    (batch and self.stop_event.is_set())  # 停机时立即写入剩余批次
                 )
 
                 if should_write and batch:
@@ -921,6 +923,8 @@ class RealtimeKlineService:
                         logger.info(f"🆕 发现新币种: {len(new_symbols)} 个")
 
                         registered_symbols = []
+                        new_subscriptions = []  # 新增：构建动态订阅列表
+
                         for symbol in new_symbols:
                             # 注册到数据库
                             base_asset = symbol.split('/')[0]
@@ -931,14 +935,28 @@ class RealtimeKlineService:
                                 is_active=True
                             )
 
-                            # 添加到订阅列表
+                            # 添加到内存列表
                             self.symbols.append(symbol)
                             registered_symbols.append(symbol)
 
+                            # 构建新订阅（修复：动态订阅支持）
+                            coin = symbol.split('/')[0]
+                            for timeframe in self.timeframes:
+                                new_subscriptions.append({
+                                    "type": "candle",
+                                    "coin": coin,
+                                    "interval": timeframe
+                                })
+
                         logger.info(f"✅ 新币种已注册: {len(registered_symbols)} 个币种: {', '.join(registered_symbols)}")
 
-                    # 重建订阅列表（需要重启 WebSocket）
-                    logger.warning("检测到新币种，建议重启服务以更新订阅列表")
+                        # 动态添加订阅（修复：新币种监控失效）
+                        if new_subscriptions:
+                            success = self.ws_manager.add_subscriptions(new_subscriptions)
+                            if success:
+                                logger.info(f"🔄 动态订阅已添加: {len(new_subscriptions)} 个订阅（无需重启）")
+                            else:
+                                logger.warning("⚠️ 动态订阅失败，建议重启服务以更新订阅列表")
 
             except Exception as e:
                 logger.error(f"新币种监控异常: {e}", exc_info=True)
@@ -1019,36 +1037,50 @@ class RealtimeKlineService:
 
         流程:
         1. 停止接收新消息
-        2. 等待分析队列清空（最多30秒）
-        3. 设置停止信号
-        4. 等待所有工作线程退出
+        2. 等待kline_buffer清空（新增！）
+        3. 等待分析队列清空
+        4. 等待分析结果缓冲队列清空
+        5. 设置停止信号并等待线程退出
         """
         logger.info("停止实时K线分析服务...")
 
         # 1. 停止接收新消息
         self.ws_manager.stop()
 
-        # 2. 等待分析队列清空（最多30秒）
+        # 2. 等待kline_buffer清空（修复：新增kline_buffer等待）
+        if not self.kline_buffer.empty():
+            buffer_size = self.kline_buffer.qsize()
+            logger.info(f"等待kline_buffer清空: {buffer_size} 条K线")
+            try:
+                self.kline_buffer.join()
+                logger.info("✅ kline_buffer已清空")
+            except Exception as e:
+                remaining = self.kline_buffer.qsize()
+                logger.warning(f"⚠️ kline_buffer未完全清空（剩余 {remaining} 条），强制退出: {e}")
+
+        # 3. 等待分析队列清空
         if not self.analysis_queue.empty():
             queue_size = self.analysis_queue.qsize()
             logger.info(f"等待分析队列清空: {queue_size} 个任务")
             try:
                 self.analysis_queue.join()
                 logger.info("✅ 分析队列已清空")
-            except:
-                logger.warning(f"⚠️ 分析队列未完全清空（剩余 {self.analysis_queue.qsize()} 个任务），强制退出")
+            except Exception as e:
+                remaining = self.analysis_queue.qsize()
+                logger.warning(f"⚠️ 分析队列未完全清空（剩余 {remaining} 个任务），强制退出: {e}")
 
-        # 2.5 等待分析结果缓冲队列清空
+        # 4. 等待分析结果缓冲队列清空
         if not self.analysis_result_buffer.empty():
             buffer_size = self.analysis_result_buffer.qsize()
             logger.info(f"等待分析结果缓冲队列清空: {buffer_size} 条记录")
             try:
                 self.analysis_result_buffer.join()
                 logger.info("✅ 分析结果缓冲队列已清空")
-            except:
-                logger.warning(f"⚠️ 分析结果缓冲队列未完全清空（剩余 {self.analysis_result_buffer.qsize()} 条），强制退出")
+            except Exception as e:
+                remaining = self.analysis_result_buffer.qsize()
+                logger.warning(f"⚠️ 分析结果缓冲队列未完全清空（剩余 {remaining} 条），强制退出: {e}")
 
-        # 3. 设置停止信号（工作线程将退出）
+        # 5. 设置停止信号（工作线程将退出）
         self.stop_event.set()
 
         # 4. 等待工作线程退出
