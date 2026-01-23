@@ -855,22 +855,22 @@ class RealtimeKlineService:
 
             # 构建告警内容（Markdown格式）
             content = f"""**币种**: {symbol}
-**周期**: {timeframe}
-**基准**: {self.base_symbol}
+            **周期**: {timeframe}
+            **基准**: {self.base_symbol}
 
----
+            ---
 
-**分析结果**:
-- 相关系数: {analysis_result['correlation']:.3f}
-- Z-score: {analysis_result['zscore']:.2f}
-- 协整检验: {'✅ 通过' if analysis_result['cointegration_passed'] else '❌ 未通过'}
-- p-value: {analysis_result['adf_pvalue']:.4f}
+            **分析结果**:
+            - 相关系数: {analysis_result['correlation']:.3f}
+            - Z-score: {analysis_result['zscore']:.2f}
+            - 协整检验: {'✅ 通过' if analysis_result['cointegration_passed'] else '❌ 未通过'}
+            - p-value: {analysis_result['adf_pvalue']:.4f}
 
-**交易方向**: {analysis_result['trading_direction'].upper()}
-**信号强度**: {analysis_result['signal_strength'].upper()}
+            **交易方向**: {analysis_result['trading_direction'].upper()}
+            **信号强度**: {analysis_result['signal_strength'].upper()}
 
-**时间**: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
-"""
+            **时间**: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
+            """
 
             # 发送飞书消息（彩色卡片）
             sender_colourful(
