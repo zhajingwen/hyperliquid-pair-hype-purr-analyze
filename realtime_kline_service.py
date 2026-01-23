@@ -38,7 +38,7 @@ from utils.timescaledb import (
     SymbolMetadataRepository,
     AnalysisResultRepository
 )
-from utils.analysis_core import analyze_pair
+from utils.analysis_core import analyze_pair_advanced
 from utils.lark_bot import sender_colourful
 from utils.config import lark_bot_id
 
@@ -763,6 +763,9 @@ class RealtimeKlineService:
             }
             window = window_map.get(timeframe, timedelta(days=30))
 
+            # 确定周期键（用于健康监控判断）
+            stats_period_key = (timeframe, f"{window.days}d")
+
             # 查询基准币种K线
             end_time = datetime.now(timezone.utc)
             query_start_time = end_time - window
@@ -785,21 +788,27 @@ class RealtimeKlineService:
             )
 
             # 数据点不足，跳过分析
-            if len(base_klines) < 30 or len(alt_klines) < 30:
-                logger.debug(f"数据点不足，跳过分析: {symbol} @ {timeframe}")
+            if len(base_klines) < 100 or len(alt_klines) < 100:
+                logger.debug(f"数据点不足（需要至少100个），跳过分析: {symbol} @ {timeframe}")
                 return
 
-            # 执行配对分析
-            analysis_result = analyze_pair(
+            # 执行配对分析（使用高级分析算法，信号准确性优先）
+            analysis_result = analyze_pair_advanced(
                 base_klines=base_klines,
                 alt_klines=alt_klines,
-                corr_threshold=0.5,      # 相关性阈值
-                coint_significance=0.05,  # 协整检验显著性
-                zscore_threshold=2.0      # Z-score 异常阈值
+                beta_window=100,       # OLS长窗口
+                zscore_window=30,      # Z-score短窗口
+                zscore_threshold=2.0,
+                enable_health_monitor=True,  # 启用健康监控
+                stats_period_key=stats_period_key  # ('4h', '60d') 等
             )
 
             # 统计
             self.stats['analyses_performed'] += 1
+
+            # 提取协整检验结果（使用New方法的结果）
+            coint_new = analysis_result.get('cointegration_new', {})
+            coint_old = analysis_result.get('cointegration_old', {})
 
             # 保存分析结果到数据库
             analysis_record = {
@@ -808,12 +817,33 @@ class RealtimeKlineService:
                 'base_symbol': self.base_symbol,
                 f'corr_{timeframe}_{int(window.days)}d': analysis_result['correlation'],
                 f'zscore_{timeframe}': analysis_result['zscore'],
-                'cointegration_passed': analysis_result['cointegration_passed'],
-                'adf_pvalue': analysis_result['adf_pvalue'],
+
+                # 协整检验结果（记录两种方法）
+                'cointegration_passed': coint_new.get('passed', False),  # 主要依据New方法
+                'cointegration_passed_old': coint_old.get('passed', False),
+                'adf_pvalue': coint_new.get('adf_pvalue', 1.0),
+                'adf_pvalue_old': coint_old.get('adf_pvalue', 1.0),
+
+                # OLS参数
+                'alpha': coint_new.get('alpha'),
+                'beta': coint_new.get('beta'),
+                'model_type': coint_new.get('model_type'),
+
+                # 健康监控（如果有）
+                'health_score_long': None,
+                'health_score_short': None,
+
+                # 信号判断
                 'is_anomaly': analysis_result['is_anomaly'],
                 'trading_direction': analysis_result['trading_direction'],
                 'signal_strength': analysis_result['signal_strength']
             }
+
+            # 添加健康监控数据（如果有）
+            health_monitor = analysis_result.get('health_monitor')
+            if health_monitor:
+                analysis_record['health_score_long'] = health_monitor.get('long_window', {}).get('health_score')
+                analysis_record['health_score_short'] = health_monitor.get('short_window', {}).get('health_score')
 
             # 批量缓冲写入（非阻塞）
             try:
@@ -826,9 +856,9 @@ class RealtimeKlineService:
             if analysis_result['is_anomaly']:
                 self._send_alert(symbol, timeframe, analysis_result)
 
-            # 输出延迟日志（如果超过5秒则警告）
+            # 输出延迟日志（如果超过10秒则警告）
             elapsed = time.time() - start_time
-            if elapsed > 5.0:
+            if elapsed > 10.0:
                 logger.warning(f"⚠️ 分析延迟过高: {symbol} @ {timeframe} | {elapsed:.2f}秒")
             else:
                 logger.debug(f"分析完成: {symbol} @ {timeframe} | {elapsed:.2f}秒")
@@ -856,24 +886,47 @@ class RealtimeKlineService:
 
             title = f"{direction_emoji} 配对交易信号 {strength_emoji}"
 
+            # 提取协整检验信息
+            coint_new = analysis_result.get('cointegration_new', {})
+            coint_old = analysis_result.get('cointegration_old', {})
+
             # 构建告警内容（Markdown格式）
             content = f"""**币种**: {symbol}
-            **周期**: {timeframe}
-            **基准**: {self.base_symbol}
+**周期**: {timeframe}
+**基准**: {self.base_symbol}
 
-            ---
+---
 
-            **分析结果**:
-            - 相关系数: {analysis_result['correlation']:.3f}
-            - Z-score: {analysis_result['zscore']:.2f}
-            - 协整检验: {'✅ 通过' if analysis_result['cointegration_passed'] else '❌ 未通过'}
-            - p-value: {analysis_result['adf_pvalue']:.4f}
+**分析结果**:
+- 相关系数: {analysis_result['correlation']:.3f}
+- Z-score: {analysis_result['zscore']:.2f}
 
-            **交易方向**: {analysis_result['trading_direction'].upper()}
-            **信号强度**: {analysis_result['signal_strength'].upper()}
+**协整检验**:
+- New方法 (双窗口): {'✅ 通过' if coint_new.get('passed') else '❌ 未通过'} | p-value: {coint_new.get('adf_pvalue', 1.0):.4f}
+- Old方法 (全量): {'✅ 通过' if coint_old.get('passed') else '❌ 未通过'} | p-value: {coint_old.get('adf_pvalue', 1.0):.4f}
+- OLS参数: α={coint_new.get('alpha', 0):.4f}, β={coint_new.get('beta', 0):.4f}
+- 模型类型: {coint_new.get('model_type', 'N/A')}
+"""
 
-            **时间**: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
-            """
+            # 如果有健康监控数据，添加到告警中
+            health_monitor = analysis_result.get('health_monitor')
+            if health_monitor:
+                long_window = health_monitor.get('long_window', {})
+                short_window = health_monitor.get('short_window', {})
+                content += f"""
+**协整健康监控** (仅4h周期):
+- 长期得分 (200期): {long_window.get('health_score', 'N/A')} | 状态: {long_window.get('state', 'N/A')}
+- 短期得分 (100期): {short_window.get('health_score', 'N/A')} | 状态: {short_window.get('state', 'N/A')}
+- 半衰期: {long_window.get('halflife', 'N/A')} 期
+- Hurst指数: {long_window.get('hurst', 'N/A')}
+"""
+
+            content += f"""
+**交易方向**: {analysis_result['trading_direction'].upper()}
+**信号强度**: {analysis_result['signal_strength'].upper()}
+
+**时间**: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
+"""
 
             # 发送飞书消息（彩色卡片）
             sender_colourful(
