@@ -41,6 +41,7 @@ from utils.timescaledb import (
 from utils.analysis_core import analyze_multi_period, prepare_price_series
 from utils.lark_bot import sender_colourful
 from utils.config import lark_bot_id
+from utils.kline_data_filler import KlineDataFiller
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -104,6 +105,9 @@ class RealtimeKlineService:
         self.kline_repo = KlineRepository(self.db_client)
         self.symbol_repo = SymbolMetadataRepository(self.db_client)
         self.analysis_repo = AnalysisResultRepository(self.db_client)
+
+        # K线数据校验与补充器
+        self.data_filler = KlineDataFiller(kline_repo=self.kline_repo)
 
         # 飞书告警配置
         # 从config导入webhook URL（已经在config中构建好）
@@ -787,7 +791,74 @@ class RealtimeKlineService:
                     limit=10000
                 )
 
-                # 数据验证
+                # === 新增：K线数据连续性校验与自动补充 ===
+                need_refill = False
+                min_data_points = 100
+
+                # 1. 校验基准币种数据连续性和窗口长度
+                base_continuous, base_missing = self.data_filler.validate_continuity(base_klines, tf)
+                base_sufficient, base_count = self.data_filler.validate_window_length(
+                    base_klines, tf, window.days, min_data_points
+                )
+
+                # 2. 校验目标币种数据连续性和窗口长度
+                alt_continuous, alt_missing = self.data_filler.validate_continuity(alt_klines, tf)
+                alt_sufficient, alt_count = self.data_filler.validate_window_length(
+                    alt_klines, tf, window.days, min_data_points
+                )
+
+                # 3. 判断是否需要补充数据
+                need_refill = (
+                    not base_continuous or not alt_continuous or
+                    not base_sufficient or not alt_sufficient
+                )
+
+                if need_refill:
+                    logger.info(
+                        f"数据不完整，尝试补充 | {symbol} @ {tf} | "
+                        f"base: 连续={base_continuous}, 充足={base_sufficient}({base_count}) | "
+                        f"alt: 连续={alt_continuous}, 充足={alt_sufficient}({alt_count})"
+                    )
+
+                    # 补充基准币种数据（如果需要）
+                    if not base_continuous or not base_sufficient:
+                        base_filled = self.data_filler.fill_missing_data(
+                            self.base_symbol, tf, query_start_time, end_time
+                        )
+                        if base_filled > 0:
+                            logger.info(f"基准币种数据补充完成 | {self.base_symbol} @ {tf} | 补充: {base_filled} 条")
+
+                    # 补充目标币种数据（如果需要）
+                    if not alt_continuous or not alt_sufficient:
+                        alt_filled = self.data_filler.fill_missing_data(
+                            symbol, tf, query_start_time, end_time
+                        )
+                        if alt_filled > 0:
+                            logger.info(f"目标币种数据补充完成 | {symbol} @ {tf} | 补充: {alt_filled} 条")
+
+                    # 重新查询数据
+                    base_klines = self.kline_repo.query_range(
+                        self.base_symbol,
+                        tf,
+                        query_start_time,
+                        end_time,
+                        limit=10000
+                    )
+                    alt_klines = self.kline_repo.query_range(
+                        symbol,
+                        tf,
+                        query_start_time,
+                        end_time,
+                        limit=10000
+                    )
+
+                    logger.info(
+                        f"数据补充后重新查询 | {symbol} @ {tf} | "
+                        f"base: {len(base_klines)} 条 | alt: {len(alt_klines)} 条"
+                    )
+                # === K线数据校验与补充结束 ===
+
+                # 数据验证（补充后仍需检查）
                 if len(base_klines) < 100 or len(alt_klines) < 100:
                     logger.warning(
                         f"数据点不足（需要100个）：{symbol} @ {tf} | "
@@ -1086,7 +1157,8 @@ class RealtimeKlineService:
             'buffer_size': self.kline_buffer.qsize(),
             'analysis_queue_size': self.analysis_queue.qsize(),  # 新增：分析队列大小
             'analysis_result_buffer_size': self.analysis_result_buffer.qsize(),  # 新增：分析结果缓冲队列大小
-            'ws_stats': self.ws_manager.get_stats()
+            'ws_stats': self.ws_manager.get_stats(),
+            'data_filler_stats': self.data_filler.get_stats()  # 新增：数据补充器统计
         }
 
     def start(self):
