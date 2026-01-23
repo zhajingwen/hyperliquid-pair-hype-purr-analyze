@@ -116,6 +116,43 @@ class KlineDataFiller:
             logger.error(f"交易所初始化失败: {e}")
             raise
 
+    def _normalize_symbol_for_ccxt(self, symbol: str) -> Optional[str]:
+        """
+        将符号规范化为 ccxt 认可的格式
+
+        解决问题：Hyperliquid 原生 API 返回 kSHIB/kLUNC（小写k），
+        但 ccxt 内部使用 KSHIB/KLUNC（大写K），导致符号不匹配。
+
+        策略：
+        1. 首先检查原符号是否存在
+        2. 尝试大写转换后检查
+        3. 如果都不存在，返回 None
+
+        Args:
+            symbol: 原始符号（如 'kSHIB/USDC:USDC'）
+
+        Returns:
+            规范化后的符号，如果无法匹配则返回 None
+        """
+        # 1. 检查原符号是否直接存在
+        if symbol in self.exchange.markets:
+            return symbol
+
+        # 2. 尝试大写转换（处理 kSHIB -> KSHIB 的情况）
+        # 提取 base 币种并转为大写
+        parts = symbol.split('/')
+        if len(parts) == 2:
+            base = parts[0].upper()  # kSHIB -> KSHIB
+            quote_settle = parts[1]  # USDC:USDC
+            normalized = f"{base}/{quote_settle}"
+
+            if normalized in self.exchange.markets:
+                logger.debug(f"符号规范化: {symbol} -> {normalized}")
+                return normalized
+
+        # 3. 无法匹配
+        return None
+
     def _timeframe_to_minutes(self, timeframe: str) -> int:
         """
         将时间周期转换为分钟数
@@ -332,6 +369,16 @@ class KlineDataFiller:
             )
             return 0
 
+        # 符号规范化：解决 kSHIB vs KSHIB 大小写不一致问题
+        api_symbol = self._normalize_symbol_for_ccxt(symbol)
+        if api_symbol is None:
+            logger.warning(
+                f"符号无法映射到 ccxt 市场，跳过补充 | {symbol} @ {timeframe}"
+            )
+            # 设置较长的冷却时间避免反复尝试
+            self._update_cooldown(symbol, timeframe)
+            return 0
+
         logger.info(
             f"开始补充K线数据 | {symbol} @ {timeframe} | "
             f"时间范围: {start_time.isoformat()} ~ {end_time.isoformat()}"
@@ -347,9 +394,9 @@ class KlineDataFiller:
 
             while since < until:
                 try:
-                    # 调用 ccxt API
+                    # 调用 ccxt API（使用规范化后的符号）
                     ohlcv = self.exchange.fetch_ohlcv(
-                        symbol,
+                        api_symbol,
                         timeframe=timeframe,
                         since=since,
                         limit=self.API_LIMIT

@@ -133,18 +133,18 @@ class RealtimeKlineService:
         # K线缓冲队列（线程安全，最大10000条）
         self.kline_buffer = queue.Queue(maxsize=10000)
 
-        # 分析任务队列（支持25秒缓冲: 200消息/秒 × 25秒）
-        self.analysis_queue = queue.Queue(maxsize=5000)
+        # 分析任务队列（优化: 支持75秒峰值缓冲: 200消息/秒 × 75秒）
+        self.analysis_queue = queue.Queue(maxsize=15000)
 
-        # 分析结果缓冲队列（支持峰值: 200条/秒 × 25秒）
-        self.analysis_result_buffer = queue.Queue(maxsize=5000)
+        # 分析结果缓冲队列（优化: 支持50秒峰值: 200条/秒 × 50秒）
+        self.analysis_result_buffer = queue.Queue(maxsize=10000)
 
         # 停止事件
         self.stop_event = threading.Event()
 
-        # 分析工作线程（可配置化，默认5个）
-        # Phase 1.5 优化: 从环境变量读取线程数，提供200%+容量余量
-        num_workers = int(os.getenv('ANALYSIS_WORKERS', '5'))
+        # 分析工作线程（可配置化，默认15个）
+        # Phase 1.5 优化: 从环境变量读取线程数，提供300%+容量余量
+        num_workers = int(os.getenv('ANALYSIS_WORKERS', '15'))
         self.analysis_workers = []
         for i in range(num_workers):
             worker = threading.Thread(
@@ -176,6 +176,13 @@ class RealtimeKlineService:
             target=self._analysis_result_batch_writer,
             daemon=True,
             name="analysis-result-writer"
+        )
+
+        # 队列健康监控线程
+        self.queue_monitor_thread = threading.Thread(
+            target=self._monitor_queue_health,
+            daemon=True,
+            name="queue-monitor"
         )
 
         # WebSocket 管理器
@@ -377,7 +384,13 @@ class RealtimeKlineService:
             try:
                 self.analysis_queue.put_nowait(analysis_task)
             except queue.Full:
-                logger.warning(f"分析队列已满，跳过分析: {kline['symbol']} @ {kline['timeframe']}")
+                queue_size = self.analysis_queue.qsize()
+                queue_capacity = self.analysis_queue.maxsize
+                utilization = (queue_size / queue_capacity * 100) if queue_capacity > 0 else 0
+                logger.warning(
+                    f"分析队列已满，跳过分析: {kline['symbol']} @ {kline['timeframe']} | "
+                    f"队列: {queue_size}/{queue_capacity} ({utilization:.1f}%)"
+                )
                 self.stats.setdefault('analysis_queue_drops', 0)
                 self.stats['analysis_queue_drops'] += 1
 
@@ -434,9 +447,16 @@ class RealtimeKlineService:
                         count = self.kline_repo.batch_upsert_copy(dedup_batch, on_conflict='update')
                         self.stats['klines_written'] += count
 
+                        # 计算队列使用率
+                        kline_queue_util = (self.kline_buffer.qsize() / self.kline_buffer.maxsize * 100)
+                        analysis_queue_util = (self.analysis_queue.qsize() / self.analysis_queue.maxsize * 100)
+                        result_queue_util = (self.analysis_result_buffer.qsize() / self.analysis_result_buffer.maxsize * 100)
+                        
                         logger.info(
                             f"批量写入: {count} 条K线 (去重前: {batch_count}) | "
-                            f"缓冲队列: {self.kline_buffer.qsize()} | "
+                            f"K线队列: {self.kline_buffer.qsize()}/{self.kline_buffer.maxsize} ({kline_queue_util:.1f}%) | "
+                            f"分析队列: {self.analysis_queue.qsize()}/{self.analysis_queue.maxsize} ({analysis_queue_util:.1f}%) | "
+                            f"结果队列: {self.analysis_result_buffer.qsize()}/{self.analysis_result_buffer.maxsize} ({result_queue_util:.1f}%) | "
                             f"总写入: {self.stats['klines_written']}"
                         )
 
@@ -554,9 +574,12 @@ class RealtimeKlineService:
                         self.stats['analysis_results_written'] += count
                         self.stats['analysis_results_deduped'] += dedup_count
 
+                        # 计算队列使用率
+                        result_queue_util = (self.analysis_result_buffer.qsize() / self.analysis_result_buffer.maxsize * 100)
+                        
                         logger.info(
                             f"批量写入分析结果: {count} 条 (去重前: {batch_count}, 去重: {dedup_count}) | "
-                            f"缓冲队列: {self.analysis_result_buffer.qsize()}"
+                            f"结果队列: {self.analysis_result_buffer.qsize()}/{self.analysis_result_buffer.maxsize} ({result_queue_util:.1f}%)"
                         )
 
                         # 标记实际从队列获取的任务完成
@@ -948,7 +971,13 @@ class RealtimeKlineService:
             try:
                 self.analysis_result_buffer.put_nowait(analysis_record)
             except queue.Full:
-                logger.warning(f"分析结果缓冲队列已满，丢弃: {symbol}")
+                queue_size = self.analysis_result_buffer.qsize()
+                queue_capacity = self.analysis_result_buffer.maxsize
+                utilization = (queue_size / queue_capacity * 100) if queue_capacity > 0 else 0
+                logger.warning(
+                    f"分析结果缓冲队列已满，丢弃: {symbol} | "
+                    f"队列: {queue_size}/{queue_capacity} ({utilization:.1f}%)"
+                )
                 self.stats['analysis_result_buffer_drops'] += 1
 
             # 发送飞书告警
@@ -1053,6 +1082,71 @@ class RealtimeKlineService:
 
         except Exception as e:
             logger.error(f"飞书告警发送失败: {e}", exc_info=True)
+
+    def _monitor_queue_health(self):
+        """
+        队列健康监控线程
+
+        策略:
+        - 每60秒输出一次队列状态
+        - 当队列使用率超过80%时发出警告
+        - 提供队列趋势分析
+        """
+        logger.info("队列健康监控线程已启动")
+
+        # 环境变量配置监控间隔（默认60秒）
+        monitor_interval = int(os.getenv('QUEUE_MONITOR_INTERVAL', '60'))
+        warning_threshold = float(os.getenv('QUEUE_WARNING_THRESHOLD', '0.8'))  # 80%
+
+        while not self.stop_event.is_set():
+            try:
+                # 计算队列使用率
+                kline_size = self.kline_buffer.qsize()
+                kline_capacity = self.kline_buffer.maxsize
+                kline_util = (kline_size / kline_capacity) if kline_capacity > 0 else 0
+
+                analysis_size = self.analysis_queue.qsize()
+                analysis_capacity = self.analysis_queue.maxsize
+                analysis_util = (analysis_size / analysis_capacity) if analysis_capacity > 0 else 0
+
+                result_size = self.analysis_result_buffer.qsize()
+                result_capacity = self.analysis_result_buffer.maxsize
+                result_util = (result_size / result_capacity) if result_capacity > 0 else 0
+
+                # 构建状态消息
+                status_msg = (
+                    f"📊 队列健康监控 | "
+                    f"K线: {kline_size}/{kline_capacity} ({kline_util*100:.1f}%) | "
+                    f"分析: {analysis_size}/{analysis_capacity} ({analysis_util*100:.1f}%) | "
+                    f"结果: {result_size}/{result_capacity} ({result_util*100:.1f}%) | "
+                    f"丢弃统计: 分析队列{self.stats.get('analysis_queue_drops', 0)} 结果队列{self.stats.get('analysis_result_buffer_drops', 0)}"
+                )
+
+                # 根据使用率决定日志级别
+                if analysis_util >= warning_threshold or result_util >= warning_threshold or kline_util >= warning_threshold:
+                    logger.warning(f"⚠️ {status_msg}")
+                    
+                    # 提供优化建议
+                    if analysis_util >= warning_threshold:
+                        logger.warning(
+                            f"分析队列使用率过高 ({analysis_util*100:.1f}%)，建议："
+                            f"1) 增加 ANALYSIS_WORKERS（当前: {len(self.analysis_workers)}）"
+                            f"2) 检查数据库查询性能"
+                        )
+                    if result_util >= warning_threshold:
+                        logger.warning(
+                            f"结果队列使用率过高 ({result_util*100:.1f}%)，建议检查数据库写入性能"
+                        )
+                else:
+                    logger.info(status_msg)
+
+            except Exception as e:
+                logger.error(f"队列健康监控异常: {e}", exc_info=True)
+
+            # 等待下一个监控周期
+            self.stop_event.wait(monitor_interval)
+
+        logger.info("队列健康监控线程已停止")
 
     def _monitor_new_symbols(self):
         """
@@ -1185,6 +1279,10 @@ class RealtimeKlineService:
             self.analysis_result_writer_thread.start()
             logger.info("✅ 分析结果批量写入线程已启动")
 
+            # 启动队列健康监控线程
+            self.queue_monitor_thread.start()
+            logger.info("✅ 队列健康监控线程已启动")
+
             # 启动 WebSocket（阻塞）
             self.ws_manager.start()
 
@@ -1261,6 +1359,10 @@ class RealtimeKlineService:
         # 等待新币种监控线程结束
         if self.symbol_monitor_thread.is_alive():
             self.symbol_monitor_thread.join(timeout=10)
+
+        # 等待队列健康监控线程结束
+        if self.queue_monitor_thread.is_alive():
+            self.queue_monitor_thread.join(timeout=10)
 
         # 等待分析结果写入线程结束
         if self.analysis_result_writer_thread.is_alive():
