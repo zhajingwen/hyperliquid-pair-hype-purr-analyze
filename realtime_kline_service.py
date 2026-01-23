@@ -908,6 +908,36 @@ class RealtimeKlineService:
                 )
                 return
 
+            # ===== 相关系数前置过滤（与 multi_coins5.py 对齐）=====
+            # 检查 ('4h', '60d') 组合的相关系数是否 > 0.6
+            TARGET_CORR_THRESHOLD = 0.6
+
+            period_key_4h_60d = ('4h', '60d')
+            if period_key_4h_60d in price_data_cache:
+                cache_data = price_data_cache[period_key_4h_60d]
+                base_prices = cache_data['base_prices']
+                alt_prices = cache_data['alt_prices']
+
+                # 计算相关系数
+                corr_4h_60d_pre = base_prices.corr(alt_prices)
+
+                if corr_4h_60d_pre is None or corr_4h_60d_pre <= TARGET_CORR_THRESHOLD:
+                    logger.debug(
+                        f"相关系数过滤未通过: {symbol} | "
+                        f"4h/60d 相关系数: {corr_4h_60d_pre:.4f if corr_4h_60d_pre else 'N/A'} <= {TARGET_CORR_THRESHOLD}"
+                    )
+                    return
+                else:
+                    logger.debug(
+                        f"✅ 相关系数过滤通过: {symbol} | "
+                        f"4h/60d 相关系数: {corr_4h_60d_pre:.4f} > {TARGET_CORR_THRESHOLD}"
+                    )
+            else:
+                logger.warning(
+                    f"缺少 4h/60d 数据，跳过相关系数过滤: {symbol}"
+                )
+                return
+
             # ===== 调用多周期验证 =====
             multi_period_result = analyze_multi_period(
                 price_data_cache=price_data_cache,
