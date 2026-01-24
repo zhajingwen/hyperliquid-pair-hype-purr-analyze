@@ -88,10 +88,10 @@ class AlertFormatter:
         """格式化头部信息"""
         time_str = timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')
         return f"""**币种**: {symbol}
-**基准**: {base_symbol}
-**时间**: {time_str}
+        **基准**: {base_symbol}
+        **时间**: {time_str}
 
----"""
+        ---"""
 
     def _format_signal_overview(
         self,
@@ -134,13 +134,13 @@ class AlertFormatter:
         direction_emoji = "📈" if direction == 'long' else "📉"
 
         return f"""**【信号概览】**
-├─ 触发周期: {timeframe}
-├─ Z-score: {zscore_4h:+.2f} (偏离{abs_zscore:.1f}倍标准差)
-├─ 信号强度: {strength_emoji} {strength}
-├─ 交易方向: {direction_emoji} {direction_text}
-└─ 信号质量: {quality_emoji} {quality_text}
+        ├─ 触发周期: {timeframe}
+        ├─ Z-score: {zscore_4h:+.2f} (偏离{abs_zscore:.1f}倍标准差)
+        ├─ 信号强度: {strength_emoji} {strength}
+        ├─ 交易方向: {direction_emoji} {direction_text}
+        └─ 信号质量: {quality_emoji} {quality_text}
 
----"""
+        ---"""
 
     def _format_zscore_verification(
         self,

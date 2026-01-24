@@ -44,7 +44,11 @@ from utils.config import lark_bot_id
 from utils.kline_data_filler import KlineDataFiller
 from utils.alert_formatter import AlertFormatter
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 logger = logging.getLogger(__name__)
 
 
