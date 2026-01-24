@@ -150,7 +150,7 @@ class RealtimeKlineService:
         # 新币过滤器：内存黑名单（数据不足的币种）
         self.new_coin_blacklist = set()  # 数据不足的新币黑名单
         self.blacklist_lock = threading.Lock()  # 保护黑名单的线程锁
-        self.MIN_4H_DATA_POINTS = 360  # 最小4H数据量（60天 × 6条/天）
+        self.MIN_4H_DATA_POINTS = 358  # 最小4H数据量（60天 × 6条/天 - 1（问题在于查询边界：start_time 是精确的当前时间减去60天（如 2025-11-25 08:12:40），而第一个4小时K线是 2025-11-25 08:00:00。由于查询条件是 time >= start_time，第一个K线被排除，导致只有359条。）
 
         # 停止事件
         self.stop_event = threading.Event()
