@@ -130,6 +130,14 @@ class RealtimeKlineService:
         self.subscriptions = self._build_subscriptions()
         logger.info(f"订阅数量: {len(self.subscriptions)}")
 
+        # 入队去重字典（线程安全，避免重复入队）
+        self.recent_enqueue = {}  # {(symbol, timeframe): timestamp}
+        self.recent_enqueue_lock = threading.Lock()
+
+        # 分析去重字典（跨线程共享，避免重复分析）
+        self.recent_analysis = {}  # {(symbol, timeframe): timestamp}
+        self.recent_analysis_lock = threading.Lock()
+
         # K线缓冲队列（线程安全，最大10000条）
         self.kline_buffer = queue.Queue(maxsize=10000)
 
@@ -374,6 +382,24 @@ class RealtimeKlineService:
                 self.kline_buffer.put_nowait(kline)
             except queue.Full:
                 logger.warning(f"缓冲队列已满，丢弃K线: {kline['symbol']} @ {kline['timeframe']}")
+
+            # 【入队前去重检查】避免重复任务入队（Phase 1.5 优化）
+            ENQUEUE_DEDUP_WINDOWS = {'5m': 30, '1h': 180, '4h': 600}
+            task_key = (kline['symbol'], kline['timeframe'])
+            dedup_window = ENQUEUE_DEDUP_WINDOWS.get(kline['timeframe'], 30)
+
+            with self.recent_enqueue_lock:
+                last_enqueue = self.recent_enqueue.get(task_key, 0)
+                current_time = time.time()
+                if current_time - last_enqueue < dedup_window:
+                    # 跳过重复入队
+                    logger.debug(
+                        f"入队去重: {kline['symbol']} @ {kline['timeframe']} "
+                        f"(距上次 {current_time - last_enqueue:.0f}秒，窗口 {dedup_window}秒)"
+                    )
+                    return
+                # 更新入队时间戳
+                self.recent_enqueue[task_key] = current_time
 
             # 【异步分析】放入分析队列（非阻塞，<0.1ms）
             analysis_task = {
@@ -646,7 +672,7 @@ class RealtimeKlineService:
 
     def _analysis_worker(self):
         """
-        分析工作线程主循环（Phase 1.5 优化版）
+        分析工作线程主循环（Phase 1.5 优化版 - 共享去重）
 
         功能:
         1. 从队列取出分析任务
@@ -654,16 +680,14 @@ class RealtimeKlineService:
         3. 检测异常并发送飞书告警
         4. 持久化分析结果到数据库
 
-        去重策略（Phase 1.5 差异化优化）:
+        去重策略（Phase 1.5 差异化优化 + 跨线程共享）:
+        - 使用类级别 self.recent_analysis 字典实现跨线程去重
         - 5m周期: 60秒冷却（每5分钟更新一次K线）
         - 1h周期: 300秒冷却（每60分钟更新一次K线，减少80%不必要分析）
         - 4h周期: 900秒冷却（每240分钟更新一次K线，减少93%不必要分析）
         - 预期节省: 70-80%总体CPU资源
         """
         logger.info(f"[{threading.current_thread().name}] 分析工作线程已启动")
-
-        # 任务去重字典（避免重复分析相同币种+周期）
-        recent_tasks = {}  # {(symbol, timeframe): timestamp}
 
         # 按周期差异化去重窗口（单位：秒）
         # 5m周期: 每5分钟更新一次，60秒冷却避免重复分析同一根K线
@@ -698,26 +722,28 @@ class RealtimeKlineService:
                 # 根据周期获取去重窗口
                 dedup_window = DEDUP_WINDOWS.get(timeframe, 60)
 
-                # 去重检查：根据周期设定的时间内已分析过则跳过
+                # 【跨线程去重检查】使用共享字典
                 current_time = time.time()
-                last_analysis_time = recent_tasks.get(task_key, 0)
-                time_since_last = current_time - last_analysis_time if last_analysis_time > 0 else 0
+                with self.recent_analysis_lock:
+                    last_analysis_time = self.recent_analysis.get(task_key, 0)
+                    time_since_last = current_time - last_analysis_time if last_analysis_time > 0 else 0
 
-                if last_analysis_time > 0 and time_since_last < dedup_window:
-                    logger.debug(
-                        f"跳过重复分析: {symbol} @ {timeframe} "
-                        f"(距上次 {time_since_last:.0f}秒，窗口 {dedup_window}秒)"
-                    )
-                    self.analysis_queue.task_done()
-                    continue
+                    if last_analysis_time > 0 and time_since_last < dedup_window:
+                        logger.debug(
+                            f"跳过重复分析: {symbol} @ {timeframe} "
+                            f"(距上次 {time_since_last:.0f}秒，窗口 {dedup_window}秒)"
+                        )
+                        self.analysis_queue.task_done()
+                        continue
 
                 # 执行分析（原 _analyze_and_alert 逻辑）
                 try:
                     self._analyze_and_alert(symbol, timeframe)
                     self.stats['analyses_completed'] += 1
 
-                    # 记录分析时间戳（分析成功后才更新）
-                    recent_tasks[task_key] = current_time
+                    # 【记录分析时间戳】分析成功后更新共享字典
+                    with self.recent_analysis_lock:
+                        self.recent_analysis[task_key] = current_time
 
                     # Phase 1.5: 记录分析完成信息，用于监控
                     logger.debug(
@@ -732,27 +758,30 @@ class RealtimeKlineService:
                 # 标记任务完成
                 self.analysis_queue.task_done()
 
-                # 内存泄漏修复: 定时清理过期记录（优先级高于长度检查）
+                # 【内存泄漏修复】定时清理过期记录（使用共享字典）
                 if current_time - last_cleanup_time > CLEANUP_INTERVAL:
                     max_window = max(DEDUP_WINDOWS.values())
                     cutoff_time = current_time - max_window * 2  # 保留2倍窗口时间的记录
-                    old_count = len(recent_tasks)
-                    recent_tasks = {k: v for k, v in recent_tasks.items() if v > cutoff_time}
+                    with self.recent_analysis_lock:
+                        old_count = len(self.recent_analysis)
+                        self.recent_analysis = {k: v for k, v in self.recent_analysis.items() if v > cutoff_time}
+                        new_count = len(self.recent_analysis)
                     last_cleanup_time = current_time
                     logger.debug(
-                        f"定时清理任务缓存: {old_count} → {len(recent_tasks)} "
-                        f"(清理了 {old_count - len(recent_tasks)} 条过期记录)"
+                        f"定时清理任务缓存: {old_count} → {new_count} "
+                        f"(清理了 {old_count - new_count} 条过期记录)"
                     )
 
-                # 内存泄漏修复: 硬性上限检查，防止无限增长
-                if len(recent_tasks) > MAX_RECENT_TASKS:
-                    # 移除最旧的50%记录
-                    sorted_tasks = sorted(recent_tasks.items(), key=lambda x: x[1])
-                    keep_count = MAX_RECENT_TASKS // 2
-                    recent_tasks = dict(sorted_tasks[-keep_count:])
-                    logger.warning(
-                        f"任务缓存超限 ({MAX_RECENT_TASKS})，强制清理至 {len(recent_tasks)}"
-                    )
+                # 【内存泄漏修复】硬性上限检查（使用共享字典）
+                with self.recent_analysis_lock:
+                    if len(self.recent_analysis) > MAX_RECENT_TASKS:
+                        # 移除最旧的50%记录
+                        sorted_tasks = sorted(self.recent_analysis.items(), key=lambda x: x[1])
+                        keep_count = MAX_RECENT_TASKS // 2
+                        self.recent_analysis = dict(sorted_tasks[-keep_count:])
+                        logger.warning(
+                            f"任务缓存超限 ({MAX_RECENT_TASKS})，强制清理至 {len(self.recent_analysis)}"
+                        )
 
             except Exception as e:
                 logger.error(f"[{threading.current_thread().name}] 工作线程异常: {e}", exc_info=True)
@@ -1130,6 +1159,18 @@ class RealtimeKlineService:
 
         while not self.stop_event.is_set():
             try:
+                # 【入队去重字典清理】防止内存泄漏（Phase 1.5 优化）
+                with self.recent_enqueue_lock:
+                    cutoff = time.time() - 1800  # 保留30分钟内的记录
+                    old_count = len(self.recent_enqueue)
+                    self.recent_enqueue = {k: v for k, v in self.recent_enqueue.items() if v > cutoff}
+                    new_count = len(self.recent_enqueue)
+                    if old_count != new_count:
+                        logger.debug(
+                            f"清理入队去重字典: {old_count} → {new_count} "
+                            f"(清理了 {old_count - new_count} 条过期记录)"
+                        )
+
                 # 计算队列使用率
                 kline_size = self.kline_buffer.qsize()
                 kline_capacity = self.kline_buffer.maxsize
@@ -1143,12 +1184,19 @@ class RealtimeKlineService:
                 result_capacity = self.analysis_result_buffer.maxsize
                 result_util = (result_size / result_capacity) if result_capacity > 0 else 0
 
+                # 【增强监控信息】添加去重字典大小统计
+                with self.recent_enqueue_lock:
+                    enqueue_dict_size = len(self.recent_enqueue)
+                with self.recent_analysis_lock:
+                    analysis_dict_size = len(self.recent_analysis)
+
                 # 构建状态消息
                 status_msg = (
                     f"📊 队列健康监控 | "
                     f"K线: {kline_size}/{kline_capacity} ({kline_util*100:.1f}%) | "
                     f"分析: {analysis_size}/{analysis_capacity} ({analysis_util*100:.1f}%) | "
                     f"结果: {result_size}/{result_capacity} ({result_util*100:.1f}%) | "
+                    f"去重字典: 入队{enqueue_dict_size} 分析{analysis_dict_size} | "
                     f"丢弃统计: 分析队列{self.stats.get('analysis_queue_drops', 0)} 结果队列{self.stats.get('analysis_result_buffer_drops', 0)}"
                 )
 

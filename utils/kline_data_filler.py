@@ -369,14 +369,16 @@ class KlineDataFiller:
             )
             return 0
 
+        # 【立即更新冷却】防止并发窗口内多线程重复补充（Phase 1.5 优化）
+        self._update_cooldown(symbol, timeframe)
+
         # 符号规范化：解决 kSHIB vs KSHIB 大小写不一致问题
         api_symbol = self._normalize_symbol_for_ccxt(symbol)
         if api_symbol is None:
             logger.warning(
                 f"符号无法映射到 ccxt 市场，跳过补充 | {symbol} @ {timeframe}"
             )
-            # 设置较长的冷却时间避免反复尝试
-            self._update_cooldown(symbol, timeframe)
+            # 符号不匹配时已经更新了冷却，无需再次更新
             return 0
 
         logger.info(
@@ -442,7 +444,7 @@ class KlineDataFiller:
 
             if not all_rows:
                 logger.warning(f"未获取到任何K线数据 | {symbol} @ {timeframe}")
-                self._update_cooldown(symbol, timeframe)
+                # 冷却已在方法开头更新，无需重复
                 return 0
 
             # 转换为数据库格式
@@ -451,8 +453,7 @@ class KlineDataFiller:
             # 批量写入数据库（使用COPY命令高性能写入）
             count = self.kline_repo.batch_upsert_copy(klines, on_conflict='update')
 
-            # 更新冷却时间
-            self._update_cooldown(symbol, timeframe)
+            # 冷却已在方法开头更新，无需重复
 
             logger.info(
                 f"K线数据补充完成 | {symbol} @ {timeframe} | "
@@ -463,8 +464,7 @@ class KlineDataFiller:
 
         except Exception as e:
             logger.error(f"K线数据补充失败 | {symbol} @ {timeframe} | {e}", exc_info=True)
-            # 失败也更新冷却，避免频繁重试
-            self._update_cooldown(symbol, timeframe)
+            # 冷却已在方法开头更新，避免频繁重试
             return 0
 
     def _convert_ohlcv_to_klines(
