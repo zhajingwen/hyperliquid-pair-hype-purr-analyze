@@ -42,6 +42,7 @@ from utils.analysis_core import analyze_multi_period, prepare_price_series
 from utils.lark_bot import sender_colourful
 from utils.config import lark_bot_id
 from utils.kline_data_filler import KlineDataFiller
+from utils.alert_formatter import AlertFormatter
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -1082,7 +1083,9 @@ class RealtimeKlineService:
 
     def _send_alert(self, symbol: str, timeframe: str, multi_period_result: Dict):
         """
-        发送多周期验证告警
+        发送多周期验证告警（丰富格式版）
+
+        使用 AlertFormatter 生成包含风险评估和交易建议的结构化告警内容。
 
         Args:
             symbol: 币种
@@ -1094,61 +1097,14 @@ class RealtimeKlineService:
             direction_emoji = "📈" if multi_period_result['direction'] == 'long' else "📉"
             title = f"{direction_emoji} 多周期配对交易信号 🔥"
 
-            # 提取Z-score列表
-            zscore_5m, zscore_1h, zscore_4h = multi_period_result['zscore_list']
-
-            # 提取详细分析结果（用于展示协整信息）
-            details = multi_period_result.get('details', {})
-            detail_4h = details.get(('4h', '60d'), {})
-            coint_new_4h = detail_4h.get('cointegration_new', {})
-
-            # 健康监控数据（仅4h周期）
-            health_monitor_4h = detail_4h.get('health_monitor')
-
-            # 构建告警内容（Markdown格式）
-            content = f"""**币种**: {symbol}
-            **触发周期**: {timeframe}
-            **基准**: {self.base_symbol}
-
-            ---
-
-            **多周期Z-score验证** ✅:
-            - 🕐 短周期 (5m): {zscore_5m:+.2f} {'✅' if abs(zscore_5m) > 1.8 else '❌'}
-            - 🕑 中周期 (1h): {zscore_1h:+.2f} {'✅' if abs(zscore_1h) > 1.5 else '❌'}
-            - 🕓 长周期 (4h): {zscore_4h:+.2f} {'✅' if abs(zscore_4h) > 0.2 else '❌'}
-
-            **协整检验统计**:
-            - 通过数量: {multi_period_result['cointegration_count']}/6
-            - 符号一致性: ✅ {'全正' if zscore_4h > 0 else '全负'}
-
-            **OLS回归参数** (4h周期):
-            - α (截距): {coint_new_4h.get('alpha', 0):.4f}
-            - β (斜率): {coint_new_4h.get('beta', 0):.4f}
-            - 模型类型: {coint_new_4h.get('model_type', 'N/A')}
-            - ADF p-value: {coint_new_4h.get('adf_pvalue', 1.0):.4f}
-            """
-
-            # 添加健康监控数据（如果有）
-            if health_monitor_4h:
-                long_window = health_monitor_4h.get('long_window', {})
-                short_window = health_monitor_4h.get('short_window', {})
-                content += f"""
-                **协整健康监控** (4h周期):
-                - 长期得分 (200期): {long_window.get('health_score', 'N/A')} | 状态: {long_window.get('state', 'N/A')}
-                - 短期得分 (100期): {short_window.get('health_score', 'N/A')} | 状态: {short_window.get('state', 'N/A')}
-                - 半衰期: {long_window.get('halflife', 'N/A')} 期
-                - Hurst指数: {long_window.get('hurst', 'N/A')}
-                """
-
-            content += f"""
-            **交易方向**: {multi_period_result['direction'].upper()}
-            **信号强度**: STRONG（多周期确认）
-
-            **时间**: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
-
-            ---
-            💡 **说明**: 此信号已通过3个周期的协整检验和Z-score验证，信号质量高。
-            """
+            # 使用 AlertFormatter 生成丰富格式的告警内容
+            formatter = AlertFormatter()
+            content = formatter.format_rich_alert(
+                symbol=symbol,
+                base_symbol=self.base_symbol,
+                timeframe=timeframe,
+                multi_period_result=multi_period_result
+            )
 
             # 发送飞书消息（彩色卡片）
             sender_colourful(
@@ -1159,6 +1115,10 @@ class RealtimeKlineService:
 
             # 统计
             self.stats['alerts_sent'] += 1
+
+            # 提取Z-score用于日志
+            zscore_list = multi_period_result.get('zscore_list', [0, 0, 0])
+            zscore_5m, zscore_1h, zscore_4h = zscore_list
 
             logger.info(
                 f"📢 多周期告警已发送: {symbol} @ {timeframe} | "
