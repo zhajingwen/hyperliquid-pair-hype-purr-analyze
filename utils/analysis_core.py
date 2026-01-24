@@ -23,7 +23,7 @@ import statsmodels.api as sm
 import logging
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
@@ -324,22 +324,15 @@ def calculate_cointegration_params_ols(
         base_prices = prepare_price_series(base_klines)
         alt_prices = prepare_price_series(alt_klines)
 
-        # 数据验证
-        if len(base_prices) != len(alt_prices):
-            logger.warning(f"协整参数计算失败：数据长度不一致")
-            return None
-
-        if len(base_prices) < 10:
-            logger.debug(f"协整参数计算失败：数据点不足10个")
-            return None
-
-        # 对齐时间索引
+        # 对齐时间索引（自动处理数据长度不一致问题）
         aligned = pd.DataFrame({
             'base': base_prices,
             'alt': alt_prices
         }).dropna()
 
+        # 数据验证
         if len(aligned) < 10:
+            logger.debug(f"协整参数计算失败：对齐后数据点不足10个")
             return None
 
         # 计算对数价格
@@ -431,23 +424,16 @@ def calculate_cointegration_params_dual_window(
         base_prices = prepare_price_series(base_klines)
         alt_prices = prepare_price_series(alt_klines)
 
-        # 数据验证
-        if len(base_prices) != len(alt_prices):
-            logger.warning(f"双窗口OLS失败：数据长度不一致")
-            return None
-
-        data_window = max(beta_window, zscore_window)
-        if len(base_prices) < data_window:
-            logger.warning(f"双窗口OLS失败：数据点不足{data_window}个")
-            return None
-
-        # 对齐时间索引
+        # 对齐时间索引（自动处理数据长度不一致问题）
         aligned = pd.DataFrame({
             'base': base_prices,
             'alt': alt_prices
         }).dropna()
 
+        # 数据验证
+        data_window = max(beta_window, zscore_window)
         if len(aligned) < data_window:
+            logger.debug(f"双窗口OLS失败：对齐后数据点不足{data_window}个")
             return None
 
         # 数据切片：取足够计算OLS和统计量的数据
