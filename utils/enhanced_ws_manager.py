@@ -24,7 +24,7 @@ from hyperliquid.websocket_manager import WebsocketManager
 import hyperliquid.utils.constants as constants
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
