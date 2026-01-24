@@ -411,6 +411,11 @@ class RealtimeKlineService:
                 # 更新入队时间戳
                 self.recent_enqueue[task_key] = current_time
 
+            # 【只触发5m周期分析】其他周期仅写入数据库，不触发分析
+            if kline['timeframe'] != '5m':
+                logger.debug(f"跳过非5m周期分析: {kline['symbol']} @ {kline['timeframe']}")
+                return
+
             # 【异步分析】放入分析队列（非阻塞，<0.1ms）
             analysis_task = {
                 'symbol': kline['symbol'],
