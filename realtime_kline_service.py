@@ -147,6 +147,11 @@ class RealtimeKlineService:
         # 分析结果缓冲队列（优化: 支持50秒峰值: 200条/秒 × 50秒）
         self.analysis_result_buffer = queue.Queue(maxsize=10000)
 
+        # 新币过滤器：内存黑名单（数据不足的币种）
+        self.new_coin_blacklist = set()  # 数据不足的新币黑名单
+        self.blacklist_lock = threading.Lock()  # 保护黑名单的线程锁
+        self.MIN_4H_DATA_POINTS = 360  # 最小4H数据量（60天 × 6条/天）
+
         # 停止事件
         self.stop_event = threading.Event()
 
@@ -794,15 +799,22 @@ class RealtimeKlineService:
         实时多周期分析 + 飞书告警
 
         流程（新）：
-        1. 查询所有3个周期的K线数据（5m/7d, 1h/30d, 4h/60d）
-        2. 调用 analyze_multi_period() 进行多周期验证
-        3. 仅在通过多周期验证时才保存结果并告警
-        4. 使用触发周期标识（避免重复计算）
+        1. 检查新币黑名单（复用现有数据）
+        2. 查询所有3个周期的K线数据（5m/7d, 1h/30d, 4h/60d）
+        3. 验证4H数据充足性，不足则加入黑名单
+        4. 调用 analyze_multi_period() 进行多周期验证
+        5. 仅在通过多周期验证时才保存结果并告警
 
         Args:
             symbol: 目标币种（如 ETH/USDC:USDC）
             timeframe: 触发周期（如 5m）
         """
+        # 新币过滤：检查黑名单（避免重复分析数据不足的币种）
+        with self.blacklist_lock:
+            if symbol in self.new_coin_blacklist:
+                logger.debug(f"跳过新币分析（已在黑名单）：{symbol}")
+                return
+
         # 开始计时（用于监控分析延迟）
         start_time = time.time()
 
@@ -909,6 +921,21 @@ class RealtimeKlineService:
                         f"base: {len(base_klines)} 条 | alt: {len(alt_klines)} 条"
                     )
                 # === K线数据校验与补充结束 ===
+
+                # 【新币过滤】：检查4H周期数据充足性（复用现有查询数据）
+                if tf == '4h':
+                    # 验证目标币种4H数据是否充足（补充后仍需检查）
+                    if len(alt_klines) < self.MIN_4H_DATA_POINTS:
+                        # 数据不足，加入黑名单
+                        with self.blacklist_lock:
+                            self.new_coin_blacklist.add(symbol)
+                        logger.warning(
+                            f"新币数据不足，加入黑名单 | {symbol} @ {tf} | "
+                            f"获取: {len(alt_klines)} 条 | 需要: {self.MIN_4H_DATA_POINTS} 条 | "
+                            f"此币种将不再进行分析"
+                        )
+                        # 直接返回，不继续后续分析
+                        return
 
                 # 数据验证（补充后仍需检查）
                 if len(base_klines) < 100 or len(alt_klines) < 100:
@@ -1189,6 +1216,10 @@ class RealtimeKlineService:
                     enqueue_dict_size = len(self.recent_enqueue)
                 with self.recent_analysis_lock:
                     analysis_dict_size = len(self.recent_analysis)
+                
+                # 获取新币黑名单大小
+                with self.blacklist_lock:
+                    blacklist_size = len(self.new_coin_blacklist)
 
                 # 构建状态消息
                 status_msg = (
@@ -1197,7 +1228,8 @@ class RealtimeKlineService:
                     f"分析: {analysis_size}/{analysis_capacity} ({analysis_util*100:.1f}%) | "
                     f"结果: {result_size}/{result_capacity} ({result_util*100:.1f}%) | "
                     f"去重字典: 入队{enqueue_dict_size} 分析{analysis_dict_size} | "
-                    f"丢弃统计: 分析队列{self.stats.get('analysis_queue_drops', 0)} 结果队列{self.stats.get('analysis_result_buffer_drops', 0)}"
+                    f"丢弃统计: 分析队列{self.stats.get('analysis_queue_drops', 0)} 结果队列{self.stats.get('analysis_result_buffer_drops', 0)} | "
+                    f"新币黑名单: {blacklist_size}"
                 )
 
                 # 根据使用率决定日志级别
