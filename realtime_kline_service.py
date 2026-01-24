@@ -131,7 +131,7 @@ class RealtimeKlineService:
         # 修复竞态条件: 添加线程锁保护symbols列表
         self.symbols_lock = threading.RLock()
 
-        # 构建订阅列表（600个订阅 = 200币种 × 3周期）
+        # 构建订阅列表（600个+订阅 = 200币种 × 3周期）
         self.subscriptions = self._build_subscriptions()
         logger.info(f"订阅数量: {len(self.subscriptions)}")
 
