@@ -928,6 +928,8 @@ def analyze_pair_advanced(
 
 def analyze_multi_period(
     price_data_cache: Dict[Tuple[str, str], Dict],
+    base_symbol: Optional[str] = None,
+    target_symbol: Optional[str] = None,
     beta_window: int = 100,
     zscore_window: int = 30,
     cointegration_threshold: int = 2,
@@ -993,11 +995,16 @@ def analyze_multi_period(
             'short': 1.8    # 5m
         }
 
+    # 构建日志前缀（target_symbol vs base_symbol）
+    log_prefix = ""
+    if target_symbol and base_symbol:
+        log_prefix = f"[{target_symbol} vs {base_symbol}] "
+
     # 验证输入数据
     required_periods = [('5m', '7d'), ('1h', '30d'), ('4h', '60d')]
     for period_key in required_periods:
         if period_key not in price_data_cache:
-            logger.warning(f"缺少必需周期数据: {period_key}")
+            logger.warning(f"{log_prefix}缺少必需周期数据: {period_key}")
             return None
 
     # 存储结果
@@ -1017,7 +1024,7 @@ def analyze_multi_period(
 
         # 数据验证
         if len(base_klines) < 100 or len(alt_klines) < 100:
-            logger.warning(f"周期 {period_key} 数据点不足100个")
+            logger.warning(f"{log_prefix}周期 {period_key} 数据点不足100个")
             return None
 
         # 执行高级分析（包含Old和New方法）
@@ -1046,7 +1053,7 @@ def analyze_multi_period(
         # 提取Z-score
         zscore = analysis_result.get('zscore')
         if zscore is None:
-            logger.warning(f"周期 {period_key} Z-score计算失败")
+            logger.warning(f"{log_prefix}周期 {period_key} Z-score计算失败")
             return None
 
         zscore_list.append(zscore)
@@ -1061,7 +1068,7 @@ def analyze_multi_period(
     # 验证1: 协整通过数量检查
     if cointegration_count < cointegration_threshold:
         logger.info(
-            f"协整检验未通过：需要 {cointegration_threshold} 个周期通过，"
+            f"{log_prefix}协整检验未通过：需要 {cointegration_threshold} 个周期通过，"
             f"实际只有 {cointegration_count} 个"
         )
         return {
@@ -1079,7 +1086,7 @@ def analyze_multi_period(
     # 验证2: Z-score符号一致性检查
     if not ((zscore_5m >= 0) == (zscore_1h >= 0) == (zscore_4h >= 0)):
         logger.info(
-            f"Z-score符号不一致：5m={zscore_5m:.2f}, 1h={zscore_1h:.2f}, 4h={zscore_4h:.2f}"
+            f"{log_prefix}Z-score符号不一致：5m={zscore_5m:.2f}, 1h={zscore_1h:.2f}, 4h={zscore_4h:.2f}"
         )
         return {
             'passed': False,
@@ -1099,7 +1106,7 @@ def analyze_multi_period(
             abs(zscore_1h) > middle_threshold and
             abs(zscore_5m) > short_threshold):
         logger.info(
-            f"Z-score阈值未达标：\n"
+            f"{log_prefix}Z-score阈值未达标：\n"
             f"  - 长周期(4h): {abs(zscore_4h):.2f} > {long_threshold} ? "
             f"{'✓' if abs(zscore_4h) > long_threshold else '✗'}\n"
             f"  - 中周期(1h): {abs(zscore_1h):.2f} > {middle_threshold} ? "
@@ -1120,7 +1127,7 @@ def analyze_multi_period(
     direction = 'long' if zscore_4h < 0 else 'short'  # 基于长周期Z-score
 
     logger.info(
-        f"✅ 多周期验证通过 | 协整通过数: {cointegration_count}/6 | "
+        f"✅ {log_prefix}多周期验证通过 | 协整通过数: {cointegration_count}/6 | "
         f"Z-score: [{zscore_5m:.2f}, {zscore_1h:.2f}, {zscore_4h:.2f}] | "
         f"方向: {direction}"
     )

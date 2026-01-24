@@ -1007,6 +1007,8 @@ class RealtimeKlineService:
             # ===== 调用多周期验证 =====
             multi_period_result = analyze_multi_period(
                 price_data_cache=price_data_cache,
+                base_symbol=self.base_symbol,
+                target_symbol=symbol,
                 beta_window=100,
                 zscore_window=30,
                 cointegration_threshold=2,  # 至少2个周期协整通过

@@ -1171,9 +1171,14 @@ class DelayCorrelationAnalyzer:
             return None
 
         try:
+            # 构建目标币种符号（与 base_symbol 格式一致）
+            target_symbol = f"{coin}/USDC:USDC"
+            
             # 调用共享的多周期验证函数
             multi_period_result = analyze_multi_period(
                 price_data_cache=price_data_cache,
+                base_symbol=self.base_symbol,
+                target_symbol=target_symbol,
                 beta_window=self.BETA_WINDOW,
                 zscore_window=self.ZSCORE_WINDOW,
                 cointegration_threshold=self.COINTEGRATION_RESULT_APPROVED_THRESHOLD_NUMBER,
