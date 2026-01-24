@@ -417,10 +417,12 @@ class RealtimeKlineService:
                 return
 
             # 【异步分析】放入分析队列（非阻塞，<0.1ms）
+            # 包含完整 K 线数据，用于分析前同步写入
             analysis_task = {
                 'symbol': kline['symbol'],
                 'timeframe': kline['timeframe'],
-                'timestamp': kline['time']
+                'timestamp': kline['time'],
+                'kline': kline  # 包含完整 K 线数据，确保分析前数据已入库
             }
             try:
                 self.analysis_queue.put_nowait(analysis_task)
@@ -750,6 +752,15 @@ class RealtimeKlineService:
                         )
                         self.analysis_queue.task_done()
                         continue
+
+                # 【分析前同步写入】确保触发 K 线已入库（解决写入与分析异步问题）
+                kline_data = task.get('kline')
+                if kline_data:
+                    try:
+                        self.kline_repo.batch_upsert_copy([kline_data], on_conflict='update')
+                        logger.debug(f"分析前同步写入: {symbol} @ {timeframe}")
+                    except Exception as e:
+                        logger.warning(f"分析前同步写入失败: {symbol} @ {timeframe} | {e}")
 
                 # 执行分析（原 _analyze_and_alert 逻辑）
                 try:
