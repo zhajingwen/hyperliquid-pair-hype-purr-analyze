@@ -429,8 +429,8 @@ class RealtimeKlineService:
                 if current_time - last_enqueue < dedup_window:
                     # 跳过重复入队
                     logger.debug(
-                        f"入队去重: {kline['symbol']} @ {kline['timeframe']} "
-                        f"(距上次 {current_time - last_enqueue:.0f}秒，窗口 {dedup_window}秒)"
+                        f"跳过分析任务: {kline['symbol']} @ {kline['timeframe']} "
+                        f"(距上次分析 {current_time - last_enqueue:.0f}秒 < {dedup_window}秒冷却)"
                     )
                     return
                 # 更新入队时间戳
