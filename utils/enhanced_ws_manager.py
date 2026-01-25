@@ -23,12 +23,11 @@ from hyperliquid.info import Info
 from hyperliquid.websocket_manager import WebsocketManager
 import hyperliquid.utils.constants as constants
 
-# 导入 WebSocket Monkey Patch（修复 ping 线程异常）
+# 导入 WebSocket Ping 修复（自动应用）
 try:
-    from utils.websocket_patch import apply_websocket_patch
-    # Patch 会在导入时自动应用
+    import utils.websocket_patch  # 导入即自动应用修复
 except ImportError as e:
-    logging.warning(f"WebSocket Monkey Patch 导入失败: {e}，可能导致 ping 线程异常")
+    logging.warning(f"WebSocket ping 修复导入失败: {e}，可能导致 ping 线程异常")
 
 logging.basicConfig(
     level=logging.DEBUG,
