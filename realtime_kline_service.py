@@ -1034,8 +1034,11 @@ class RealtimeKlineService:
                 base_prices = cache_data['base_prices']
                 alt_prices = cache_data['alt_prices']
 
-                # 计算相关系数
-                corr_4h_60d_pre = base_prices.corr(alt_prices)
+                # 计算收益率相关系数（与 multi_coins5.py 保持一致）
+                # 使用收益率而非价格，更能反映两个币种变动的真实相关性
+                base_returns = base_prices.pct_change().fillna(0)
+                alt_returns = alt_prices.pct_change().fillna(0)
+                corr_4h_60d_pre = base_returns.corr(alt_returns)
 
                 if corr_4h_60d_pre is None or corr_4h_60d_pre <= TARGET_CORR_THRESHOLD:
                     logger.debug(
