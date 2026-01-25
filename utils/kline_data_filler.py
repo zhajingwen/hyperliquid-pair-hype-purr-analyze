@@ -234,9 +234,20 @@ class KlineDataFiller:
         is_continuous = len(missing_timestamps) == 0
 
         if not is_continuous:
+            # 输出缺失时间范围和关键时间点
+            first_missing = missing_timestamps[0].isoformat()
+            last_missing = missing_timestamps[-1].isoformat()
+
+            # 少量缺失时显示全部，大量时显示摘要
+            if len(missing_timestamps) <= 5:
+                missing_detail = ", ".join(ts.strftime("%m-%d %H:%M") for ts in missing_timestamps)
+            else:
+                missing_detail = f"{first_missing} ~ {last_missing}"
+
             logger.debug(
                 f"数据不连续 | 周期: {timeframe} | "
                 f"缺失点数: {len(missing_timestamps)} | "
+                f"缺失范围: {missing_detail} | "
                 f"总数据点: {len(klines)}"
             )
 
