@@ -311,6 +311,7 @@ class AlertFormatter:
             halflife = data.get('halflife', 'N/A')
             halflife_reason = data.get('halflife_reason', '')
             hurst = data.get('hurst')
+            phi = data.get('phi')
             beta = data.get('beta', 0)
 
             scores = data.get('scores', {})
@@ -332,11 +333,14 @@ class AlertFormatter:
                 f"├─ 稳定性得分: {stab_score}/30 | β变异:{beta_cv:.3f}",
             ]
 
+            # 显示 phi 和 Hurst
+            phi_str = f"{phi:.4f}" if phi is not None else "N/A"
             if hurst is not None:
                 hurst_status = "🔴 趋势" if hurst > 0.6 else ("🟢 均值回复" if hurst < 0.4 else "🟡 随机")
-                lines.append(f"└─ Hurst指数: {hurst:.3f} ({hurst_status})")
+                lines.append(f"├─ phi: {phi_str} | Hurst: {hurst:.3f} ({hurst_status})")
             else:
-                lines.append(f"└─ β系数: {beta:.4f}")
+                lines.append(f"├─ phi: {phi_str}")
+            lines.append(f"└─ β系数: {beta:.4f}")
 
             return lines
 

@@ -1080,6 +1080,48 @@ class RealtimeKlineService:
                 )
                 return
 
+            # ===== 健康状态约束检查 =====
+            # 只有当短期窗口(100期)健康状态为 HEALTHY 时才发送告警
+            health_state_passed = True
+            health_state_reason = ""
+
+            try:
+                # 从 4h/60d 周期的详情中提取健康监控数据
+                details_4h_60d = multi_period_result.get('details', {}).get(('4h', '60d'), {})
+                health_monitor = details_4h_60d.get('health_monitor')
+
+                if health_monitor is None:
+                    # 健康监控数据不存在，记录警告但允许通过（向后兼容）
+                    logger.warning(
+                        f"健康监控数据不存在: {symbol} @ {timeframe} | "
+                        f"跳过健康状态检查（向后兼容模式）"
+                    )
+                else:
+                    short_window = health_monitor.get('short_window', {})
+                    short_state = short_window.get('state', 'UNKNOWN')
+                    short_score = short_window.get('health_score', 0)
+
+                    if short_state != 'HEALTHY':
+                        health_state_passed = False
+                        health_state_reason = (
+                            f"短期窗口(100期)状态: {short_state} (得分: {short_score:.1f}) | "
+                            f"需要: HEALTHY (得分 >= 18)"
+                        )
+
+            except Exception as e:
+                # 健康状态检查异常，记录错误但允许通过（容错处理）
+                logger.error(
+                    f"健康状态检查异常: {symbol} @ {timeframe} | {e}",
+                    exc_info=True
+                )
+
+            # 健康状态不满足，不发送告警
+            if not health_state_passed:
+                logger.info(
+                    f"协整健康约束未通过: {symbol} @ {timeframe} | {health_state_reason}"
+                )
+                return
+
             # ===== 通过验证，构建告警记录 =====
             # ✅ 从 details 中提取每个周期的相关系数（已在 analyze_pair_advanced 中计算）
             details = multi_period_result.get('details', {})
