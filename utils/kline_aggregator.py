@@ -81,6 +81,9 @@ class KlineAggregator:
         period_start = self._get_period_start(kline_time, period_minutes)
         cache_key = (symbol, target_tf)
 
+        # 计算该周期应有的5m K线数量
+        expected_count = period_minutes // 5
+
         # 获取或初始化缓存
         cached = self.pending_klines.get(cache_key)
 
@@ -88,25 +91,39 @@ class KlineAggregator:
         if cached is None or cached['start_time'] != period_start:
             self.pending_klines[cache_key] = {
                 'open': kline['open'],
+                'open_time': kline_time,  # 记录open对应的K线时间
                 'high': kline['high'],
                 'low': kline['low'],
                 'close': kline['close'],
+                'close_time': kline_time,  # 记录close对应的K线时间
                 'volume': kline['volume'],
                 'volume_usd': kline['volume_usd'],
                 'start_time': period_start,
-                'count': 1
+                'count': 1,
+                'expected_count': expected_count
             }
         else:
-            # 更新现有聚合
+            # 更新现有聚合（支持乱序K线）
+            # 如果收到更早的K线，更新open
+            if kline_time < cached['open_time']:
+                cached['open'] = kline['open']
+                cached['open_time'] = kline_time
+
+            # 如果收到更晚的K线，更新close
+            if kline_time > cached['close_time']:
+                cached['close'] = kline['close']
+                cached['close_time'] = kline_time
+
             cached['high'] = max(cached['high'], kline['high'])
             cached['low'] = min(cached['low'], kline['low'])
-            cached['close'] = kline['close']
             cached['volume'] += kline['volume']
             cached['volume_usd'] += kline['volume_usd']
             cached['count'] += 1
 
         # 构建返回的K线
         cached = self.pending_klines[cache_key]
+        is_complete = cached['count'] >= cached['expected_count']
+
         return {
             'time': period_start,
             'symbol': symbol,
@@ -118,7 +135,9 @@ class KlineAggregator:
             'volume': cached['volume'],
             'volume_usd': cached['volume_usd'],
             'return_pct': (cached['close'] - cached['open']) / cached['open']
-                          if cached['open'] > 0 else 0.0
+                          if cached['open'] > 0 else 0.0,
+            'kline_count': cached['count'],
+            'is_complete': is_complete
         }
 
     def _get_period_start(self, dt: datetime, period_minutes: int) -> datetime:
@@ -144,8 +163,24 @@ class KlineAggregator:
     def get_stats(self) -> Dict:
         """获取聚合器统计信息"""
         with self.lock:
+            incomplete_1h = []
+            incomplete_4h = []
+
+            for key, cached in self.pending_klines.items():
+                symbol, tf = key
+                if cached['count'] < cached['expected_count']:
+                    missing = cached['expected_count'] - cached['count']
+                    info = {'symbol': symbol, 'count': cached['count'],
+                            'expected': cached['expected_count'], 'missing': missing}
+                    if tf == '1h':
+                        incomplete_1h.append(info)
+                    else:
+                        incomplete_4h.append(info)
+
             return {
                 'pending_klines_count': len(self.pending_klines),
                 'symbols_1h': sum(1 for k in self.pending_klines if k[1] == '1h'),
                 'symbols_4h': sum(1 for k in self.pending_klines if k[1] == '4h'),
+                'incomplete_1h': incomplete_1h,
+                'incomplete_4h': incomplete_4h,
             }
