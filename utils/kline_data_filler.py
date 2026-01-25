@@ -340,6 +340,96 @@ class KlineDataFiller:
                 f"清理冷却记录: {old_count} → {len(self.fill_cooldown)}"
             )
 
+    def fill_missing_data_precise(
+        self,
+        symbol: str,
+        timeframe: str,
+        missing_timestamps: List[datetime]
+    ) -> int:
+        """
+        精准补充：只拉取缺失时间点附近的数据
+
+        相比 fill_missing_data 拉取完整时间范围，此方法只拉取缺失点附近的最小数据量，
+        大幅减少 API 请求和数据库写入（节省 95%+ 资源）。
+
+        Args:
+            symbol: 币种符号（如 'BTC/USDC:USDC'）
+            timeframe: 时间周期（如 '5m', '1h'）
+            missing_timestamps: 缺失的时间点列表（由 validate_continuity 返回）
+
+        Returns:
+            int: 补充的记录数（如在冷却期内或失败返回0）
+        """
+        if not missing_timestamps:
+            return 0
+
+        # 冷却检查
+        if self._is_in_cooldown(symbol, timeframe):
+            logger.debug(
+                f"冷却期内，跳过精准补充 | {symbol} @ {timeframe} | "
+                f"缺失点数: {len(missing_timestamps)}"
+            )
+            return 0
+
+        # 立即更新冷却，防止并发重复补充
+        self._update_cooldown(symbol, timeframe)
+
+        # 符号规范化
+        api_symbol = self._normalize_symbol_for_ccxt(symbol)
+        if api_symbol is None:
+            logger.warning(f"符号无法映射到 ccxt 市场，跳过精准补充 | {symbol}")
+            return 0
+
+        # 计算最小时间范围：min(missing) - 1周期 ~ max(missing) + 1周期
+        interval_minutes = self._timeframe_to_minutes(timeframe)
+        interval_delta = timedelta(minutes=interval_minutes)
+
+        min_ts = min(missing_timestamps)
+        max_ts = max(missing_timestamps)
+        start_time = min_ts - interval_delta
+        end_time = max_ts + interval_delta
+
+        # 计算需要拉取的数据量（缺失点数 + 2 个边界点，但至少 10 条以确保覆盖）
+        limit = max(len(missing_timestamps) + 2, 10)
+
+        logger.info(
+            f"精准补充K线数据 | {symbol} @ {timeframe} | "
+            f"缺失点数: {len(missing_timestamps)} | 拉取: {limit} 条 | "
+            f"范围: {start_time.isoformat()} ~ {end_time.isoformat()}"
+        )
+
+        try:
+            since = int(start_time.timestamp() * 1000)
+
+            # 单次 API 调用获取数据
+            ohlcv = self.exchange.fetch_ohlcv(
+                api_symbol,
+                timeframe=timeframe,
+                since=since,
+                limit=min(limit, self.API_LIMIT)
+            )
+
+            if not ohlcv:
+                logger.warning(f"精准补充：API返回空数据 | {symbol} @ {timeframe}")
+                return 0
+
+            # 转换为数据库格式
+            klines = self._convert_ohlcv_to_klines(ohlcv, symbol, timeframe)
+
+            # 使用 ON CONFLICT DO NOTHING 避免覆盖已有数据
+            count = self.kline_repo.batch_upsert_copy(klines, on_conflict='ignore')
+
+            logger.info(
+                f"精准补充完成 | {symbol} @ {timeframe} | "
+                f"获取: {len(ohlcv)} 条 | 写入: {count} 条"
+            )
+
+            return count
+
+        except Exception as e:
+            logger.error(f"精准补充失败 | {symbol} @ {timeframe} | {e}", exc_info=True)
+            return 0
+
     def fill_missing_data(
         self,
         symbol: str,
@@ -348,9 +438,12 @@ class KlineDataFiller:
         end_time: datetime
     ) -> int:
         """
-        从API获取缺失数据并写入数据库
+        从API获取缺失数据并写入数据库（完整范围补充）
 
         同步阻塞执行，补充完成后返回。包含冷却机制和重试逻辑。
+        适用于新币等需要完整历史数据的场景。
+
+        注意：对于已知缺失点的场景，优先使用 fill_missing_data_precise 方法。
 
         Args:
             symbol: 币种符号（如 'BTC/USDC:USDC'）

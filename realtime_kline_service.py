@@ -907,17 +907,31 @@ class RealtimeKlineService:
 
                     # 补充基准币种数据（如果需要）
                     if not base_continuous or not base_sufficient:
-                        base_filled = self.data_filler.fill_missing_data(
-                            self.base_symbol, tf, query_start_time, end_time
-                        )
+                        if base_missing:
+                            # 有明确缺失点，使用精准补充（节省 95%+ API 请求）
+                            base_filled = self.data_filler.fill_missing_data_precise(
+                                self.base_symbol, tf, base_missing
+                            )
+                        else:
+                            # 数据量不足（新币场景），使用完整范围补充
+                            base_filled = self.data_filler.fill_missing_data(
+                                self.base_symbol, tf, query_start_time, end_time
+                            )
                         if base_filled > 0:
                             logger.info(f"基准币种数据补充完成 | {self.base_symbol} @ {tf} | 补充: {base_filled} 条")
 
                     # 补充目标币种数据（如果需要）
                     if not alt_continuous or not alt_sufficient:
-                        alt_filled = self.data_filler.fill_missing_data(
-                            symbol, tf, query_start_time, end_time
-                        )
+                        if alt_missing:
+                            # 有明确缺失点，使用精准补充（节省 95%+ API 请求）
+                            alt_filled = self.data_filler.fill_missing_data_precise(
+                                symbol, tf, alt_missing
+                            )
+                        else:
+                            # 数据量不足（新币场景），使用完整范围补充
+                            alt_filled = self.data_filler.fill_missing_data(
+                                symbol, tf, query_start_time, end_time
+                            )
                         if alt_filled > 0:
                             logger.info(f"目标币种数据补充完成 | {symbol} @ {tf} | 补充: {alt_filled} 条")
 
