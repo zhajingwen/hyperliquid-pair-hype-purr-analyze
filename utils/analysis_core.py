@@ -72,7 +72,15 @@ def calculate_correlation(
     method: str = 'pearson'
 ) -> float:
     """
-    计算两个币种的价格相关系数
+    计算两个币种的收益率相关系数
+
+    使用收益率（return）而非价格（price）计算相关系数，
+    与 multi_coins5.py 的计算逻辑保持一致。
+
+    收益率相关性的优势：
+    - 去趋势化：消除市场整体涨跌的影响
+    - 平稳性：收益率序列通常平稳，适合统计建模
+    - 实战意义：反映"基准币涨1%时，目标币涨多少"的关系
 
     Args:
         base_klines: 基础币种K线数据
@@ -100,8 +108,16 @@ def calculate_correlation(
             logger.warning("对齐后数据点不足20个")
             return 0.0
 
-        # 计算相关系数
-        correlation = aligned['base'].corr(aligned['alt'], method=method)
+        # 计算收益率序列（与 multi_coins5.py 对齐）
+        base_returns = aligned['base'].pct_change().dropna()
+        alt_returns = aligned['alt'].pct_change().dropna()
+
+        if len(base_returns) < 19:
+            logger.warning("收益率序列数据点不足19个")
+            return 0.0
+
+        # 计算收益率相关系数
+        correlation = base_returns.corr(alt_returns, method=method)
 
         return float(correlation)
 
