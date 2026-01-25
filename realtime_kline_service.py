@@ -2,11 +2,18 @@
 实时K线分析服务 (Realtime Kline Analysis Service)
 
 核心功能：
-- WebSocket 实时数据接收（600订阅: 200币种 × 3周期）
+- WebSocket 实时数据接收（N个订阅: N个活跃币种 × 1周期(5m)）
+- K线聚合：5m实时聚合生成1h/4h（订阅数减少66%）
 - 异步批量写入数据库（1000-2000条或5秒触发）
 - 每根K线闭合后立即分析
 - Z-score 异常检测 + 飞书告警
 - 新币种自动监控
+
+优化亮点：
+- 只订阅5m K线，1h/4h通过聚合实时生成
+- 订阅数减少66%（原N×3周期 → N×1周期）
+- 网络消息量减少66%
+- 聚合K线实时更新，每收到5m都更新进行中的1h/4h
 
 性能目标：
 - 分析延迟: <5秒
@@ -53,6 +60,152 @@ logger = logging.getLogger(__name__)
 
 
 # =====================================================
+# K线聚合器（5m → 1h/4h）
+# =====================================================
+
+class KlineAggregator:
+    """
+    5分钟K线聚合器，实时生成1h和4h K线
+
+    聚合原理：
+    - 1h = 12个5m K线聚合（整点对齐：00:00, 01:00, ...）
+    - 4h = 48个5m K线聚合（固定时间：00:00, 04:00, 08:00, 12:00, 16:00, 20:00）
+
+    OHLCV聚合规则：
+    - open  = 第一个5m的open（固定）
+    - high  = max(已收到的5m的high)（实时更新）
+    - low   = min(已收到的5m的low)（实时更新）
+    - close = 最新5m的close（实时更新）
+    - volume = sum(已收到的5m的volume)（实时更新）
+    """
+
+    def __init__(self):
+        # 缓存结构: {(symbol, timeframe): {
+        #     'open': x, 'high': x, 'low': x, 'close': x,
+        #     'volume': x, 'volume_usd': x,
+        #     'start_time': datetime, 'count': int
+        # }}
+        self.pending_klines = {}
+        self.lock = threading.Lock()
+
+    def process_5m_kline(self, kline: Dict) -> List[Dict]:
+        """
+        处理5分钟K线，返回需要写入的聚合K线列表
+        每次都返回更新后的1h和4h K线（实时更新策略）
+
+        Args:
+            kline: 5分钟K线数据
+
+        Returns:
+            聚合后的1h和4h K线列表
+        """
+        symbol = kline['symbol']
+        aggregated = []
+
+        with self.lock:
+            # 更新1h聚合
+            h1_kline = self._update_aggregation(symbol, kline, '1h', 60)
+            if h1_kline:
+                aggregated.append(h1_kline)
+
+            # 更新4h聚合
+            h4_kline = self._update_aggregation(symbol, kline, '4h', 240)
+            if h4_kline:
+                aggregated.append(h4_kline)
+
+        return aggregated
+
+    def _update_aggregation(self, symbol: str, kline: Dict,
+                            target_tf: str, period_minutes: int) -> Optional[Dict]:
+        """
+        更新指定周期的聚合，返回聚合后的K线
+
+        Args:
+            symbol: 币种符号
+            kline: 5分钟K线数据
+            target_tf: 目标周期（'1h' 或 '4h'）
+            period_minutes: 周期分钟数（60 或 240）
+
+        Returns:
+            聚合后的K线数据
+        """
+        kline_time = kline['time']
+
+        # 计算当前周期的起始时间
+        period_start = self._get_period_start(kline_time, period_minutes)
+        cache_key = (symbol, target_tf)
+
+        # 获取或初始化缓存
+        cached = self.pending_klines.get(cache_key)
+
+        # 如果是新周期，重置缓存
+        if cached is None or cached['start_time'] != period_start:
+            self.pending_klines[cache_key] = {
+                'open': kline['open'],
+                'high': kline['high'],
+                'low': kline['low'],
+                'close': kline['close'],
+                'volume': kline['volume'],
+                'volume_usd': kline['volume_usd'],
+                'start_time': period_start,
+                'count': 1
+            }
+        else:
+            # 更新现有聚合
+            cached['high'] = max(cached['high'], kline['high'])
+            cached['low'] = min(cached['low'], kline['low'])
+            cached['close'] = kline['close']
+            cached['volume'] += kline['volume']
+            cached['volume_usd'] += kline['volume_usd']
+            cached['count'] += 1
+
+        # 构建返回的K线
+        cached = self.pending_klines[cache_key]
+        return {
+            'time': period_start,
+            'symbol': symbol,
+            'timeframe': target_tf,
+            'open': cached['open'],
+            'high': cached['high'],
+            'low': cached['low'],
+            'close': cached['close'],
+            'volume': cached['volume'],
+            'volume_usd': cached['volume_usd'],
+            'return_pct': (cached['close'] - cached['open']) / cached['open']
+                          if cached['open'] > 0 else 0.0
+        }
+
+    def _get_period_start(self, dt: datetime, period_minutes: int) -> datetime:
+        """
+        计算周期起始时间
+
+        Args:
+            dt: 当前时间
+            period_minutes: 周期分钟数
+
+        Returns:
+            周期起始时间（对齐到周期边界）
+        """
+        total_minutes = dt.hour * 60 + dt.minute
+        period_start_minutes = (total_minutes // period_minutes) * period_minutes
+        return dt.replace(
+            hour=period_start_minutes // 60,
+            minute=period_start_minutes % 60,
+            second=0,
+            microsecond=0
+        )
+
+    def get_stats(self) -> Dict:
+        """获取聚合器统计信息"""
+        with self.lock:
+            return {
+                'pending_klines_count': len(self.pending_klines),
+                'symbols_1h': sum(1 for k in self.pending_klines if k[1] == '1h'),
+                'symbols_4h': sum(1 for k in self.pending_klines if k[1] == '4h'),
+            }
+
+
+# =====================================================
 # 实时K线分析服务
 # =====================================================
 
@@ -60,9 +213,10 @@ class RealtimeKlineService:
     """
     实时K线分析服务（主分析引擎）
 
-    架构：
+    架构（优化版 - K线聚合）：
     ┌─────────────────────────────────────────────────┐
     │ Hyperliquid WebSocket API                       │
+    │ (只订阅5m K线，订阅数=活跃币种数)                │
     └──────────────────┬──────────────────────────────┘
                        ↓
     ┌─────────────────────────────────────────────────┐
@@ -72,15 +226,15 @@ class RealtimeKlineService:
                        ↓
               on_message() 回调
                        ↓
-         ┌─────────────┴─────────────┐
-         ↓                           ↓
-    kline_buffer              _analyze_and_alert()
-    (Queue队列)               (实时分析引擎)
-         ↓                           ↓
-    _batch_writer()           飞书告警
-    (批量写入线程)
-         ↓
-    TimescaleDB
+         ┌─────────────┼─────────────┐
+         ↓             ↓             ↓
+    5m K线 →    KlineAggregator   _analyze_and_alert()
+    kline_buffer    ├─→ 1h K线      (实时分析引擎)
+    (Queue队列)     └─→ 4h K线            ↓
+         ↓             ↓            飞书告警
+    _batch_writer()  kline_buffer
+    (批量写入线程)       ↓
+         └──────→ TimescaleDB (UPSERT)
     """
 
     def __init__(
@@ -159,6 +313,9 @@ class RealtimeKlineService:
 
         # 停止事件
         self.stop_event = threading.Event()
+
+        # K线聚合器（5m → 1h/4h）
+        self.kline_aggregator = KlineAggregator()
 
         # 分析工作线程（可配置化，默认15个）
         # Phase 1.5 优化: 从环境变量读取线程数，提供300%+容量余量
@@ -276,6 +433,10 @@ class RealtimeKlineService:
         """
         构建 WebSocket 订阅列表
 
+        优化：只订阅5分钟K线，1h/4h通过聚合生成
+        - 订阅数减少66%（原N×3周期 → N×1周期）
+        - 网络消息量减少66%
+
         Returns:
             订阅列表 [{\"type\": \"candle\", \"coin\": \"BTC\", \"interval\": \"5m\"}, ...]
         """
@@ -289,12 +450,12 @@ class RealtimeKlineService:
             # 提取基础币种: BTC/USDC:USDC → BTC
             coin = symbol.split('/')[0]
 
-            for timeframe in self.timeframes:
-                subscriptions.append({
-                    "type": "candle",
-                    "coin": coin,
-                    "interval": timeframe
-                })
+            # 只订阅5分钟K线，1h/4h通过聚合生成
+            subscriptions.append({
+                "type": "candle",
+                "coin": coin,
+                "interval": "5m"
+            })
 
         return subscriptions
 
@@ -387,11 +548,20 @@ class RealtimeKlineService:
             if not kline:
                 return
 
-            # 放入缓冲队列（异步批量写入）
+            # 放入缓冲队列（异步批量写入）- 5m原始数据
             try:
                 self.kline_buffer.put_nowait(kline)
             except queue.Full:
                 logger.warning(f"缓冲队列已满，丢弃K线: {kline['symbol']} @ {kline['timeframe']}")
+
+            # 聚合生成1h和4h K线（实时更新）
+            aggregated_klines = self.kline_aggregator.process_5m_kline(kline)
+            for agg_kline in aggregated_klines:
+                try:
+                    self.kline_buffer.put_nowait(agg_kline)
+                except queue.Full:
+                    # 聚合K线丢失可接受，下个5m会再次更新
+                    pass
 
             # 【入队前去重检查】避免重复任务入队（Phase 1.5 优化）
             ENQUEUE_DEDUP_WINDOWS = {'5m': 30, '1h': 180, '4h': 600}
@@ -1302,14 +1472,13 @@ class RealtimeKlineService:
                             self.symbols.append(symbol)
                             registered_symbols.append(symbol)
 
-                            # 构建新订阅（修复：动态订阅支持）
+                            # 构建新订阅（只订阅5m，1h/4h通过聚合生成）
                             coin = symbol.split('/')[0]
-                            for timeframe in self.timeframes:
-                                new_subscriptions.append({
-                                    "type": "candle",
-                                    "coin": coin,
-                                    "interval": timeframe
-                                })
+                            new_subscriptions.append({
+                                "type": "candle",
+                                "coin": coin,
+                                "interval": "5m"
+                            })
 
                         logger.info(f"✅ 新币种已注册: {len(registered_symbols)} 个币种: {', '.join(registered_symbols)}")
 
@@ -1358,7 +1527,8 @@ class RealtimeKlineService:
             'analysis_queue_size': self.analysis_queue.qsize(),  # 新增：分析队列大小
             'analysis_result_buffer_size': self.analysis_result_buffer.qsize(),  # 新增：分析结果缓冲队列大小
             'ws_stats': self.ws_manager.get_stats(),
-            'data_filler_stats': self.data_filler.get_stats()  # 新增：数据补充器统计
+            'data_filler_stats': self.data_filler.get_stats(),  # 新增：数据补充器统计
+            'aggregator_stats': self.kline_aggregator.get_stats()  # 新增：K线聚合器统计
         }
 
     def start(self):
