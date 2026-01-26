@@ -55,13 +55,13 @@ class AlertFormatter:
             base_symbol: 基准币种
             timeframe: 触发周期
             multi_period_result: 多周期验证结果
-            timestamp: 告警时间（默认当前UTC时间）
+            timestamp: 告警时间（默认当前系统本地时间）
 
         Returns:
             str: 格式化的Markdown告警内容
         """
         if timestamp is None:
-            timestamp = datetime.now(timezone.utc)
+            timestamp = datetime.now()
 
         # 提取数据
         zscore_list = multi_period_result.get('zscore_list', [0, 0, 0])
@@ -86,7 +86,7 @@ class AlertFormatter:
 
     def _format_header(self, symbol: str, base_symbol: str, timestamp: datetime) -> str:
         """格式化头部信息"""
-        time_str = timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')
+        time_str = timestamp.strftime('%Y-%m-%d %H:%M:%S')
         return f"""**币种**: {symbol}
         **基准**: {base_symbol}
         **时间**: {time_str}

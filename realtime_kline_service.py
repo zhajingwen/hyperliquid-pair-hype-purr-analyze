@@ -1134,7 +1134,7 @@ class RealtimeKlineService:
 
             # 注意：字段需与数据库表 analysis_results 结构一致
             analysis_record = {
-                'analysis_time': datetime.now(timezone.utc),
+                'analysis_time': datetime.now(),
                 'symbol': symbol,
                 'base_symbol': self.base_symbol,
 
