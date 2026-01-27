@@ -1,6 +1,6 @@
-# 功能：分析山寨币与BTC/USDC的皮尔逊相关系数，识别存在时间差套利空间的异常币种
+# 功能：分析山寨币与HYPE/USDC的皮尔逊相关系数，识别存在时间差套利空间的异常币种
 # 原理：通过计算不同时间周期和延迟下的相关系数，找出短期低相关但长期高相关的币种
-# 基准币种：BTC/USDC:USDC，作为参考基准，用于计算相关系数、Beta系数和Z-score
+# 基准币种：HYPE/USDC:USDC，作为参考基准，用于计算相关系数、Beta系数和Z-score
 # 目标币种：Hyperliquid 全量 USDC 本位永续合约
 
 import ccxt
@@ -41,7 +41,7 @@ class DelayCorrelationAnalyzer:
     """
     山寨币与基准币种相关系数分析器
 
-    通过分析山寨币与BTC/USDC:USDC的相关系数，
+    通过分析山寨币与HYPE/USDC:USDC的相关系数，
     识别短期低相关但长期高相关的异常币种，这类币种存在时间差套利机会。
 
     核心功能：

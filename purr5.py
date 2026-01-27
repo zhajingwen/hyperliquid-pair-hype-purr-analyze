@@ -1064,9 +1064,12 @@ class DelayCorrelationAnalyzer:
         else:
             logger.warning(f"飞书通知未发送（LARKBOT_ID 未配置）| 币种: {coin}")
     
-    def zscore_analysis(self, coin: str, price_data_cache: dict) -> bool:
+    def zscore_analysis(self, coin: str, price_data_cache: dict) -> Optional[List[float]]:
         """
         分析单个币种的Z-score
+        
+        Returns:
+            Optional[List[float]]: 如果检测到套利机会，返回所有周期的Z-score列表，否则返回 None
         """
         # ========== Z-score 验证（如果启用且检测到异常）==========
         zscore_result = None

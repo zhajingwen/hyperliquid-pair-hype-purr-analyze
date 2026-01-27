@@ -505,7 +505,7 @@ class DelayCorrelationAnalyzer:
         beta_window: int = None,
         coin: str = None,
         stats_period_key: tuple = None
-    ) -> Tuple[Optional[float], Optional['StationarityLevel'], Optional[float]]:
+    ) -> Optional[float]:
         """
         计算 Z-score（基于OLS回归方法）
 
@@ -521,10 +521,7 @@ class DelayCorrelationAnalyzer:
             coin: 币种名称（用于日志）
             stats_period_key: 统计周期 ('5m', '7d') 或 ('1h', '30d') 或 ('4h', '60d')
         Returns:
-            tuple: (zscore, stationarity_level, p_value)
-                - zscore: Z-score 值（如果计算失败则为 None）
-                - stationarity_level: 始终返回 None（已移除协整检验）
-                - p_value: 始终返回 None（已移除协整检验）
+            float: Z-score 值（如果计算失败则返回 None）
 
         Note:
             - 使用OLS回归：log_alt = α + β × log_base + ε
@@ -1064,9 +1061,12 @@ class DelayCorrelationAnalyzer:
         else:
             logger.warning(f"飞书通知未发送（LARKBOT_ID 未配置）| 币种: {coin}")
     
-    def zscore_analysis(self, coin: str, price_data_cache: dict) -> bool:
+    def zscore_analysis(self, coin: str, price_data_cache: dict) -> Optional[List[float]]:
         """
         分析单个币种的Z-score
+        
+        Returns:
+            Optional[List[float]]: 如果检测到套利机会，返回所有周期的Z-score列表，否则返回 None
         """
         # ========== Z-score 验证（如果启用且检测到异常）==========
         zscore_result = None

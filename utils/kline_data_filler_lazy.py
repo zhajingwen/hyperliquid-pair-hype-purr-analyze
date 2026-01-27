@@ -48,12 +48,16 @@ class KlineDataFillerLazy(KlineDataFiller):
         
         注意：不会立即创建交易所实例，只在首次需要时才初始化
         
+        实现机制：
+        - 通过 _skip_parent_init 标志跳过父类 __init__ 中的交易所初始化
+        - 父类调用 _init_exchange() 时，检查该标志并返回 None
+        - 交易所实例延迟到首次实际使用时才创建（通过 _ensure_exchange_initialized）
+        
         Args:
             kline_repo: K线数据仓库（可选）
             exchange_id: 交易所ID（默认 hyperliquid）
         """
-        # 调用父类的 __init__，但会被我们覆盖 exchange
-        # 先暂时禁用父类的 _init_exchange
+        # 调用父类的 __init__，但通过 _skip_parent_init 标志跳过交易所初始化
         self._skip_parent_init = True
         super().__init__(kline_repo, exchange_id)
         
@@ -67,20 +71,20 @@ class KlineDataFillerLazy(KlineDataFiller):
     
     def _init_exchange(self, exchange_id: str) -> ccxt.Exchange:
         """
-        轻量级交易所初始化（不加载市场信息）
+        轻量级交易所初始化（延迟加载模式）
         
-        与父类不同：
-        - 不调用 load_markets()，避免耗时的 API 请求
-        - 设置更长的超时时间（30秒）
-        - 瞬间完成初始化
+        说明：
+        - 父类 __init__ 调用时：通过 _skip_parent_init 标志跳过，返回 None
+        - 延迟加载调用时：创建交易所实例，不调用 load_markets() 以提升速度
+        - 设置更长的超时时间（30秒）以适应网络环境
         
         Args:
             exchange_id: 交易所ID
             
         Returns:
-            ccxt.Exchange: 交易所实例
+            ccxt.Exchange: 交易所实例（父类调用时返回 None）
         """
-        # 如果是父类 __init__ 调用的，跳过
+        # 如果是父类 __init__ 调用的，跳过初始化
         if hasattr(self, '_skip_parent_init') and self._skip_parent_init:
             return None
             

@@ -294,7 +294,7 @@ class DelayCorrelationAnalyzer:
         n_upper_outliers = np.sum(returns > upper_bound)
         total_outliers = n_lower_outliers + n_upper_outliers
 
-        # 6. Winsorization：将极端值限制在分位数范围内
+        # 5. Winsorization：将极端值限制在分位数范围内
         winsorized = np.clip(returns, lower_bound, upper_bound)
 
         # 6. 记录统计信息（如果启用）
@@ -433,16 +433,29 @@ class DelayCorrelationAnalyzer:
             return None
 
     @staticmethod
-    def price_diff_spread_ols_window(base_prices: pd.Series, alt_prices: pd.Series, beta_window: int = 100, zscore_window: int = 30) -> pd.Series:
+    def price_diff_spread_ols_window(base_prices: pd.Series, alt_prices: pd.Series, beta_window: int = 100, zscore_window: int = 30) -> dict:
         """
         计算价格差价（双窗口策略：OLS回归使用长窗口（稳定），统计量使用短窗口（敏感）。）
+        
+        Returns:
+            dict: 包含协整参数和价差序列的字典
+                - alpha: 截距项（价格溢价/折价）
+                - beta: OLS回归系数
+                - spread: 用于Z-score计算的价差序列
+                - adf_pvalue: ADF检验价差平稳性
+                - alpha_pvalue: α的p值
+                - beta_pvalue: β的p值
+                - rsquared: 拟合优度
+                - model_type: 模型类型
+                - use_alpha: 是否使用α
+                - model_reason: 模型选择原因
         """
-        # 4. 数据切片：取足够计算OLS回归和统计量的数据
+        # 1. 数据切片：取足够计算OLS回归和统计量的数据
         data_window = max(beta_window, zscore_window)
         recent_base_full = base_prices.iloc[-data_window:]
         recent_alt_full = alt_prices.iloc[-data_window:]
 
-        # 5. OLS回归计算协整参数
+        # 2. OLS回归计算协整参数
         # 使用前 beta_window-1 个点计算OLS参数（避免 look-ahead bias）
         # 公式：log_alt = α + β × log_base + ε
         # 用途：构建价差序列 spread = log(ALT) - (α + β × log(BASE))
@@ -463,8 +476,8 @@ class DelayCorrelationAnalyzer:
         beta_pvalue = model.pvalues.iloc[1]   # β的p值
         rsquared = model.rsquared         # 拟合优度
 
-        # 根据α显著性和绝对值大小选择价差计算方法（智能模型选择）
-        log_base_full = np.log(recent_base_full)  # 全部100期
+        # 3. 根据α显著性和绝对值大小选择价差计算方法（智能模型选择）
+        log_base_full = np.log(recent_base_full)  # 全部数据窗口期
         log_alt_full = np.log(recent_alt_full)
 
         if alpha_pvalue < 0.05 and abs(alpha) > 5:
@@ -493,11 +506,11 @@ class DelayCorrelationAnalyzer:
             else:
                 model_reason = f"|α|={abs(alpha):.1f}∈[2,5], 中等范围"
 
-        # ADF检验价差平稳性
+        # 4. ADF检验价差平稳性
         adf_result = adfuller(spread_full.values, autolag='AIC')
         adf_pvalue = adf_result[1]
 
-        # 6. 价差构建（用于Z-score计算：使用短窗口保持敏感度）
+        # 5. 价差构建（用于Z-score计算：使用短窗口保持敏感度）
         # 取最近 zscore_window 期数据，使用长窗口计算的OLS参数构建对数价差
         recent_base = recent_base_full.iloc[-zscore_window:]
         recent_alt = recent_alt_full.iloc[-zscore_window:]
@@ -709,13 +722,9 @@ class DelayCorrelationAnalyzer:
             window: 统计量窗口大小（默认 20），实际使用 ZSCORE_WINDOW
             beta_window: OLS回归窗口大小（可选，默认 None 使用 BETA_WINDOW 类属性）
             coin: 币种名称（用于日志）
-            stats_period_key: 统计周期 ('5m', '7d') 或 ('1h', '30d') 或 ('4h', '60d')
-            cointegration_result: 协整检验结果
+            cointegration_result: 协整检验结果（包含 spread 等信息）
         Returns:
-            tuple: (zscore, stationarity_level, p_value)
-                - zscore: Z-score 值（如果计算失败则为 None）
-                - stationarity_level: 始终返回 None（已移除协整检验）
-                - p_value: 始终返回 None（已移除协整检验）
+            Optional[float]: Z-score 值（如果计算失败则返回 None）
 
         Note:
             - 使用OLS回归：log_alt = α + β × log_base + ε
