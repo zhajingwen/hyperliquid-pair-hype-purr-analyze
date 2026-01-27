@@ -48,7 +48,7 @@ from utils.timescaledb import (
 from utils.analysis_core import analyze_multi_period, prepare_price_series
 from utils.lark_bot import sender_colourful
 from utils.config import lark_bot_id
-from utils.kline_data_filler import KlineDataFiller
+from utils.kline_data_filler_lazy import KlineDataFillerLazy
 from utils.alert_formatter import AlertFormatter
 
 logging.basicConfig(
@@ -120,8 +120,8 @@ class RealtimeKlineServiceHypePurr:
         self.symbol_repo = SymbolMetadataRepository(self.db_client)
         self.analysis_repo = AnalysisResultRepository(self.db_client)
 
-        # K线数据校验与补充器
-        self.data_filler = KlineDataFiller(kline_repo=self.kline_repo)
+        # K线数据校验与补充器（使用延迟加载版本）
+        self.data_filler = KlineDataFillerLazy(kline_repo=self.kline_repo)
 
         # 飞书告警配置
         # 从config导入webhook URL（已经在config中构建好）
