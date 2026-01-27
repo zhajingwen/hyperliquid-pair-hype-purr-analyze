@@ -996,6 +996,23 @@ def analyze_multi_period(
     if target_symbol and base_symbol:
         log_prefix = f"[{target_symbol} vs {base_symbol}] "
 
+    # 辅助函数：提取健康状态摘要
+    def get_health_status_summary(details_dict: Dict) -> str:
+        """从分析详情中提取健康状态摘要"""
+        try:
+            details_4h_60d = details_dict.get(('4h', '60d'), {})
+            health_monitor = details_4h_60d.get('health_monitor')
+            
+            if health_monitor is None:
+                return "健康: N/A"
+            
+            long_score = health_monitor.get('long_window', {}).get('health_score', 0)
+            short_score = health_monitor.get('short_window', {}).get('health_score', 0)
+            
+            return f"健康: 长期{long_score:.1f}/短期{short_score:.1f}"
+        except Exception:
+            return "健康: N/A"
+
     # 验证输入数据
     required_periods = [('5m', '7d'), ('1h', '30d'), ('4h', '60d')]
     for period_key in required_periods:
@@ -1064,8 +1081,10 @@ def analyze_multi_period(
     # 验证1: 协整通过数量检查
     if cointegration_count < cointegration_threshold:
         logger.info(
-            f"{log_prefix}协整检验未通过：需要 {cointegration_threshold} 个周期通过，"
-            f"实际只有 {cointegration_count} 个"
+            f"❌ {log_prefix}多周期验证失败 | 原因: 协整不足 | "
+            f"协整: {cointegration_count}/6 (需要≥{cointegration_threshold}) | "
+            f"Z-score: 5m={zscore_list[0]:.2f}, 1h={zscore_list[1]:.2f}, 4h={zscore_list[2]:.2f} | "
+            f"{get_health_status_summary(details)}"
         )
         return {
             'passed': False,
@@ -1081,8 +1100,16 @@ def analyze_multi_period(
 
     # 验证2: Z-score符号一致性检查
     if not ((zscore_5m >= 0) == (zscore_1h >= 0) == (zscore_4h >= 0)):
+        # 添加符号标注
+        sign_5m = "正" if zscore_5m >= 0 else "负"
+        sign_1h = "正" if zscore_1h >= 0 else "负"
+        sign_4h = "正" if zscore_4h >= 0 else "负"
+        
         logger.info(
-            f"{log_prefix}Z-score符号不一致：5m={zscore_5m:.2f}, 1h={zscore_1h:.2f}, 4h={zscore_4h:.2f}"
+            f"❌ {log_prefix}多周期验证失败 | 原因: Z-score符号不一致 | "
+            f"协整: {cointegration_count}/6 | "
+            f"Z-score: 5m={zscore_5m:.2f}({sign_5m}), 1h={zscore_1h:.2f}({sign_1h}), 4h={zscore_4h:.2f}({sign_4h}) | "
+            f"{get_health_status_summary(details)}"
         )
         return {
             'passed': False,
@@ -1101,14 +1128,31 @@ def analyze_multi_period(
     if not (abs(zscore_4h) > long_threshold and
             abs(zscore_1h) > middle_threshold and
             abs(zscore_5m) > short_threshold):
+        # 计算达标情况
+        if abs(zscore_5m) > short_threshold:
+            status_5m = "✓"
+        else:
+            gap_5m = short_threshold - abs(zscore_5m)
+            status_5m = f"缺{gap_5m:.2f}"
+        
+        if abs(zscore_1h) > middle_threshold:
+            status_1h = "✓"
+        else:
+            gap_1h = middle_threshold - abs(zscore_1h)
+            status_1h = f"缺{gap_1h:.2f}"
+        
+        if abs(zscore_4h) > long_threshold:
+            status_4h = "✓"
+        else:
+            gap_4h = long_threshold - abs(zscore_4h)
+            status_4h = f"缺{gap_4h:.2f}"
+        
         logger.info(
-            f"{log_prefix}Z-score阈值未达标：\n"
-            f"  - 长周期(4h): {abs(zscore_4h):.2f} > {long_threshold} ? "
-            f"{'✓' if abs(zscore_4h) > long_threshold else '✗'}\n"
-            f"  - 中周期(1h): {abs(zscore_1h):.2f} > {middle_threshold} ? "
-            f"{'✓' if abs(zscore_1h) > middle_threshold else '✗'}\n"
-            f"  - 短周期(5m): {abs(zscore_5m):.2f} > {short_threshold} ? "
-            f"{'✓' if abs(zscore_5m) > short_threshold else '✗'}"
+            f"❌ {log_prefix}多周期验证失败 | 原因: Z-score阈值不足 | "
+            f"协整: {cointegration_count}/6 | "
+            f"Z-score: 5m={abs(zscore_5m):.2f}({status_5m}), 1h={abs(zscore_1h):.2f}({status_1h}), 4h={abs(zscore_4h):.2f}({status_4h}) | "
+            f"阈值: 5m>{short_threshold}, 1h>{middle_threshold}, 4h>{long_threshold} | "
+            f"{get_health_status_summary(details)}"
         )
         return {
             'passed': False,

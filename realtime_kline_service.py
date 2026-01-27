@@ -46,9 +46,47 @@ from utils.timescaledb import (
 )
 from utils.analysis_core import analyze_multi_period, prepare_price_series
 from utils.lark_bot import sender_colourful
-from utils.config import lark_bot_id
 from utils.kline_data_filler import KlineDataFiller
 from utils.alert_formatter import AlertFormatter
+from utils.config import (
+    # 飞书配置
+    lark_bot_id,
+    lark_webhook_url,
+    # 服务配置
+    DEFAULT_BASE_SYMBOL,
+    DEFAULT_TIMEFRAMES,
+    DEFAULT_BATCH_SIZE,
+    DEFAULT_BATCH_TIMEOUT,
+    # 队列配置
+    QUEUE_CONFIG_GENERAL,
+    # 分析参数
+    MIN_4H_DATA_POINTS,
+    MIN_DATA_POINTS,
+    TARGET_CORR_THRESHOLD,
+    DATA_WINDOW_CONFIG,
+    BETA_WINDOW,
+    ZSCORE_WINDOW,
+    COINTEGRATION_THRESHOLD,
+    ZSCORE_THRESHOLDS,
+    # 去重配置
+    ENQUEUE_DEDUP_WINDOWS,
+    DEDUP_WINDOWS,
+    CLEANUP_INTERVAL,
+    MAX_RECENT_TASKS,
+    # WebSocket配置
+    WS_TIMEOUT,
+    WS_MAX_RETRIES,
+    WS_ALERT_THRESHOLD,
+    # 工作线程配置
+    ANALYSIS_WORKERS_GENERAL,
+    # 批量写入配置
+    ANALYSIS_RESULT_BATCH_SIZE,
+    ANALYSIS_RESULT_BATCH_TIMEOUT,
+    ANALYSIS_USE_COPY_METHOD,
+    # 监控配置
+    QUEUE_MONITOR_INTERVAL,
+    QUEUE_WARNING_THRESHOLD,
+)
 
 
 # =====================================================
@@ -86,25 +124,25 @@ class RealtimeKlineService:
 
     def __init__(
         self,
-        base_symbol: str = 'BTC/USDC:USDC',
+        base_symbol: str = None,
         timeframes: List[str] = None,
-        batch_size: int = 1000,
-        batch_timeout: float = 5.0
+        batch_size: int = None,
+        batch_timeout: float = None
     ):
         """
         初始化实时K线分析服务
 
         Args:
-            base_symbol: 基准币种（用于配对分析）
-            timeframes: 订阅周期列表（默认 ['5m', '1h', '4h']）
-            batch_size: 批量写入大小（默认1000条）
-            batch_timeout: 批量写入超时（默认5秒）
+            base_symbol: 基准币种（用于配对分析），默认从配置读取
+            timeframes: 订阅周期列表，默认从配置读取
+            batch_size: 批量写入大小，默认从配置读取
+            batch_timeout: 批量写入超时，默认从配置读取
         """
-        # 基础配置
-        self.base_symbol = base_symbol
-        self.timeframes = timeframes or ['5m', '1h', '4h']
-        self.batch_size = batch_size
-        self.batch_timeout = batch_timeout
+        # 基础配置（从配置文件读取默认值）
+        self.base_symbol = base_symbol or DEFAULT_BASE_SYMBOL
+        self.timeframes = timeframes or DEFAULT_TIMEFRAMES
+        self.batch_size = batch_size or DEFAULT_BATCH_SIZE
+        self.batch_timeout = batch_timeout or DEFAULT_BATCH_TIMEOUT
 
         # 数据库客户端
         self.db_client = TimescaleDBClient()
@@ -115,9 +153,7 @@ class RealtimeKlineService:
         # K线数据校验与补充器
         self.data_filler = KlineDataFiller(kline_repo=self.kline_repo)
 
-        # 飞书告警配置
-        # 从config导入webhook URL（已经在config中构建好）
-        from utils.config import lark_webhook_url
+        # 飞书告警配置（从配置导入）
         self.lark_webhook_url = lark_webhook_url
 
         if not self.lark_webhook_url:
@@ -144,26 +180,25 @@ class RealtimeKlineService:
         self.recent_analysis = {}  # {(symbol, timeframe): timestamp}
         self.recent_analysis_lock = threading.Lock()
 
-        # K线缓冲队列（线程安全，最大10000条）
-        self.kline_buffer = queue.Queue(maxsize=10000)
+        # K线缓冲队列（从配置读取大小）
+        self.kline_buffer = queue.Queue(maxsize=QUEUE_CONFIG_GENERAL['kline_buffer_size'])
 
-        # 分析任务队列（优化: 支持75秒峰值缓冲: 200消息/秒 × 75秒）
-        self.analysis_queue = queue.Queue(maxsize=15000)
+        # 分析任务队列（从配置读取大小）
+        self.analysis_queue = queue.Queue(maxsize=QUEUE_CONFIG_GENERAL['analysis_queue_size'])
 
-        # 分析结果缓冲队列（优化: 支持50秒峰值: 200条/秒 × 50秒）
-        self.analysis_result_buffer = queue.Queue(maxsize=10000)
+        # 分析结果缓冲队列（从配置读取大小）
+        self.analysis_result_buffer = queue.Queue(maxsize=QUEUE_CONFIG_GENERAL['analysis_result_buffer_size'])
 
         # 新币过滤器：内存黑名单（数据不足的币种）
         self.new_coin_blacklist = set()  # 数据不足的新币黑名单
         self.blacklist_lock = threading.Lock()  # 保护黑名单的线程锁
-        self.MIN_4H_DATA_POINTS = 358  # 最小4H数据量（60天 × 6条/天 - 1（问题在于查询边界：start_time 是精确的当前时间减去60天（如 2025-11-25 08:12:40），而第一个4小时K线是 2025-11-25 08:00:00。由于查询条件是 time >= start_time，第一个K线被排除，导致只有359条。）
+        self.MIN_4H_DATA_POINTS = MIN_4H_DATA_POINTS  # 从配置读取最小4H数据量
 
         # 停止事件
         self.stop_event = threading.Event()
 
-        # 分析工作线程（可配置化，默认15个）
-        # Phase 1.5 优化: 从环境变量读取线程数，提供300%+容量余量
-        num_workers = int(os.getenv('ANALYSIS_WORKERS', '15'))
+        # 分析工作线程（从配置读取线程数）
+        num_workers = ANALYSIS_WORKERS_GENERAL
         self.analysis_workers = []
         for i in range(num_workers):
             worker = threading.Thread(
@@ -204,15 +239,15 @@ class RealtimeKlineService:
             name="queue-monitor"
         )
 
-        # WebSocket 管理器（P0-2增强：传递告警回调和重连上限参数）
+        # WebSocket 管理器（从配置读取参数）
         self.ws_manager = EnhancedWebSocketManager(
             subscriptions=self.subscriptions,
             message_callback=self.on_message,
             on_state_change=self.on_state_change,
-            timeout=30,  # 30秒无数据触发重连
+            timeout=WS_TIMEOUT,
             alert_callback=self._send_system_alert,
-            max_retries=30,
-            alert_threshold=5
+            max_retries=WS_MAX_RETRIES,
+            alert_threshold=WS_ALERT_THRESHOLD
         )
 
         # 统计信息
@@ -401,8 +436,7 @@ class RealtimeKlineService:
             except queue.Full:
                 logger.warning(f"缓冲队列已满，丢弃K线: {kline['symbol']} @ {kline['timeframe']}")
 
-            # 【入队前去重检查】避免重复任务入队（Phase 1.5 优化）
-            ENQUEUE_DEDUP_WINDOWS = {'5m': 30, '1h': 180, '4h': 600}
+            # 【入队前去重检查】避免重复任务入队（从配置读取）
             task_key = (kline['symbol'], kline['timeframe'])
             dedup_window = ENQUEUE_DEDUP_WINDOWS.get(kline['timeframe'], 30)
 
@@ -573,10 +607,10 @@ class RealtimeKlineService:
         """
         logger.info("分析结果批量写入线程已启动")
 
-        # 从环境变量读取配置（可配置化）
-        batch_size = int(os.getenv('ANALYSIS_RESULT_BATCH_SIZE', '100'))
-        batch_timeout = float(os.getenv('ANALYSIS_RESULT_BATCH_TIMEOUT', '2.0'))
-        use_copy_method = os.getenv('ANALYSIS_USE_COPY_METHOD', 'false').lower() in ('true', '1', 'yes')
+        # 从配置读取批量写入参数
+        batch_size = ANALYSIS_RESULT_BATCH_SIZE
+        batch_timeout = ANALYSIS_RESULT_BATCH_TIMEOUT
+        use_copy_method = ANALYSIS_USE_COPY_METHOD
 
         batch = []
         items_to_mark_done = 0  # 跟踪需要标记完成的项数
@@ -714,19 +748,7 @@ class RealtimeKlineService:
         """
         logger.info(f"[{threading.current_thread().name}] 分析工作线程已启动")
 
-        # 按周期差异化去重窗口（单位：秒）
-        # 5m周期: 每5分钟更新一次，60秒冷却避免重复分析同一根K线
-        # 1h周期: 每60分钟更新一次，5分钟冷却减少不必要分析
-        # 4h周期: 每240分钟更新一次，15分钟冷却大幅减少重复分析
-        DEDUP_WINDOWS = {
-            '5m': 60,    # 5分钟周期：60秒冷却
-            '1h': 300,   # 1小时周期：5分钟冷却（减少80%分析）
-            '4h': 900,   # 4小时周期：15分钟冷却（减少93%分析）
-        }
-
-        # 内存泄漏修复: 定时清理配置
-        CLEANUP_INTERVAL = 300  # 5分钟定时清理
-        MAX_RECENT_TASKS = 5000  # 硬性上限
+        # 从配置读取去重和清理参数
         last_cleanup_time = time.time()
 
         while not self.stop_event.is_set():
@@ -852,11 +874,11 @@ class RealtimeKlineService:
             if symbol == self.base_symbol:
                 return
 
-            # ===== 新增：查询所有3个周期的数据 =====
+            # ===== 新增：查询所有3个周期的数据（从配置读取）=====
             window_map = {
-                '5m': timedelta(days=7),
-                '1h': timedelta(days=30),
-                '4h': timedelta(days=60)
+                '5m': timedelta(days=DATA_WINDOW_CONFIG['5m']),
+                '1h': timedelta(days=DATA_WINDOW_CONFIG['1h']),
+                '4h': timedelta(days=DATA_WINDOW_CONFIG['4h'])
             }
 
             # 构建多周期数据缓存
@@ -886,7 +908,7 @@ class RealtimeKlineService:
 
                 # === 新增：K线数据连续性校验与自动补充 ===
                 need_refill = False
-                min_data_points = 100
+                min_data_points = MIN_DATA_POINTS
 
                 # 1. 校验基准币种数据连续性和窗口长度
                 base_continuous, base_missing = self.data_filler.validate_continuity(base_klines, tf)
@@ -1007,9 +1029,8 @@ class RealtimeKlineService:
                 )
                 return
 
-            # ===== 相关系数前置过滤（与 multi_coins5.py 对齐）=====
-            # 检查 ('4h', '60d') 组合的相关系数是否 > 0.6
-            TARGET_CORR_THRESHOLD = 0.6
+            # ===== 相关系数前置过滤（从配置读取阈值）=====
+            # 检查 ('4h', '60d') 组合的相关系数
 
             period_key_4h_60d = ('4h', '60d')
             if period_key_4h_60d in price_data_cache:
@@ -1040,19 +1061,15 @@ class RealtimeKlineService:
                 )
                 return
 
-            # ===== 调用多周期验证 =====
+            # ===== 调用多周期验证（从配置读取参数）=====
             multi_period_result = analyze_multi_period(
                 price_data_cache=price_data_cache,
                 base_symbol=self.base_symbol,
                 target_symbol=symbol,
-                beta_window=100,
-                zscore_window=30,
-                cointegration_threshold=2,  # 至少2个周期协整通过
-                zscore_thresholds={
-                    'long': 0.2,    # 4h
-                    'middle': 1.5,  # 1h
-                    'short': 1.8    # 5m
-                }
+                beta_window=BETA_WINDOW,
+                zscore_window=ZSCORE_WINDOW,
+                cointegration_threshold=COINTEGRATION_THRESHOLD,
+                zscore_thresholds=ZSCORE_THRESHOLDS
             )
 
             # 统计
@@ -1229,9 +1246,9 @@ class RealtimeKlineService:
         """
         logger.info("队列健康监控线程已启动")
 
-        # 环境变量配置监控间隔（默认60秒）
-        monitor_interval = int(os.getenv('QUEUE_MONITOR_INTERVAL', '60'))
-        warning_threshold = float(os.getenv('QUEUE_WARNING_THRESHOLD', '0.8'))  # 80%
+        # 从配置读取监控参数
+        monitor_interval = QUEUE_MONITOR_INTERVAL
+        warning_threshold = QUEUE_WARNING_THRESHOLD
 
         while not self.stop_event.is_set():
             try:
@@ -1579,13 +1596,8 @@ class RealtimeKlineService:
 
 def main():
     """主程序入口"""
-    # 创建服务实例
-    service = RealtimeKlineService(
-        base_symbol='BTC/USDC:USDC',
-        timeframes=['5m', '1h', '4h'],
-        batch_size=1000,
-        batch_timeout=5.0
-    )
+    # 创建服务实例（使用配置文件中的默认值）
+    service = RealtimeKlineService()
 
     # 启动服务
     service.start()
