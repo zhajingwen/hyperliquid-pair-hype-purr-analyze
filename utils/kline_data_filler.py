@@ -106,49 +106,36 @@ class KlineDataFiller:
                 'enableRateLimit': True,
                 'rateLimit': 1500,  # 1.5秒间隔
             })
-            exchange.load_markets()
-            logger.info(f"交易所 {exchange_id} 初始化成功 | 市场数: {len(exchange.markets)}")
+            logger.info(f"交易所 {exchange_id} 初始化成功")
             return exchange
         except Exception as e:
             logger.error(f"交易所初始化失败: {e}")
             raise
 
-    def _normalize_symbol_for_ccxt(self, symbol: str) -> Optional[str]:
+    def _normalize_symbol_for_ccxt(self, symbol: str) -> str:
         """
         将符号规范化为 ccxt 认可的格式
 
         解决问题：Hyperliquid 原生 API 返回 kSHIB/kLUNC（小写k），
         但 ccxt 内部使用 KSHIB/KLUNC（大写K），导致符号不匹配。
 
-        策略：
-        1. 首先检查原符号是否存在
-        2. 尝试大写转换后检查
-        3. 如果都不存在，返回 None
+        通过简单大写转换 base 币种来规范化（如 kSHIB -> KSHIB）。
 
         Args:
             symbol: 原始符号（如 'kSHIB/USDC:USDC'）
 
         Returns:
-            规范化后的符号，如果无法匹配则返回 None
+            规范化后的符号
         """
-        # 1. 检查原符号是否直接存在
-        if symbol in self.exchange.markets:
-            return symbol
-
-        # 2. 尝试大写转换（处理 kSHIB -> KSHIB 的情况）
-        # 提取 base 币种并转为大写
         parts = symbol.split('/')
         if len(parts) == 2:
-            base = parts[0].upper()  # kSHIB -> KSHIB
-            quote_settle = parts[1]  # USDC:USDC
+            base = parts[0].upper()
+            quote_settle = parts[1]
             normalized = f"{base}/{quote_settle}"
-
-            if normalized in self.exchange.markets:
+            if normalized != symbol:
                 logger.debug(f"符号规范化: {symbol} -> {normalized}")
-                return normalized
-
-        # 3. 无法匹配
-        return None
+            return normalized
+        return symbol
 
     def _timeframe_to_minutes(self, timeframe: str) -> int:
         """
@@ -384,9 +371,6 @@ class KlineDataFiller:
 
         # 符号规范化
         api_symbol = self._normalize_symbol_for_ccxt(symbol)
-        if api_symbol is None:
-            logger.warning(f"符号无法映射到 ccxt 市场，跳过精准补充 | {symbol}")
-            return 0
 
         # 计算最小时间范围：min(missing) - 1周期 ~ max(missing) + 1周期
         interval_minutes = self._timeframe_to_minutes(timeframe)
@@ -475,12 +459,6 @@ class KlineDataFiller:
 
         # 符号规范化：解决 kSHIB vs KSHIB 大小写不一致问题
         api_symbol = self._normalize_symbol_for_ccxt(symbol)
-        if api_symbol is None:
-            logger.warning(
-                f"符号无法映射到 ccxt 市场，跳过补充 | {symbol} @ {timeframe}"
-            )
-            # 符号不匹配时已经更新了冷却，无需再次更新
-            return 0
 
         logger.info(
             f"开始补充K线数据 | {symbol} @ {timeframe} | "
