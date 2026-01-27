@@ -29,7 +29,6 @@ import os
 import sys
 import time
 import queue
-import logging
 import threading
 from typing import List, Dict, Optional
 from datetime import datetime, timezone, timedelta
@@ -38,6 +37,7 @@ from collections import defaultdict
 from hyperliquid.info import Info
 import hyperliquid.utils.constants as constants
 
+from utils.logging_config import get_logger
 from utils.enhanced_ws_manager import EnhancedWebSocketManager, ConnectionState
 from utils.timescaledb import (
     TimescaleDBClient,
@@ -51,12 +51,7 @@ from utils.config import lark_bot_id
 from utils.kline_data_filler_lazy import KlineDataFillerLazy
 from utils.alert_formatter import AlertFormatter
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # =====================================================
@@ -346,7 +341,7 @@ class RealtimeKlineServiceHypePurr:
         流程:
         1. 解析K线数据
         2. 放入缓冲队列（异步批量写入）
-        3. 【已禁用】触发实时分析（阻塞问题）
+        3. 触发实时分析（仅5m周期，异步队列）
 
         Args:
             msg: WebSocket 消息

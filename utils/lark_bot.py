@@ -1,11 +1,9 @@
 import requests
 import json
-import logging
 import time
-from utils.config import lark_webhook_url, lark_alert_email
 
-logger = logging.getLogger('Lark Alert')
-logger.propagate = False  # 阻止日志传播到根 logger，避免重复打印
+from utils.config import lark_webhook_url, lark_alert_email
+from utils.logging_config import logger
 
 def sender(msg, url=None, title='', del_blank_row=True):
     """

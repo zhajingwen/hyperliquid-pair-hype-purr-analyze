@@ -17,16 +17,13 @@ Date: 2026-01-23
 """
 
 import time
-import logging
 from typing import List, Dict, Tuple, Optional
 from datetime import datetime, timedelta, timezone
 
 import ccxt
 
 from utils.timescaledb import KlineRepository, TimescaleDBClient
-
-# 配置日志
-logger = logging.getLogger(__name__)
+from utils.logging_config import logger
 
 
 class KlineDataFiller:

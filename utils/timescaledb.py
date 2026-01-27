@@ -18,7 +18,6 @@ Date: 2026-01-19
 """
 
 import os
-import logging
 from typing import List, Dict, Optional, Tuple, Any
 from datetime import datetime, timedelta
 from io import StringIO
@@ -29,13 +28,7 @@ from psycopg import Connection, Cursor
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
-# 配置日志
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-logger = logging.getLogger(__name__)
+from utils.logging_config import logger
 
 
 # =====================================================

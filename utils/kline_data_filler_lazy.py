@@ -12,7 +12,6 @@ Date: 2026-01-27
 """
 
 import time
-import logging
 import threading
 from typing import List, Optional
 from datetime import datetime
@@ -20,8 +19,7 @@ from datetime import datetime
 import ccxt
 
 from utils.kline_data_filler import KlineDataFiller
-
-logger = logging.getLogger(__name__)
+from utils.logging_config import logger
 
 
 class KlineDataFillerLazy(KlineDataFiller):

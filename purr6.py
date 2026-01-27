@@ -5,7 +5,6 @@
 
 import ccxt
 import time
-import logging
 import numpy as np
 import pandas as pd
 from enum import Enum
@@ -14,58 +13,11 @@ from statsmodels.tsa.stattools import adfuller
 import statsmodels.api as sm
 from sklearn.linear_model import LinearRegression
 from typing import Union, Tuple, Optional
+
 from utils.lark_bot import sender
 from utils.config import lark_bot_id
 from utils.coingetation_more_check import CointegrationHealthMonitor
-
-def setup_logging(level=logging.DEBUG):
-    """
-    配置日志系统，仅输出到控制台
-
-    Args:
-        level: 日志级别
-
-    Returns:
-        配置好的 logger 实例
-    """
-    # 使用固定的 logger 名称，而不是 __name__，避免在主模块中变成 __main__
-    log = logging.getLogger('HyperliquidAnalyzer')
-
-    # 避免重复添加 handlers：检查是否已有控制台handler
-    has_console_handler = any(
-        isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler)
-        for h in log.handlers
-    )
-
-    # 如果handler已存在，直接返回
-    if has_console_handler:
-        return log
-
-    # 检查根logger是否已被配置（避免与其他模块的basicConfig冲突）
-    root_logger = logging.getLogger()
-    root_has_handlers = len(root_logger.handlers) > 0
-
-    # 增强日志格式：添加函数名和行号，便于调试
-    formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d:%(funcName)s] - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-
-    # 只添加控制台handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    log.addHandler(console_handler)
-
-    # 配置 logger
-    log.setLevel(level)
-    log.propagate = False  # 阻止日志传播到根 logger，避免重复打印
-
-    # 如果根logger已被其他模块配置，确保不会导致重复输出
-    if root_has_handlers:
-        # 确保所有子logger都不传播到根logger
-        log.propagate = False
-
-    return log
+from utils.logging_config import logger
 
 
 logger = setup_logging()

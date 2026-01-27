@@ -1,9 +1,8 @@
 import redis
-import logging
-from utils.config import redis_password, redis_host
 from typing import Optional
 
-logger = logging.getLogger(__name__)
+from utils.config import redis_password, redis_host
+from utils.logging_config import logger
 
 
 def redis_cli() -> redis.Redis:

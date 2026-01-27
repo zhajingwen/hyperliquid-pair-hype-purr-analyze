@@ -14,7 +14,7 @@ Date: 2026-01-19
 """
 
 import time
-import logging
+import json
 import threading
 from enum import Enum
 from typing import Dict, List, Optional, Callable
@@ -23,8 +23,9 @@ from hyperliquid.info import Info
 from hyperliquid.websocket_manager import WebsocketManager
 import hyperliquid.utils.constants as constants
 
+from utils.logging_config import logger
+
 # 修复: WebSocket ping 线程异常（内联 Monkey Patch）
-import json
 _orig_send_ping = WebsocketManager.send_ping
 def _safe_send_ping(self):
     while not self.stop_event.wait(50):
@@ -32,15 +33,8 @@ def _safe_send_ping(self):
         try: 
             self.ws.send(json.dumps({"method": "ping"}))
         except Exception as e: 
-            logging.warning(f"WS ping失败: {e}"); break
+            logger.warning(f"WS ping失败: {e}"); break
 WebsocketManager.send_ping = _safe_send_ping
-
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-logger = logging.getLogger(__name__)
 
 
 # =====================================================

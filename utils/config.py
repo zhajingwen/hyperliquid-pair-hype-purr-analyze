@@ -1,7 +1,5 @@
 import os
-import logging
-
-logger = logging.getLogger(__name__)
+from utils.logging_config import logger
 
 # 环境配置
 env = os.getenv('ENV', 'local')

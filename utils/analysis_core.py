@@ -20,14 +20,8 @@ import pandas as pd
 from typing import List, Dict, Tuple, Optional
 from statsmodels.tsa.stattools import coint, adfuller
 import statsmodels.api as sm
-import logging
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-logger = logging.getLogger(__name__)
+from utils.logging_config import logger
 
 
 # =====================================================

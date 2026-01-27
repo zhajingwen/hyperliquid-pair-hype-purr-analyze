@@ -11,11 +11,9 @@
 7. 交易建议
 """
 
-import logging
 from datetime import datetime, timezone
 from typing import Dict, Optional, List, Tuple
-
-logger = logging.getLogger(__name__)
+from utils.logging_config import logger
 
 
 class AlertFormatter:
