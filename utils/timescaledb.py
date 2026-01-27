@@ -17,7 +17,6 @@ Author: Claude Code
 Date: 2026-01-19
 """
 
-import os
 from typing import List, Dict, Optional, Tuple, Any
 from datetime import datetime, timedelta
 from io import StringIO
@@ -29,6 +28,18 @@ from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
 from utils.logging_config import logger
+from utils.config import (
+    TIMESCALEDB_HOST,
+    TIMESCALEDB_PORT,
+    TIMESCALEDB_NAME,
+    TIMESCALEDB_USER,
+    TIMESCALEDB_PASSWORD,
+    TIMESCALEDB_POOL_MIN_SIZE,
+    TIMESCALEDB_POOL_MAX_SIZE,
+    TIMESCALEDB_POOL_TIMEOUT,
+    TIMESCALEDB_POOL_MAX_LIFETIME,
+    TIMESCALEDB_POOL_MAX_IDLE
+)
 
 
 # =====================================================
@@ -39,17 +50,18 @@ class TimescaleDBConfig:
     """TimescaleDB 配置管理"""
 
     def __init__(self):
-        self.host = os.getenv('TIMESCALEDB_HOST', '127.0.0.1')
-        self.port = int(os.getenv('TIMESCALEDB_PORT', '5432'))
-        self.database = os.getenv('TIMESCALEDB_NAME', 'crypto_data')
-        self.user = os.getenv('TIMESCALEDB_USER', 'postgres')
-        self.password = os.getenv('TIMESCALEDB_PASSWORD', 'postgres')
+        self.host = TIMESCALEDB_HOST
+        self.port = TIMESCALEDB_PORT
+        self.database = TIMESCALEDB_NAME
+        self.user = TIMESCALEDB_USER
+        self.password = TIMESCALEDB_PASSWORD
 
         # 连接池配置（环境变量命名与实际用途对应）
-        self.pool_min_size = int(os.getenv('TIMESCALEDB_POOL_MIN_SIZE', '2'))
-        self.pool_max_size = int(os.getenv('TIMESCALEDB_POOL_MAX_SIZE', '10'))
-        self.pool_timeout = float(os.getenv('TIMESCALEDB_POOL_TIMEOUT', '30.0'))
-        self.pool_max_lifetime = int(os.getenv('TIMESCALEDB_POOL_MAX_LIFETIME', '3600'))
+        self.pool_min_size = TIMESCALEDB_POOL_MIN_SIZE
+        self.pool_max_size = TIMESCALEDB_POOL_MAX_SIZE
+        self.pool_timeout = TIMESCALEDB_POOL_TIMEOUT
+        self.pool_max_lifetime = TIMESCALEDB_POOL_MAX_LIFETIME
+        self.pool_max_idle = TIMESCALEDB_POOL_MAX_IDLE
 
     @property
     def connection_string(self) -> str:
@@ -125,7 +137,7 @@ class TimescaleDBClient:
                 max_size=self.config.pool_max_size,
                 timeout=self.config.pool_timeout,
                 max_lifetime=self.config.pool_max_lifetime,
-                max_idle=600,  # 最大空闲时间（秒）
+                max_idle=self.config.pool_max_idle,  # 最大空闲时间（秒）
                 open=True,  # 立即打开连接池
             )
             logger.info(

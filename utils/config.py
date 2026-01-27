@@ -23,6 +23,21 @@ if not lark_alert_email:
 redis_password = os.getenv('REDIS_PASSWORD')
 redis_host = os.getenv('REDIS_HOST', '127.0.0.1')
 
+# ============ TimescaleDB 配置 ============
+# 数据库连接配置
+TIMESCALEDB_HOST = os.getenv('TIMESCALEDB_HOST', '127.0.0.1')
+TIMESCALEDB_PORT = int(os.getenv('TIMESCALEDB_PORT', '5432'))
+TIMESCALEDB_NAME = os.getenv('TIMESCALEDB_NAME', 'crypto_data')
+TIMESCALEDB_USER = os.getenv('TIMESCALEDB_USER', 'postgres')
+TIMESCALEDB_PASSWORD = os.getenv('TIMESCALEDB_PASSWORD', 'postgres')
+
+# 连接池配置
+TIMESCALEDB_POOL_MIN_SIZE = int(os.getenv('TIMESCALEDB_POOL_MIN_SIZE', '2'))
+TIMESCALEDB_POOL_MAX_SIZE = int(os.getenv('TIMESCALEDB_POOL_MAX_SIZE', '10'))
+TIMESCALEDB_POOL_TIMEOUT = float(os.getenv('TIMESCALEDB_POOL_TIMEOUT', '30.0'))
+TIMESCALEDB_POOL_MAX_LIFETIME = int(os.getenv('TIMESCALEDB_POOL_MAX_LIFETIME', '3600'))
+TIMESCALEDB_POOL_MAX_IDLE = int(os.getenv('TIMESCALEDB_POOL_MAX_IDLE', '600'))
+
 # ============ 服务类型配置 ============
 SERVICE_TYPE = os.getenv('SERVICE_TYPE', 'general')  # 'general' 或 'hype_purr'
 
