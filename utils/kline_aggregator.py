@@ -36,8 +36,10 @@ class KlineAggregator:
 
     def process_5m_kline(self, kline: Dict) -> List[Dict]:
         """
-        处理5分钟K线，返回需要写入的聚合K线列表
-        每次都返回更新后的1h和4h K线（实时更新策略）
+        处理5分钟K线并返回需要更新的聚合K线列表
+
+        注意：每次都会返回更新后的1h和4h K线（实时更新策略），
+        通过返回数据中的 `is_complete` 字段判断是否完成聚合
 
         Args:
             kline: 5分钟K线数据
@@ -64,7 +66,7 @@ class KlineAggregator:
     def _update_aggregation(self, symbol: str, kline: Dict,
                             target_tf: str, period_minutes: int) -> Optional[Dict]:
         """
-        更新指定周期的聚合，返回聚合后的K线
+        更新聚合数据
 
         Args:
             symbol: 币种符号
@@ -73,7 +75,8 @@ class KlineAggregator:
             period_minutes: 周期分钟数（60 或 240）
 
         Returns:
-            聚合后的K线数据
+            返回当前聚合状态的K线数据（可能未完成），
+            通过返回数据中的 `is_complete` 字段判断是否完成
         """
         kline_time = kline['time']
 

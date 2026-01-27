@@ -42,7 +42,8 @@ def scheduled_task(start_time=None, duration=None, weekdays=None):
                             time.sleep(60)  # 等待 1 分钟再检查
                             continue
                         else:
-                            logger.info(f'今天是周{current_weekday+1}，符合调度计划 {weekdays}')    
+                            weekday_names = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+                            logger.info(f'今天是{weekday_names[current_weekday]}，符合调度计划 {weekdays}')    
                     
                     # 解析调度时间
                     start_hour, start_minute = map(int, start_time.split(':'))

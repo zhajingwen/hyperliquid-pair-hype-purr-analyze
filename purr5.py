@@ -17,9 +17,6 @@ from utils.config import lark_bot_id
 from utils.logging_config import logger
 
 
-logger = setup_logging()
-
-
 # ========== 新增：平稳性等级枚举类 ==========
 class StationarityLevel(Enum):
     """价差序列平稳性等级"""

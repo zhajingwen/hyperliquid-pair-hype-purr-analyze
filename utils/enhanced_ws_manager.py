@@ -445,6 +445,8 @@ class EnhancedWebSocketManager:
         - 线程安全：使用锁保护订阅列表
         - 即时订阅：连接已建立时立即调用Info.subscribe()
         - 延迟订阅：连接未建立时添加到列表，重连时自动订阅
+        
+        注意：如果订阅失败，会从订阅列表中移除该订阅
         """
         if not new_subscriptions:
             return True
@@ -534,7 +536,7 @@ class EnhancedWebSocketManager:
             except Exception as e:
                 logger.error(f"重连失败 (第{retry_count}次): {e}")
 
-                # P0-2：连续失败达到告警阈值时发送告警
+                # P0-2：第N次重试时发送告警（N = alert_threshold）
                 if retry_count == self.alert_threshold and self.alert_callback:
                     try:
                         self.alert_callback(

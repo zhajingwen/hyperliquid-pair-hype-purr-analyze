@@ -47,8 +47,8 @@ FILE_LOG_LEVEL = os.getenv('FILE_LOG_LEVEL', LOG_LEVEL).upper()
 LOG_FILE = os.getenv('LOG_FILE')  # 不设置则只输出到控制台
 
 # 日志文件轮转配置
-MAX_BYTES = 100 * 1024 * 1024  # 100MB
-BACKUP_COUNT = 5  # 保留5个备份
+MAX_BYTES = int(os.getenv('LOG_MAX_BYTES', str(100 * 1024 * 1024)))  # 默认100MB
+BACKUP_COUNT = int(os.getenv('LOG_BACKUP_COUNT', '5'))  # 默认保留5个备份
 
 # 日志格式
 LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'

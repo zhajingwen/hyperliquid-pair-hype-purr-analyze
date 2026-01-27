@@ -9,7 +9,7 @@ lark_alert_email = os.getenv('LARK_ALERT_EMAIL', '')
 lark_bot_id = os.getenv('LARKBOT_ID')
 # 启动时验证关键配置
 if not lark_bot_id:
-    logger.warning("未配置 LARK_WEBHOOK_URL 或 LARKBOT_ID，飞书告警功能将不可用")
+    logger.warning("未配置 LARKBOT_ID，飞书告警功能将不可用")
 
 if lark_bot_id: 
     lark_webhook_url = f'https://open.larksuite.com/open-apis/bot/v2/hook/{lark_bot_id}'

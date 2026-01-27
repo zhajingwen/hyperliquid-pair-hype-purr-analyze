@@ -45,11 +45,11 @@ class TimescaleDBConfig:
         self.user = os.getenv('TIMESCALEDB_USER', 'postgres')
         self.password = os.getenv('TIMESCALEDB_PASSWORD', 'postgres')
 
-        # 连接池配置
-        self.pool_min_size = int(os.getenv('TIMESCALEDB_POOL_SIZE', '2'))
-        self.pool_max_size = int(os.getenv('TIMESCALEDB_MAX_OVERFLOW', '10'))
+        # 连接池配置（环境变量命名与实际用途对应）
+        self.pool_min_size = int(os.getenv('TIMESCALEDB_POOL_MIN_SIZE', '2'))
+        self.pool_max_size = int(os.getenv('TIMESCALEDB_POOL_MAX_SIZE', '10'))
         self.pool_timeout = float(os.getenv('TIMESCALEDB_POOL_TIMEOUT', '30.0'))
-        self.pool_max_lifetime = int(os.getenv('TIMESCALEDB_POOL_RECYCLE', '3600'))
+        self.pool_max_lifetime = int(os.getenv('TIMESCALEDB_POOL_MAX_LIFETIME', '3600'))
 
     @property
     def connection_string(self) -> str:
@@ -506,7 +506,7 @@ class KlineRepository:
             FROM klines
             WHERE symbol = %s
                 AND timeframe = %s
-                AND time >= NOW() - INTERVAL '%s days'
+                AND time >= NOW() - make_interval(days => %s)
             """,
             (symbol, timeframe, days),
             fetch_one=True
@@ -962,7 +962,7 @@ class AnalysisResultRepository:
                     avg_zscore_5m, avg_zscore_1h, avg_zscore_4h
                 FROM daily_analysis_stats
                 WHERE symbol = %s
-                    AND day >= NOW() - INTERVAL '%s days'
+                    AND day >= NOW() - make_interval(days => %s)
                 ORDER BY day DESC;
             """
             params = (symbol, days)
@@ -974,7 +974,7 @@ class AnalysisResultRepository:
                     avg_corr_5m, avg_corr_1h, avg_corr_4h,
                     avg_zscore_5m, avg_zscore_1h, avg_zscore_4h
                 FROM daily_analysis_stats
-                WHERE day >= NOW() - INTERVAL '%s days'
+                WHERE day >= NOW() - make_interval(days => %s)
                 ORDER BY day DESC, anomaly_count DESC;
             """
             params = (days,)
@@ -1000,7 +1000,7 @@ class AnalysisResultRepository:
                     cur.execute(
                         """
                         DELETE FROM analysis_results
-                        WHERE analysis_time < NOW() - INTERVAL '%s days';
+                        WHERE analysis_time < NOW() - make_interval(days => %s);
                         """,
                         (days,)
                     )

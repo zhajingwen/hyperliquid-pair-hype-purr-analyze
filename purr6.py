@@ -12,15 +12,12 @@ from retry import retry
 from statsmodels.tsa.stattools import adfuller
 import statsmodels.api as sm
 from sklearn.linear_model import LinearRegression
-from typing import Union, Tuple, Optional
+from typing import Union, Tuple, Optional, List
 
 from utils.lark_bot import sender
 from utils.config import lark_bot_id
 from utils.coingetation_more_check import CointegrationHealthMonitor
 from utils.logging_config import logger
-
-
-logger = setup_logging()
 
 
 # ========== 新增：平稳性等级枚举类 ==========
@@ -1380,11 +1377,14 @@ class DelayCorrelationAnalyzer:
         else:
             logger.warning(f"飞书通知未发送（LARKBOT_ID 未配置）| 币种: {coin}")
 
-    def zscore_analysis(self, coin: str, price_data_cache: dict) -> bool:
+    def zscore_analysis(self, coin: str, price_data_cache: dict) -> Optional[List[float]]:
         """
         分析单个币种的
         多周期，多算法的协整检验结果
         和双窗口策略计算得到的Z-score
+        
+        Returns:
+            Optional[List[float]]: Z-score列表 [zscore_5m, zscore_1h, zscore_4h]，如果验证失败则返回None
         """
         # ========== Z-score 验证（如果启用且检测到异常）==========
         zscore_result = None
@@ -1589,12 +1589,12 @@ class DelayCorrelationAnalyzer:
 
     def run(self):
         """
-        分析全量USDC永续合约与BTC的相关性
+        分析PURR代币与基准币种的相关性
 
-        分析Hyperliquid全量USDC永续合约，将其与BTC/USDC:USDC进行相关性分析，
-        识别存在时间差套利机会的异常模式。
+        当前实现：硬编码分析PURR/USDC:USDC永续合约，将其与基准币种（base_symbol，当前为 HYPE/USDC:USDC）
+        进行相关性分析，识别存在时间差套利机会的异常模式。
 
-        注意：基准币种本身会被排除在分析列表之外。
+        注意：这是一个特定币种的分析实现，不是全量分析。
         """
         usdc_coins = ["PURR/USDC:USDC"]
         total = len(usdc_coins)

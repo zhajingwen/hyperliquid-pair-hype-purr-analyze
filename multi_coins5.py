@@ -12,7 +12,7 @@ from retry import retry
 from statsmodels.tsa.stattools import adfuller
 import statsmodels.api as sm
 from sklearn.linear_model import LinearRegression
-from typing import Union, Tuple, Optional
+from typing import Union, Tuple, Optional, List
 
 from utils.lark_bot import sender
 from utils.config import lark_bot_id
@@ -1377,11 +1377,14 @@ class DelayCorrelationAnalyzer:
         else:
             logger.warning(f"飞书通知未发送（LARKBOT_ID 未配置）| 币种: {coin}")
 
-    def zscore_analysis(self, coin: str, price_data_cache: dict) -> bool:
+    def zscore_analysis(self, coin: str, price_data_cache: dict) -> Optional[List[float]]:
         """
         分析单个币种的
         多周期，多算法的协整检验结果
         和双窗口策略计算得到的Z-score
+        
+        Returns:
+            Optional[List[float]]: Z-score列表 [zscore_5m, zscore_1h, zscore_4h]，如果验证失败则返回None
         """
         # ========== Z-score 验证（如果启用且检测到异常）==========
         zscore_result = None

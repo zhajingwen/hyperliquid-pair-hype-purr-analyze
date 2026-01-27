@@ -432,8 +432,8 @@ class KlineDataFiller:
         """
         从API获取缺失数据并写入数据库（完整范围补充）
 
-        同步阻塞执行，补充完成后返回。包含冷却机制和重试逻辑。
-        适用于新币等需要完整历史数据的场景。
+        如果在冷却期内会立即返回0，否则同步阻塞执行补充操作，补充完成后返回。
+        包含冷却机制和重试逻辑。适用于新币等需要完整历史数据的场景。
 
         注意：对于已知缺失点的场景，优先使用 fill_missing_data_precise 方法。
 
@@ -605,7 +605,7 @@ class KlineDataFiller:
         """
         校验数据并在需要时自动补充（便捷方法）
 
-        整合校验和补充逻辑，返回补充后的数据。
+        整合校验和补充逻辑。如果补充成功，返回原始数据并建议调用方重新查询数据库获取最新数据。
 
         Args:
             symbol: 币种符号
@@ -619,7 +619,7 @@ class KlineDataFiller:
         Returns:
             Tuple[bool, List[Dict]]:
                 - data_ready: 数据是否准备就绪（补充后仍可能不满足要求）
-                - klines: 补充后的K线数据（或原数据如果无需补充）
+                - klines: 补充后返回原始数据（建议重新查询数据库获取完整数据）
         """
         # 校验连续性
         is_continuous, missing = self.validate_continuity(klines, timeframe)

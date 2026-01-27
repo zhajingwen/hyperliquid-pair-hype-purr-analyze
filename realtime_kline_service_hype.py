@@ -450,7 +450,7 @@ class RealtimeKlineServiceHypePurr:
         批量写入线程
 
         策略:
-        - 达到 batch_size（1000条） 或 超时 batch_timeout（5秒） 触发写入
+        - 达到 batch_size（从配置读取，默认1000条） 或 超时 batch_timeout（从配置读取，默认5秒） 触发写入
         - 使用 COPY 命令高性能批量插入
 
         修复: 正确跟踪从队列获取的元素数量，避免task_done计数不匹配
@@ -564,7 +564,8 @@ class RealtimeKlineServiceHypePurr:
         分析结果批量写入线程
 
         策略:
-        - 达到 batch_size（100条） 或 超时 batch_timeout（2秒） 触发写入
+        - 达到 batch_size（从配置 ANALYSIS_RESULT_BATCH_SIZE 读取，默认100条） 或 
+          超时 batch_timeout（从配置 ANALYSIS_RESULT_BATCH_TIMEOUT 读取，默认2秒） 触发写入
         - 去重策略：分钟级时间 + symbol + base_symbol
         - 环境变量可配置批量大小和超时时间
         """
