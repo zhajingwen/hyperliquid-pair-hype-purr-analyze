@@ -2,18 +2,17 @@
 实时K线分析服务 (Realtime Kline Analysis Service)
 
 核心功能：
-- WebSocket 实时数据接收（N个订阅: N个活跃币种 × 1周期(5m)）
-- K线聚合：5m实时聚合生成1h/4h（订阅数减少66%）
+- WebSocket 实时数据接收（N个订阅: N个活跃币种 × 3周期(5m/1h/4h)）
+- 直接订阅交易所原生 1h/4h K线（精度优于本地聚合）
 - 异步批量写入数据库（1000-2000条或5秒触发）
-- 每根K线闭合后立即分析
+- 每根5m K线闭合后立即触发分析
 - Z-score 异常检测 + 飞书告警
 - 新币种自动监控
 
-优化亮点：
-- 只订阅5m K线，1h/4h通过聚合实时生成
-- 订阅数减少66%（原N×3周期 → N×1周期）
-- 网络消息量减少66%
-- 聚合K线实时更新，每收到5m都更新进行中的1h/4h
+架构亮点：
+- 直接订阅交易所 5m/1h/4h K线，数据精度与 REST API 一致
+- 1h/4h 推送频率极低（额外网络开销 <2%），无需本地聚合
+- Volume 与交易所原生数据完全一致，无聚合误差
 
 性能目标：
 - 分析延迟: <5秒
@@ -50,7 +49,6 @@ from utils.lark_bot import sender_colourful
 from utils.config import lark_bot_id
 from utils.kline_data_filler import KlineDataFiller
 from utils.alert_formatter import AlertFormatter
-from utils.kline_aggregator import KlineAggregator
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -68,10 +66,10 @@ class RealtimeKlineService:
     """
     实时K线分析服务（主分析引擎）
 
-    架构（优化版 - K线聚合）：
+    架构（直接订阅版）：
     ┌─────────────────────────────────────────────────┐
     │ Hyperliquid WebSocket API                       │
-    │ (只订阅5m K线，订阅数=活跃币种数)                │
+    │ (订阅 5m/1h/4h K线，订阅数=活跃币种数×3)        │
     └──────────────────┬──────────────────────────────┘
                        ↓
     ┌─────────────────────────────────────────────────┐
@@ -81,15 +79,16 @@ class RealtimeKlineService:
                        ↓
               on_message() 回调
                        ↓
-         ┌─────────────┼─────────────┐
-         ↓             ↓             ↓
-    5m K线 →    KlineAggregator   _analyze_and_alert()
-    kline_buffer    ├─→ 1h K线      (实时分析引擎)
-    (Queue队列)     └─→ 4h K线            ↓
-         ↓             ↓            飞书告警
-    _batch_writer()  kline_buffer
-    (批量写入线程)       ↓
-         └──────→ TimescaleDB (UPSERT)
+         ┌─────────────┴─────────────┐
+         ↓                           ↓
+    5m/1h/4h K线 →          5m触发 _analyze_and_alert()
+    kline_buffer                (实时分析引擎)
+    (Queue队列)                       ↓
+         ↓                       飞书告警
+    _batch_writer()
+    (批量写入线程)
+         ↓
+    TimescaleDB (UPSERT)
     """
 
     def __init__(
@@ -169,9 +168,6 @@ class RealtimeKlineService:
         # 停止事件
         self.stop_event = threading.Event()
 
-        # K线聚合器（5m → 1h/4h）
-        self.kline_aggregator = KlineAggregator()
-
         # 分析工作线程（可配置化，默认15个）
         # Phase 1.5 优化: 从环境变量读取线程数，提供300%+容量余量
         num_workers = int(os.getenv('ANALYSIS_WORKERS', '15'))
@@ -215,12 +211,15 @@ class RealtimeKlineService:
             name="queue-monitor"
         )
 
-        # WebSocket 管理器
+        # WebSocket 管理器（P0-2增强：传递告警回调和重连上限参数）
         self.ws_manager = EnhancedWebSocketManager(
             subscriptions=self.subscriptions,
             message_callback=self.on_message,
             on_state_change=self.on_state_change,
-            timeout=30  # 30秒无数据触发重连
+            timeout=30,  # 30秒无数据触发重连
+            alert_callback=self._send_system_alert,
+            max_retries=30,
+            alert_threshold=5
         )
 
         # 统计信息
@@ -288,9 +287,8 @@ class RealtimeKlineService:
         """
         构建 WebSocket 订阅列表
 
-        优化：只订阅5分钟K线，1h/4h通过聚合生成
-        - 订阅数减少66%（原N×3周期 → N×1周期）
-        - 网络消息量减少66%
+        直接订阅交易所 5m/1h/4h K线，获取原生精确数据。
+        1h/4h 推送频率极低，额外网络开销 <2%。
 
         Returns:
             订阅列表 [{\"type\": \"candle\", \"coin\": \"BTC\", \"interval\": \"5m\"}, ...]
@@ -305,12 +303,13 @@ class RealtimeKlineService:
             # 提取基础币种: BTC/USDC:USDC → BTC
             coin = symbol.split('/')[0]
 
-            # 只订阅5分钟K线，1h/4h通过聚合生成
-            subscriptions.append({
-                "type": "candle",
-                "coin": coin,
-                "interval": "5m"
-            })
+            # 订阅全部时间周期（5m/1h/4h）
+            for interval in ['5m', '1h', '4h']:
+                subscriptions.append({
+                    "type": "candle",
+                    "coin": coin,
+                    "interval": interval
+                })
 
         return subscriptions
 
@@ -403,20 +402,11 @@ class RealtimeKlineService:
             if not kline:
                 return
 
-            # 放入缓冲队列（异步批量写入）- 5m原始数据
+            # 放入缓冲队列（异步批量写入）- 5m/1h/4h 均直接入队
             try:
                 self.kline_buffer.put_nowait(kline)
             except queue.Full:
                 logger.warning(f"缓冲队列已满，丢弃K线: {kline['symbol']} @ {kline['timeframe']}")
-
-            # 聚合生成1h和4h K线（实时更新）
-            aggregated_klines = self.kline_aggregator.process_5m_kline(kline)
-            for agg_kline in aggregated_klines:
-                try:
-                    self.kline_buffer.put_nowait(agg_kline)
-                except queue.Full:
-                    # 聚合K线丢失可接受，下个5m会再次更新
-                    pass
 
             # 【入队前去重检查】避免重复任务入队（Phase 1.5 优化）
             ENQUEUE_DEDUP_WINDOWS = {'5m': 30, '1h': 180, '4h': 600}
@@ -1372,13 +1362,14 @@ class RealtimeKlineService:
                             self.symbols.append(symbol)
                             registered_symbols.append(symbol)
 
-                            # 构建新订阅（只订阅5m，1h/4h通过聚合生成）
+                            # 构建新订阅（订阅全部时间周期）
                             coin = symbol.split('/')[0]
-                            new_subscriptions.append({
-                                "type": "candle",
-                                "coin": coin,
-                                "interval": "5m"
-                            })
+                            for interval in ['5m', '1h', '4h']:
+                                new_subscriptions.append({
+                                    "type": "candle",
+                                    "coin": coin,
+                                    "interval": interval
+                                })
 
                         logger.info(f"✅ 新币种已注册: {len(registered_symbols)} 个币种: {', '.join(registered_symbols)}")
 
@@ -1398,6 +1389,26 @@ class RealtimeKlineService:
 
         logger.info("新币种监控线程已停止")
 
+    def _send_system_alert(self, title: str, content: str):
+        """
+        发送系统级飞书告警（P0-2增强）
+
+        用于 WebSocket 重连失败等系统级告警，与交易信号告警区分。
+
+        Args:
+            title: 告警标题
+            content: 告警内容
+        """
+        try:
+            sender_colourful(
+                url=self.lark_webhook_url,
+                content=content,
+                title=title
+            )
+            logger.info(f"📢 系统告警已发送: {title}")
+        except Exception as e:
+            logger.error(f"系统告警发送失败: {title} | {e}", exc_info=True)
+
     def on_state_change(self, state: ConnectionState, error: Optional[Exception] = None):
         """
         WebSocket 状态变化回调
@@ -1410,6 +1421,15 @@ class RealtimeKlineService:
 
         if error:
             logger.error(f"WebSocket 错误: {error}")
+
+        # P0-2增强：FAILED状态发送紧急飞书告警
+        if state == ConnectionState.FAILED:
+            self._send_system_alert(
+                "🚨 WebSocket服务彻底失败",
+                f"WebSocket连接已彻底失败，服务即将退出。\n"
+                f"错误信息: {error or '未知'}\n"
+                f"请立即检查网络环境和服务状态，并重启服务！"
+            )
 
     def get_stats(self) -> Dict:
         """
@@ -1427,8 +1447,7 @@ class RealtimeKlineService:
             'analysis_queue_size': self.analysis_queue.qsize(),  # 新增：分析队列大小
             'analysis_result_buffer_size': self.analysis_result_buffer.qsize(),  # 新增：分析结果缓冲队列大小
             'ws_stats': self.ws_manager.get_stats(),
-            'data_filler_stats': self.data_filler.get_stats(),  # 新增：数据补充器统计
-            'aggregator_stats': self.kline_aggregator.get_stats()  # 新增：K线聚合器统计
+            'data_filler_stats': self.data_filler.get_stats()  # 数据补充器统计
         }
 
     def start(self):

@@ -214,7 +214,10 @@ class EnhancedWebSocketManager:
         message_callback: Callable[[Dict], None],
         on_state_change: Optional[Callable[[ConnectionState, Optional[Exception]], None]] = None,
         timeout: int = 30,
-        skip_disconnects: bool = False
+        skip_disconnects: bool = False,
+        alert_callback: Optional[Callable[[str, str], None]] = None,
+        max_retries: int = 30,
+        alert_threshold: int = 5
     ):
         """
         初始化增强型 WebSocket 管理器
@@ -225,12 +228,17 @@ class EnhancedWebSocketManager:
             on_state_change: 状态变化回调，签名: (state: ConnectionState, error: Optional[Exception]) -> None
             timeout: 数据流超时（秒），默认30秒
             skip_disconnects: 是否跳过断连处理（用于测试）
+            alert_callback: 告警回调函数，签名: (title: str, content: str) -> None
+            max_retries: 最大重连次数（默认30次），耗尽后进入FAILED状态
+            alert_threshold: 连续失败告警阈值（默认5次），达到后触发告警
         """
         self.subscriptions = subscriptions
         self.message_callback = message_callback
         self.on_state_change_callback = on_state_change
         self.timeout = timeout
         self.skip_disconnects = skip_disconnects
+        self.alert_callback = alert_callback
+        self.alert_threshold = alert_threshold
 
         # 状态管理
         self.state = ConnectionState.DISCONNECTED
@@ -248,8 +256,8 @@ class EnhancedWebSocketManager:
         # 健康监控
         self.health_monitor = HealthMonitor(timeout=timeout)
 
-        # 重连管理
-        self.reconnection_manager = ReconnectionManager()
+        # 重连管理（设置最大重试次数，防止无限重连）
+        self.reconnection_manager = ReconnectionManager(max_retries=max_retries)
 
         # 停止事件
         self.stop_event = threading.Event()
@@ -258,7 +266,10 @@ class EnhancedWebSocketManager:
         self.start_time = time.time()
         self.last_error: Optional[Exception] = None
 
-        logger.info(f"增强型WebSocket管理器初始化完成 | 订阅数: {len(subscriptions)} | 超时: {timeout}秒")
+        logger.info(
+            f"增强型WebSocket管理器初始化完成 | 订阅数: {len(subscriptions)} | "
+            f"超时: {timeout}秒 | 最大重试: {max_retries}次 | 告警阈值: {alert_threshold}次"
+        )
 
     def _update_state(self, new_state: ConnectionState, error: Optional[Exception] = None):
         """更新连接状态（线程安全）"""
@@ -327,6 +338,8 @@ class EnhancedWebSocketManager:
             if self._is_connected():
                 self._update_state(ConnectionState.CONNECTED)
                 self.reconnection_manager.reset()
+                # P0-1 修复：重置健康监控计时器，防止重连成功后被旧的idle_time立即踢掉
+                self.health_monitor.on_message()
                 logger.info(f"✅ WebSocket连接成功 | 订阅数: {len(self.active_subscriptions)}")
             else:
                 raise ConnectionError("WebSocket连接验证失败")
@@ -491,15 +504,18 @@ class EnhancedWebSocketManager:
             return False
 
     def _reconnect(self):
-        """重连逻辑（指数退避策略）"""
+        """重连逻辑（指数退避策略 + 告警机制）"""
         self._update_state(ConnectionState.RECONNECTING)
 
         while self.reconnection_manager.should_retry() and not self.stop_event.is_set():
             self.reconnection_manager.record_attempt()
             delay = self.reconnection_manager.get_delay()
+            retry_count = self.reconnection_manager.retry_count
+            max_retries = self.reconnection_manager.max_retries
 
             logger.info(
-                f"⏳ 准备重连 (第{self.reconnection_manager.retry_count}次) | "
+                f"⏳ 准备重连 (第{retry_count}次"
+                f"{f'/{max_retries}' if max_retries else ''}) | "
                 f"延迟: {delay:.2f}秒"
             )
 
@@ -522,10 +538,38 @@ class EnhancedWebSocketManager:
                 return
 
             except Exception as e:
-                logger.error(f"重连失败: {e}")
+                logger.error(f"重连失败 (第{retry_count}次): {e}")
+
+                # P0-2：连续失败达到告警阈值时发送告警
+                if retry_count == self.alert_threshold and self.alert_callback:
+                    try:
+                        self.alert_callback(
+                            "⚠️ WebSocket连续重连失败告警",
+                            f"WebSocket已连续重连失败 {retry_count} 次\n"
+                            f"最大重试次数: {max_retries or '无限'}\n"
+                            f"最近错误: {e}\n"
+                            f"服务仍在尝试重连中，请关注..."
+                        )
+                    except Exception as alert_err:
+                        logger.error(f"发送重连告警失败: {alert_err}")
 
         # 重试次数耗尽
-        logger.error("重连失败: 达到最大重试次数")
+        logger.error(
+            f"🚨 重连失败: 达到最大重试次数 ({self.reconnection_manager.max_retries}次)，服务进入FAILED状态"
+        )
+
+        # P0-2：发送紧急告警
+        if self.alert_callback:
+            try:
+                self.alert_callback(
+                    "🚨 WebSocket重连耗尽 - 服务即将退出",
+                    f"WebSocket重连已耗尽所有重试次数 ({self.reconnection_manager.max_retries}次)\n"
+                    f"最近错误: {self.last_error}\n"
+                    f"服务即将退出，请立即检查网络和服务状态！"
+                )
+            except Exception as alert_err:
+                logger.error(f"发送紧急告警失败: {alert_err}")
+
         self._update_state(ConnectionState.FAILED)
 
     def _monitor_health(self):
@@ -542,6 +586,11 @@ class EnhancedWebSocketManager:
                 if not self._is_connected():
                     logger.warning("底层连接已断开，触发重连")
                     self._reconnect()
+                    # P0-2：重连返回后检查是否已进入FAILED状态
+                    if self.state == ConnectionState.FAILED:
+                        logger.error("🚨 重连耗尽，健康监控退出，服务即将终止")
+                        self.stop_event.set()
+                        break
                     continue
 
                 # 检查应用层心跳（假活检测）
@@ -549,6 +598,11 @@ class EnhancedWebSocketManager:
                 if not is_alive:
                     logger.warning(f"假活状态检测: {idle_time:.1f}秒未收到数据，触发重连")
                     self._reconnect()
+                    # P0-2：重连返回后检查是否已进入FAILED状态
+                    if self.state == ConnectionState.FAILED:
+                        logger.error("🚨 重连耗尽，健康监控退出，服务即将终止")
+                        self.stop_event.set()
+                        break
                     continue
 
                 # 定期健康报告（每60秒）
