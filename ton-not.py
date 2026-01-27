@@ -281,7 +281,7 @@ class DelayCorrelationAnalyzer:
             returns: 收益率数组（numpy array）
             lower_p: 下分位数（默认使用类常量 WINSORIZE_LOWER_PERCENTILE）
             upper_p: 上分位数（默认使用类常量 WINSORIZE_UPPER_PERCENTILE）
-            log_stats: 是否记录统计信息到日志（默认 False）
+            log_stats: 是否记录统计信息到日志（默认 True）
             coin: 币种名称（可选，用于日志）
 
         Returns:
@@ -311,7 +311,7 @@ class DelayCorrelationAnalyzer:
         n_upper_outliers = np.sum(returns > upper_bound)
         total_outliers = n_lower_outliers + n_upper_outliers
 
-        # 6. Winsorization：将极端值限制在分位数范围内
+        # 5. Winsorization：将极端值限制在分位数范围内
         winsorized = np.clip(returns, lower_bound, upper_bound)
 
         # 6. 记录统计信息（如果启用）

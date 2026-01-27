@@ -92,7 +92,7 @@ class DelayCorrelationAnalyzer:
     STATIONARITY_STRONG_THRESHOLD = 0.05  # p-value < 0.05
     # 弱平稳阈值（探索性分析可接受）
     STATIONARITY_WEAK_THRESHOLD = 0.10   # 0.05 <= p-value < 0.10
-    # 弱信号是否发送飞书告警（默认关闭，避免告警过载）
+    # 弱信号是否发送飞书告警（默认开启）
     ENABLE_WEAK_SIGNAL_FEISHU = True
     # 向后兼容：保留原变量名
     STATIONARITY_SIGNIFICANCE_LEVEL = STATIONARITY_STRONG_THRESHOLD
@@ -264,7 +264,7 @@ class DelayCorrelationAnalyzer:
             returns: 收益率数组（numpy array）
             lower_p: 下分位数（默认使用类常量 WINSORIZE_LOWER_PERCENTILE）
             upper_p: 上分位数（默认使用类常量 WINSORIZE_UPPER_PERCENTILE）
-            log_stats: 是否记录统计信息到日志（默认 False）
+            log_stats: 是否记录统计信息到日志（默认 True）
             coin: 币种名称（可选，用于日志）
 
         Returns:
@@ -325,13 +325,20 @@ class DelayCorrelationAnalyzer:
             base_prices: 基准币种价格序列（pandas Series）
             alt_prices: 山寨币价格序列（pandas Series）
             coin: 币种名称（可选，用于日志）
+            base_symbol: 基准币种名称（可选，用于日志）
 
         Returns:
             dict: {
                 'alpha': 截距项（价格溢价/折价）,
                 'beta': OLS回归系数（对冲比例）,
                 'spread': OLS价差序列（残差，保留原始索引）,
-                'adf_pvalue': ADF检验p值（平稳性）
+                'adf_pvalue': ADF检验p值（平稳性）,
+                'alpha_pvalue': α的p值,
+                'beta_pvalue': β的p值,
+                'rsquared': 拟合优度,
+                'model_type': 模型类型,
+                'use_alpha': 是否使用α,
+                'model_reason': 模型选择原因
             }
             None: 如果计算失败
 
@@ -1172,7 +1179,7 @@ class DelayCorrelationAnalyzer:
         # 输入：两个币种的收益率序列（return = (price_t - price_t-1) / price_t-1）
         # 算法原理：
         #   1. 计算不同时间延迟（lag）下的互相关系数
-        #   2. 找出相关系数最大（绝对值）时对应的延迟值
+        #   2. 找出相关系数最大时对应的延迟值
         #   3. 返回最优延迟 tau_star 和对应的相关系数
         # 返回值：(tau_star, _, related_matrix)
         #   - tau_star: 最优时间延迟（正值表示基准币领先，负值表示山寨币领先）
@@ -1467,7 +1474,7 @@ class DelayCorrelationAnalyzer:
         """
         分析单个币种与基准币种的相关系数，识别异常模式（增强版：支持 Z-score 验证）
 
-        对指定的山寨币与基准币种（BTC/USDC:USDC）进行相关性分析，
+        对指定的山寨币与基准币种（self.base_symbol）进行相关性分析，
         包括相关系数计算、Beta系数计算、Z-score计算和平稳性检验。
 
         Args:
@@ -1482,7 +1489,7 @@ class DelayCorrelationAnalyzer:
         # 格式: {(timeframe, period): {'base_prices': pd.Series, 'alt_prices': pd.Series}}
         price_data_cache = {}
 
-        # 直接遍历预定义的组合列表：5m/7d 和 1h/30d
+        # 直接遍历预定义的组合列表：5m/7d、1h/30d 和 4h/60d
         # 注意：虽然遍历两种周期获取数据，但统计检验（Beta/协整/ADF）使用配置周期(STATS_PERIOD)数据
         for timeframe, period in self.combinations:
             # 获取当前组合的数据，检查是否为空
@@ -1600,7 +1607,7 @@ class DelayCorrelationAnalyzer:
         """
         分析全量USDC永续合约与BTC的相关性
 
-        分析Hyperliquid全量USDC永续合约，将其与BTC/USDC:USDC进行相关性分析，
+        分析Hyperliquid全量USDC永续合约，将其与基准币种（self.base_symbol）进行相关性分析，
         识别存在时间差套利机会的异常模式。
 
         注意：基准币种本身会被排除在分析列表之外。

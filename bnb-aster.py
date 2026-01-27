@@ -1,6 +1,6 @@
 # 功能：分析山寨币与基准币种的皮尔逊相关系数，识别存在时间差套利空间的异常币种
 # 原理：通过计算不同时间周期和延迟下的相关系数，找出短期低相关但长期高相关的币种
-# 基准币种：当前使用 HYPE/USDC:USDC 作为参考基准，用于计算相关系数、Beta系数和Z-score
+# 基准币种：当前使用 BNB/USDC:USDC 作为参考基准，用于计算相关系数、Beta系数和Z-score
 
 import ccxt
 import time
@@ -38,7 +38,7 @@ class DelayCorrelationAnalyzer:
     """
     山寨币与基准币种相关系数分析器
 
-    通过分析山寨币与基准币种（当前为 HYPE/USDC:USDC）的相关系数，
+    通过分析山寨币与基准币种（当前为 BNB/USDC:USDC）的相关系数，
     识别短期低相关但长期高相关的异常币种，这类币种存在时间差套利机会。
     
     核心功能：
@@ -125,7 +125,7 @@ class DelayCorrelationAnalyzer:
         self.short_periods = ['7d']
         self.long_periods = ['60d']
         # 基准币种交易对：作为参考基准，用于计算与其他山寨币的相关系数和Beta系数
-        # 当前使用 HYPE/USDC:USDC 作为基准币种
+        # 当前使用 BNB/USDC:USDC 作为基准币种
         self.base_symbol = "BNB/USDC:USDC"
         # 基准币种数据缓存：缓存不同时间周期和周期的基准币种K线数据
         self.base_df_cache = {}
@@ -271,7 +271,7 @@ class DelayCorrelationAnalyzer:
             returns: 收益率数组（numpy array）
             lower_p: 下分位数（默认使用类常量 WINSORIZE_LOWER_PERCENTILE）
             upper_p: 上分位数（默认使用类常量 WINSORIZE_UPPER_PERCENTILE）
-            log_stats: 是否记录统计信息到日志（默认 False）
+            log_stats: 是否记录统计信息到日志（默认 True）
             coin: 币种名称（可选，用于日志）
 
         Returns:
@@ -301,7 +301,7 @@ class DelayCorrelationAnalyzer:
         n_upper_outliers = np.sum(returns > upper_bound)
         total_outliers = n_lower_outliers + n_upper_outliers
 
-        # 6. Winsorization：将极端值限制在分位数范围内
+        # 5. Winsorization：将极端值限制在分位数范围内
         winsorized = np.clip(returns, lower_bound, upper_bound)
 
         # 6. 记录统计信息（如果启用）
@@ -403,7 +403,7 @@ class DelayCorrelationAnalyzer:
             return None
 
     @staticmethod
-    def price_diff_spread_ols_window(base_prices: pd.Series, alt_prices: pd.Series, beta_window: int = 100, zscore_window: int = 30) -> pd.Series:
+    def price_diff_spread_ols_window(base_prices: pd.Series, alt_prices: pd.Series, beta_window: int = 100, zscore_window: int = 30) -> dict:
         """
         计算价格差价（双窗口策略：OLS回归使用长窗口（稳定），统计量使用短窗口（敏感）。）
         """
@@ -1099,7 +1099,7 @@ class DelayCorrelationAnalyzer:
         """
         分析单个币种与基准币种的相关系数，识别异常模式（增强版：支持 Z-score 验证）
 
-        对指定的山寨币与基准币种（base_symbol，当前为 HYPE/USDC:USDC）进行相关性分析，
+        对指定的山寨币与基准币种（base_symbol，当前为 BNB/USDC:USDC）进行相关性分析，
         包括相关系数计算、Beta系数计算、Z-score计算和平稳性检验。
 
         Args:
