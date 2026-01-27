@@ -119,7 +119,7 @@ class DelayCorrelationAnalyzer:
             "enableRateLimit": True,
             "rateLimit": 1500
         })
-        # 保留双周期组合用于相关性对比：5分钟K线7天，1小时K线30天
+        # 保留多周期组合用于相关性对比：5分钟K线7天、1小时K线30天、4小时K线60天
         # Beta/协整/ADF检验将使用配置周期(STATS_PERIOD)数据计算
         self.combinations = default_combinations or [("5m", "7d"), ("1h", "30d")]
         self.short_periods = ['7d']
@@ -407,12 +407,12 @@ class DelayCorrelationAnalyzer:
         """
         计算价格差价（双窗口策略：OLS回归使用长窗口（稳定），统计量使用短窗口（敏感）。）
         """
-        # 4. 数据切片：取足够计算OLS回归和统计量的数据
+        # 1. 数据切片：取足够计算OLS回归和统计量的数据
         data_window = max(beta_window, zscore_window)
         recent_base_full = base_prices.iloc[-data_window:]
         recent_alt_full = alt_prices.iloc[-data_window:]
 
-        # 5. OLS回归计算协整参数
+        # 2. OLS回归计算协整参数
         # 使用前 beta_window-1 个点计算OLS参数（避免 look-ahead bias）
         # 公式：log_alt = α + β × log_base + ε
         # 用途：构建价差序列 spread = log(ALT) - (α + β × log(BASE))
@@ -429,7 +429,7 @@ class DelayCorrelationAnalyzer:
         alpha = model.intercept_
         beta_ols = model.coef_[0]
 
-        # 6. 价差构建（用于Z-score计算：使用短窗口保持敏感度）
+        # 3. 价差构建（用于Z-score计算：使用短窗口保持敏感度）
         # 取最近 zscore_window 期数据，使用长窗口计算的OLS参数构建对数价差
         recent_base = recent_base_full.iloc[-zscore_window:]
         recent_alt = recent_alt_full.iloc[-zscore_window:]
@@ -437,7 +437,7 @@ class DelayCorrelationAnalyzer:
         log_alt = np.log(recent_alt)
         spread = log_alt - (alpha + beta_ols * log_base)
 
-        # 5. ADF检验价差平稳性（使用数值数组）
+        # 4. ADF检验价差平稳性（使用数值数组）
         adf_result = adfuller(spread.values, autolag='AIC')
         adf_pvalue = adf_result[1]
 
@@ -492,7 +492,7 @@ class DelayCorrelationAnalyzer:
         beta_window: int = None,
         coin: str = None,
         stats_period_key: tuple = None
-    ) -> Tuple[Optional[float], Optional['StationarityLevel'], Optional[float]]:
+    ) -> Optional[float]:
         """
         计算 Z-score（基于OLS回归方法）
 
@@ -508,10 +508,7 @@ class DelayCorrelationAnalyzer:
             coin: 币种名称（用于日志）
             stats_period_key: 统计周期 ('5m', '7d') 或 ('1h', '30d') 或 ('4h', '60d')
         Returns:
-            tuple: (zscore, stationarity_level, p_value)
-                - zscore: Z-score 值（如果计算失败则为 None）
-                - stationarity_level: 始终返回 None（已移除协整检验）
-                - p_value: 始终返回 None（已移除协整检验）
+            Optional[float]: Z-score 值，如果计算失败则为 None
 
         Note:
             - 使用OLS回归：log_alt = α + β × log_base + ε
@@ -1063,7 +1060,7 @@ class DelayCorrelationAnalyzer:
             for stats_period_key in price_data_cache:
                 price_data = price_data_cache[stats_period_key]
 
-                # 使用增强版函数，同时获取 Z-score、平稳性等级和 p-value
+                # 计算 Z-score
                 # 方法：OLS回归（Engle-Granger两步法）
                 # 双窗口策略：OLS回归使用长窗口（BETA_WINDOW）计算协整参数（α, β），统计量使用短窗口（ZSCORE_WINDOW）
                 zscore_result = self._calculate_zscore(
@@ -1199,9 +1196,9 @@ class DelayCorrelationAnalyzer:
     
     def run(self):
         """
-        分析PURR代币与基准币种的相关性
-        
-        仅分析PURR/USDC:USDC永续合约，将其与基准币种（base_symbol）进行相关性分析，
+        分析ASTER代币与基准币种的相关性
+
+        仅分析ASTER/USDC:USDC永续合约，将其与基准币种（base_symbol）进行相关性分析，
         识别存在时间差套利机会的异常模式。
         
         注意：基准币种本身会被排除在分析列表之外。

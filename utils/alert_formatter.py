@@ -26,7 +26,7 @@ class AlertFormatter:
         '4h': 0.2
     }
 
-    # 健康状态阈值
+    # 健康状态阈值（仅做参考，实际阈值由 CointegrationHealthMonitor 控制）
     HEALTH_THRESHOLDS = {
         'HEALTHY': 18,
         'WARNING': 14,
@@ -319,13 +319,11 @@ class AlertFormatter:
 
             stability_details = data.get('stability_details', {})
             beta_cv = stability_details.get('beta_cv', 0)
-            spread_std = stability_details.get('spread_std', 0)
-
             state_emoji = self._get_state_emoji(state)
 
             lines = [
                 f"**{title} ({window_size}期)**",
-                f"├─ 综合得分: {score}/100 | 状态: {state_emoji} {state}",
+                f"├─ 综合得分: {score}/34 | 状态: {state_emoji} {state}",
                 f"├─ ADF得分: {adf_score}/40 | p-value: {adf_p:.4f}",
                 f"├─ 半衰期得分: {hl_score}/30 | {halflife}期",
                 f"├─ 稳定性得分: {stab_score}/30 | β变异:{beta_cv:.3f}",

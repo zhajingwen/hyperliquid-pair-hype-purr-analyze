@@ -6,10 +6,10 @@ from utils.config import lark_webhook_url
 
 def ErrorMonitor(spider_name, user=None):
     """
-    捕获异常并且发送消息的装饰器,用于加在各个爬虫的解析方法上
-    :param spider_name:爬虫名
+    捕获异常并且发送消息的装饰器,用于加在各个服务/模块的方法上
+    :param spider_name:服务名
     :param user: 用户名
-    24个小时内单个爬虫的故障只告警一次
+    24个小时内单个服务的故障只告警一次
     """
     webhook = lark_webhook_url  # 使用配置的webhook URL
     title = f'{spider_name}\n  @{user}'
@@ -34,7 +34,7 @@ def ErrorMonitor(spider_name, user=None):
                 # 只有线上环境才告警
                 # if env == 'prod':
                 sender(err_info, url=webhook, title=title)
-                # 24个小时内单个爬虫的故障只告警一次
+                # 24个小时内单个服务的故障只告警一次
                 redis_c.setex(key, 24*60*60, 1)
                 raise e
         return inner

@@ -1553,7 +1553,7 @@ class RealtimeKlineService:
         # 5. 设置停止信号（工作线程将退出）
         self.stop_event.set()
 
-        # 4. 等待工作线程退出
+        # 6. 等待工作线程退出
         for worker in self.analysis_workers:
             if worker.is_alive():
                 worker.join(timeout=5)

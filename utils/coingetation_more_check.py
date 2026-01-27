@@ -9,7 +9,7 @@ class CointegrationHealthMonitor:
     """
     协整健康监控器 - 观察期优化版本
     - 4H 级别结构监控
-    - 输出健康得分 (0-100) + 状态 + 诊断信息
+    - 输出健康得分 (0-34) + 状态 + 诊断信息
     - 修复：使用滚动窗口替代失效的历史累积机制
     - 新增：模型诊断和异常原因追踪
     """
@@ -57,7 +57,7 @@ class CointegrationHealthMonitor:
 
         Returns:
             dict: {
-                'health_score': 综合得分(0-100),
+                'health_score': 综合得分(0-34),
                 'state': 健康状态,
                 'adf_pvalue': ADF检验p值,
                 'halflife': 半衰期,
@@ -547,7 +547,7 @@ class CointegrationHealthMonitor:
 
         if ar1_model is not None:
             diagnostics["model_quality"]["ar1_rsquared"] = round(ar1_model.rsquared, 3)
-            diagnostics["model_quality"]["ar1_model_valid"] = ar1_model.rsquared > 0.2
+            diagnostics["model_quality"]["ar1_model_valid"] = ar1_model.rsquared > 0.05
             diagnostics["model_quality"]["phi"] = round(ar1_model.params.iloc[1], 4)
             diagnostics["model_quality"]["phi_pvalue"] = round(ar1_model.pvalues.iloc[1], 4)
 

@@ -504,7 +504,7 @@ class DelayCorrelationAnalyzer:
         adf_result = adfuller(spread_full.values, autolag='AIC')
         adf_pvalue = adf_result[1]
 
-        # 6. 价差构建（用于Z-score计算：使用短窗口保持敏感度）
+        # 4. 价差构建（用于Z-score计算：使用短窗口保持敏感度）
         # 取最近 zscore_window 期数据，使用长窗口计算的OLS参数构建对数价差
         recent_base = recent_base_full.iloc[-zscore_window:]
         recent_alt = recent_alt_full.iloc[-zscore_window:]

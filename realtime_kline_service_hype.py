@@ -314,7 +314,7 @@ class RealtimeKlineServiceHypePurr:
                     "channel": "candle",
                     "data": {
                         "t": 1704067260000,  // 开盘时间（毫秒时间戳）
-                        "s": "ETH",          // 币种符号
+                        "s": "HYPE",         // 币种符号
                         "i": "5m",           // 时间周期
                         "o": "2295.5",       // 开盘价
                         "h": "2296.8",       // 最高价
@@ -334,7 +334,7 @@ class RealtimeKlineServiceHypePurr:
             data = msg.get("data", {})
 
             # 提取字段
-            coin = data.get('s')  # ETH
+            coin = data.get('s')  # HYPE
             timeframe = data.get('i')  # 5m
             timestamp_ms = data.get('t')  # 1704067260000
             open_price = float(data.get('o', 0))
@@ -343,7 +343,7 @@ class RealtimeKlineServiceHypePurr:
             close_price = float(data.get('c', 0))
             volume = float(data.get('v', 0))
 
-            # 构建币种符号: ETH → ETH/USDC:USDC
+            # 构建币种符号: HYPE → HYPE/USDC:USDC
             symbol = f"{coin}/USDC:USDC"
 
             # 转换时间戳
