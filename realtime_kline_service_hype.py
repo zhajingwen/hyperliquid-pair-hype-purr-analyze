@@ -967,9 +967,8 @@ class RealtimeKlineServiceHypePurr:
                 )
                 return
 
-            # ===== 相关系数前置过滤（与 multi_coins5.py 对齐）=====
-            # 检查 ('4h', '60d') 组合的相关系数是否 > 0.6
-            TARGET_CORR_THRESHOLD = 0.6
+            # ===== 相关系数前置过滤=====
+            TARGET_CORR_THRESHOLD = 0.5
 
             period_key_4h_60d = ('4h', '60d')
             if period_key_4h_60d in price_data_cache:
@@ -984,7 +983,7 @@ class RealtimeKlineServiceHypePurr:
                 corr_4h_60d_pre = base_returns.corr(alt_returns)
 
                 if corr_4h_60d_pre is None or corr_4h_60d_pre <= TARGET_CORR_THRESHOLD:
-                    logger.debug(
+                    logger.info(
                         f"相关系数过滤未通过: {symbol} | "
                         f"4h/60d 相关系数: {f'{corr_4h_60d_pre:.4f}' if corr_4h_60d_pre else 'N/A'} <= {TARGET_CORR_THRESHOLD}"
                     )

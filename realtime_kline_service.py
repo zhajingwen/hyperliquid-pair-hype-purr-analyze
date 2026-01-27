@@ -1024,7 +1024,7 @@ class RealtimeKlineService:
                 corr_4h_60d_pre = base_returns.corr(alt_returns)
 
                 if corr_4h_60d_pre is None or corr_4h_60d_pre <= TARGET_CORR_THRESHOLD:
-                    logger.debug(
+                    logger.info(
                         f"相关系数过滤未通过: {symbol} | "
                         f"4h/60d 相关系数: {f'{corr_4h_60d_pre:.4f}' if corr_4h_60d_pre else 'N/A'} <= {TARGET_CORR_THRESHOLD}"
                     )
