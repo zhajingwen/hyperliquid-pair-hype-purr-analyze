@@ -144,144 +144,6 @@ def calculate_correlation(
         return 0.0
 
 
-# =====================================================
-# 协整检验
-# =====================================================
-
-def check_cointegration(
-    base_klines: List[Dict],
-    alt_klines: List[Dict],
-    significance_level: float = 0.05
-) -> Tuple[bool, float]:
-    """
-    协整检验（Engle-Granger）
-
-    检测两个价格序列是否存在长期均衡关系
-
-    Args:
-        base_klines: 基础币种K线数据
-        alt_klines: 目标币种K线数据
-        significance_level: 显著性水平（默认0.05）
-
-    Returns:
-        (is_cointegrated, pvalue): 是否协整，p值
-    """
-    try:
-        base_prices = prepare_price_series(base_klines)
-        alt_prices = prepare_price_series(alt_klines)
-
-        if len(base_prices) < MIN_POINTS_FOR_COINTEGRATION or len(alt_prices) < MIN_POINTS_FOR_COINTEGRATION:
-            logger.warning(f"数据点不足{MIN_POINTS_FOR_COINTEGRATION}个，协整检验不可靠")
-            return False, 1.0
-
-        # 对齐时间索引
-        aligned = pd.DataFrame({
-            'base': base_prices,
-            'alt': alt_prices
-        }).dropna()
-
-        if len(aligned) < MIN_POINTS_FOR_COINTEGRATION:
-            logger.warning(f"对齐后数据点不足{MIN_POINTS_FOR_COINTEGRATION}个")
-            return False, 1.0
-
-        # Engle-Granger协整检验
-        _, pvalue, _ = coint(aligned['base'], aligned['alt'])
-
-        is_cointegrated = pvalue < significance_level
-
-        return is_cointegrated, float(pvalue)
-
-    except Exception as e:
-        logger.error(f"协整检验失败: {e}")
-        return False, 1.0
-
-
-# =====================================================
-# Z-score计算
-# =====================================================
-
-def calculate_zscore(
-    base_klines: List[Dict],
-    alt_klines: List[Dict],
-    window: Optional[int] = None
-) -> float:
-    """
-    计算价格比率的Z-score（标准化差异）- 简单版本
-
-    Z-score = (当前价格比率 - 均值) / 标准差
-
-    注意：这是简单版本，用于向后兼容。推荐使用 calculate_zscore_ols 获取更准确的结果。
-
-    Args:
-        base_klines: 基础币种K线数据
-        alt_klines: 目标币种K线数据
-        window: 滚动窗口大小（None = 使用全部数据）
-
-    Returns:
-        float: Z-score值
-    """
-    return calculate_zscore_simple(base_klines, alt_klines, window)
-
-
-def calculate_zscore_simple(
-    base_klines: List[Dict],
-    alt_klines: List[Dict],
-    window: Optional[int] = None
-) -> float:
-    """
-    简单Z-score计算（基于价格比率）
-
-    Z-score = (当前价格比率 - 均值) / 标准差
-
-    Args:
-        base_klines: 基础币种K线数据
-        alt_klines: 目标币种K线数据
-        window: 滚动窗口大小（None = 使用全部数据）
-
-    Returns:
-        float: Z-score值
-    """
-    try:
-        base_prices = prepare_price_series(base_klines)
-        alt_prices = prepare_price_series(alt_klines)
-
-        if len(base_prices) < MIN_POINTS_FOR_COINTEGRATION or len(alt_prices) < MIN_POINTS_FOR_COINTEGRATION:
-            logger.warning(f"数据点不足{MIN_POINTS_FOR_COINTEGRATION}个，Z-score计算不可靠")
-            return 0.0
-
-        # 对齐时间索引
-        aligned = pd.DataFrame({
-            'base': base_prices,
-            'alt': alt_prices
-        }).dropna()
-
-        if len(aligned) < MIN_POINTS_FOR_COINTEGRATION:
-            logger.warning(f"对齐后数据点不足{MIN_POINTS_FOR_COINTEGRATION}个")
-            return 0.0
-
-        # 计算价格比率
-        ratio = aligned['alt'] / aligned['base']
-
-        # 计算Z-score
-        if window:
-            mean = ratio.rolling(window=window).mean().iloc[-1]
-            std = ratio.rolling(window=window).std().iloc[-1]
-        else:
-            mean = ratio.mean()
-            std = ratio.std()
-
-        if std == 0:
-            logger.warning("标准差为0，无法计算Z-score")
-            return 0.0
-
-        current_ratio = ratio.iloc[-1]
-        zscore = (current_ratio - mean) / std
-
-        return float(zscore)
-
-    except Exception as e:
-        logger.error(f"Z-score计算失败: {e}")
-        return 0.0
 
 
 # =====================================================
@@ -662,101 +524,6 @@ def detect_anomaly(
 # =====================================================
 # 综合分析
 # =====================================================
-
-def analyze_pair(
-    base_klines: List[Dict],
-    alt_klines: List[Dict],
-    corr_threshold: float = None,
-    coint_significance: float = None,
-    zscore_threshold: float = 2.0
-) -> Dict:
-    """
-    综合分析两个币种的配对交易机会
-
-    流程:
-    1. 相关性检测 → 如果相关性<阈值，直接返回
-    2. 协整检验 → 如果不协整，直接返回
-    3. Z-score计算 → 计算当前偏离度
-    4. 异常检测 → 判断是否存在套利机会
-
-    Args:
-        base_klines: 基础币种K线数据
-        alt_klines: 目标币种K线数据
-        corr_threshold: 相关性阈值（默认从配置读取）
-        coint_significance: 协整检验显著性水平（默认从配置读取）
-        zscore_threshold: Z-score异常阈值（默认2.0）
-
-    Returns:
-        Dict: 分析结果
-            {
-                'correlation': float,
-                'cointegration_passed': bool,
-                'adf_pvalue': float,
-                'zscore': float,
-                'is_anomaly': bool,
-                'trading_direction': str,
-                'signal_strength': str
-            }
-    """
-    # 应用默认值
-    if corr_threshold is None:
-        corr_threshold = TARGET_CORR_THRESHOLD
-    if coint_significance is None:
-        coint_significance = COINTEGRATION_SIGNIFICANCE_LEVEL
-    
-    result = {
-        'correlation': 0.0,
-        'cointegration_passed': False,
-        'adf_pvalue': 1.0,
-        'zscore': 0.0,
-        'is_anomaly': False,
-        'trading_direction': 'none',
-        'signal_strength': 'none'
-    }
-
-    try:
-        # 1. 相关性分析
-        correlation = calculate_correlation(base_klines, alt_klines)
-        result['correlation'] = correlation
-
-        if correlation < corr_threshold:
-            logger.debug(f"相关性不足: {correlation:.3f} < {corr_threshold}")
-            return result
-
-        # 2. 协整检验
-        is_cointegrated, pvalue = check_cointegration(base_klines, alt_klines, coint_significance)
-        result['cointegration_passed'] = is_cointegrated
-        result['adf_pvalue'] = pvalue
-
-        if not is_cointegrated:
-            logger.debug(f"协整检验失败: p-value={pvalue:.4f}")
-            return result
-
-        # 3. Z-score计算
-        zscore = calculate_zscore(base_klines, alt_klines)
-        result['zscore'] = zscore
-
-        # 4. 异常检测
-        is_anomaly, direction = detect_anomaly(zscore, zscore_threshold)
-        result['is_anomaly'] = is_anomaly
-        result['trading_direction'] = direction
-
-        # 5. 信号强度评估
-        if is_anomaly:
-            abs_zscore = abs(zscore)
-            if abs_zscore > 2.5:
-                result['signal_strength'] = 'strong'
-            elif abs_zscore > 2.0:
-                result['signal_strength'] = 'medium'
-            else:
-                result['signal_strength'] = 'weak'
-
-        return result
-
-    except Exception as e:
-        logger.error(f"综合分析失败: {e}", exc_info=True)
-        return result
-
 
 def analyze_pair_advanced(
     base_klines: List[Dict],
@@ -1243,20 +1010,16 @@ __all__ = [
     'calculate_correlation',
 
     # 协整检验
-    'check_cointegration',  # 旧版简单协整
-    'calculate_cointegration_params_ols',  # 新增：全量OLS
-    'calculate_cointegration_params_dual_window',  # 新增：双窗口OLS
+    'calculate_cointegration_params_ols',
+    'calculate_cointegration_params_dual_window',
 
     # Z-score计算
-    'calculate_zscore',  # 保留（简单版）
-    'calculate_zscore_simple',  # 显式简单版
-    'calculate_zscore_ols',  # 新增：OLS版
+    'calculate_zscore_ols',
 
     # 异常检测
     'detect_anomaly',
 
     # 综合分析
-    'analyze_pair',  # 保留（向后兼容）
-    'analyze_pair_advanced',  # 新增：完整版
-    'analyze_multi_period'  # 新增：多周期验证
+    'analyze_pair_advanced',
+    'analyze_multi_period'
 ]
