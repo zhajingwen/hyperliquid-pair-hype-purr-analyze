@@ -1180,7 +1180,7 @@ class DelayCorrelationAnalyzer:
 
         # ========== 步骤3: 结果记录与返回 ==========
         # 输出调试日志，便于开发调试和问题排查
-        logger.debug(
+        logger.info(
             f"分析中间结果 | 币种: {coin} | timeframe: {timeframe} | period: {period} | "
             f"最优延迟: {tau_star} | 相关系数: {related_matrix:.4f}"
         )
