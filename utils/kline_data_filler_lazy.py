@@ -20,6 +20,7 @@ import ccxt
 
 from utils.kline_data_filler import KlineDataFiller
 from utils.logging_config import logger
+from utils.config import KLINE_FILLER_LAZY_RATE_LIMIT, KLINE_FILLER_LAZY_TIMEOUT_MS
 
 
 class KlineDataFillerLazy(KlineDataFiller):
@@ -92,8 +93,8 @@ class KlineDataFillerLazy(KlineDataFiller):
             exchange_class = getattr(ccxt, exchange_id)
             exchange = exchange_class({
                 'enableRateLimit': True,
-                'rateLimit': 1500,
-                'timeout': 30000,  # 30秒超时
+                'rateLimit': KLINE_FILLER_LAZY_RATE_LIMIT,
+                'timeout': KLINE_FILLER_LAZY_TIMEOUT_MS,
             })
             # ✅ 不调用 load_markets()，瞬间完成
             logger.info(f"交易所 {exchange_id} 轻量级初始化完成")

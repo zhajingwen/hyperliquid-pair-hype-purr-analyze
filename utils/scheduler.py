@@ -1,7 +1,7 @@
 import time
 from datetime import datetime, timedelta
 
-from utils.config import env
+from utils.config import env, SCHEDULER_WEEKDAY_CHECK_INTERVAL, SCHEDULER_TIME_CHECK_INTERVAL, SCHEDULER_EXECUTION_WINDOW_MINUTES, SCHEDULER_POST_EXECUTION_WAIT_SECONDS
 from utils.logging_config import logger
 
 def scheduled_task(start_time=None, duration=None, weekdays=None):
@@ -39,7 +39,7 @@ def scheduled_task(start_time=None, duration=None, weekdays=None):
                         current_weekday = today_now.weekday()  # 0-6 对应周一至周日
                         if current_weekday not in weekdays:
                             # 不是指定的周几，等待一段时间再检查
-                            time.sleep(60)  # 等待 1 分钟再检查
+                            time.sleep(SCHEDULER_WEEKDAY_CHECK_INTERVAL)
                             continue
                         else:
                             weekday_names = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
@@ -48,7 +48,7 @@ def scheduled_task(start_time=None, duration=None, weekdays=None):
                     # 解析调度时间
                     start_hour, start_minute = map(int, start_time.split(':'))
                     start = today_now.replace(hour=start_hour, minute=start_minute, second=0, microsecond=0)
-                    end = start + timedelta(minutes=10)
+                    end = start + timedelta(minutes=SCHEDULER_EXECUTION_WINDOW_MINUTES)
 
                     # 如果当前时间在调度时间范围内，执行任务
                     if start <= today_now < end:
@@ -57,10 +57,10 @@ def scheduled_task(start_time=None, duration=None, weekdays=None):
                         logger.info('调度结束')
 
                         # 等待下一个周期
-                        time.sleep(60 * 60)  # 等待 1 小时，避免重复执行
+                        time.sleep(SCHEDULER_POST_EXECUTION_WAIT_SECONDS)
                     else:
                         # 不在执行时间范围内，等待一段时间再检查
-                        time.sleep(10)
+                        time.sleep(SCHEDULER_TIME_CHECK_INTERVAL)
                 else:
                     logger.info('激活调度')
                     func(*args, **kwargs)

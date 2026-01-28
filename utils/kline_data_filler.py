@@ -24,6 +24,13 @@ import ccxt
 
 from utils.timescaledb import KlineRepository, TimescaleDBClient
 from utils.logging_config import logger
+from utils.config import (
+    KLINE_FILLER_COOLDOWN_SECONDS,
+    KLINE_FILLER_API_INTERVAL,
+    KLINE_FILLER_MAX_RETRIES,
+    KLINE_FILLER_API_LIMIT,
+    KLINE_FILLER_CLEANUP_INTERVAL
+)
 
 
 class KlineDataFiller:
@@ -41,16 +48,16 @@ class KlineDataFiller:
     """
 
     # 冷却时间配置（秒）
-    COOLDOWN_SECONDS = 600  # 10分钟冷却
+    COOLDOWN_SECONDS = KLINE_FILLER_COOLDOWN_SECONDS
 
     # API请求间隔（秒）
-    API_REQUEST_INTERVAL = 1.5
+    API_REQUEST_INTERVAL = KLINE_FILLER_API_INTERVAL
 
     # 最大重试次数
-    MAX_RETRIES = 3
+    MAX_RETRIES = KLINE_FILLER_MAX_RETRIES
 
     # 单次API请求限制
-    API_LIMIT = 1500
+    API_LIMIT = KLINE_FILLER_API_LIMIT
 
     # 周期到分钟的映射
     TIMEFRAME_MINUTES = {
@@ -86,7 +93,7 @@ class KlineDataFiller:
 
         # 冷却记录清理计数器
         self._cleanup_counter = 0
-        self._cleanup_interval = 100  # 每100次操作清理一次
+        self._cleanup_interval = KLINE_FILLER_CLEANUP_INTERVAL
 
         logger.info(f"KlineDataFiller 初始化完成 | 交易所: {exchange_id}")
 

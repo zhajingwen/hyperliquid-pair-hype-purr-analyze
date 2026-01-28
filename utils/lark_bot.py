@@ -2,7 +2,7 @@ import requests
 import json
 import time
 
-from utils.config import lark_webhook_url, lark_alert_email
+from utils.config import lark_webhook_url, lark_alert_email, LARK_MAX_RETRIES, LARK_REQUEST_TIMEOUT, LARK_BACKOFF_BASE
 from utils.logging_config import logger
 
 def sender(msg, url=None, title='', del_blank_row=True):
@@ -68,7 +68,7 @@ def sender(msg, url=None, title='', del_blank_row=True):
     headers = {'Content-Type': 'application/json'}
 
     # 修复死循环: 明确重试次数、添加超时和指数退避
-    max_retries = 3
+    max_retries = LARK_MAX_RETRIES
     for attempt in range(max_retries):
         try:
             res = requests.request(
@@ -76,7 +76,7 @@ def sender(msg, url=None, title='', del_blank_row=True):
                 url,
                 headers=headers,
                 data=json.dumps(data),
-                timeout=10  # 添加10秒超时
+                timeout=LARK_REQUEST_TIMEOUT
             )
             res.raise_for_status()  # 检查HTTP错误
             logger.info(f'lark 告警调用成功：{res.text}')
@@ -87,8 +87,8 @@ def sender(msg, url=None, title='', del_blank_row=True):
                 # 最后一次失败，记录错误并返回None
                 logger.error(f'lark 告警最终失败: {e} | URL: {url}', exc_info=True)
                 return None
-            # 指数退避: 等待2^attempt秒
-            time.sleep(2 ** attempt)
+            # 指数退避
+            time.sleep(LARK_BACKOFF_BASE ** attempt)
 
     return None
 
@@ -124,14 +124,14 @@ def sender_colourful(url, content, title=''):
     }
 
     # 修复死循环: 明确重试次数、添加超时和指数退避
-    max_retries = 3
+    max_retries = LARK_MAX_RETRIES
     for attempt in range(max_retries):
         try:
             response = requests.post(
                 url,
                 headers=headers,
                 data=json.dumps(message),
-                timeout=10  # 添加10秒超时
+                timeout=LARK_REQUEST_TIMEOUT
             )
             response.raise_for_status()  # 检查HTTP错误
             logger.info(f'lark 彩色告警调用成功：{response.text}')
@@ -142,7 +142,7 @@ def sender_colourful(url, content, title=''):
                 # 最后一次失败，记录错误并返回None
                 logger.error(f'lark 彩色告警最终失败: {e} | URL: {url}', exc_info=True)
                 return None
-            # 指数退避: 等待2^attempt秒
-            time.sleep(2 ** attempt)
+            # 指数退避
+            time.sleep(LARK_BACKOFF_BASE ** attempt)
 
     return None

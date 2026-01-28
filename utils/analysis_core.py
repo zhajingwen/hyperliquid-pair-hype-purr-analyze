@@ -22,6 +22,7 @@ from statsmodels.tsa.stattools import coint, adfuller
 import statsmodels.api as sm
 
 from utils.logging_config import logger
+from utils.config import CORRELATION_METHOD, ADF_LAG_SELECTION_METHOD
 from utils.config import (
     MIN_POINTS_FOR_CORRELATION,
     MIN_POINTS_FOR_ZSCORE,
@@ -82,7 +83,7 @@ def prepare_price_series(
 def calculate_correlation(
     base_klines: List[Dict],
     alt_klines: List[Dict],
-    method: str = 'pearson'
+    method: str = CORRELATION_METHOD
 ) -> float:
     """
     计算两个币种的收益率相关系数
@@ -250,7 +251,7 @@ def calculate_cointegration_params_ols(
             spread_ols = log_alt_series - beta * log_base_series
 
         # ADF检验价差平稳性
-        adf_result = adfuller(spread_ols.values, autolag='AIC')
+        adf_result = adfuller(spread_ols.values, autolag=ADF_LAG_SELECTION_METHOD)
         adf_pvalue = adf_result[1]
 
         logger.debug(
@@ -368,7 +369,7 @@ def calculate_cointegration_params_dual_window(
             spread_full = log_alt_full - beta_ols * log_base_full
 
         # ADF检验价差平稳性
-        adf_result = adfuller(spread_full.values, autolag='AIC')
+        adf_result = adfuller(spread_full.values, autolag=ADF_LAG_SELECTION_METHOD)
         adf_pvalue = adf_result[1]
 
         # 价差构建（用于Z-score计算：使用短窗口保持敏感度）

@@ -28,6 +28,8 @@ from utils.config import (
     ALERT_RISK_MID,
     ALERT_RISK_GREEN_SCORE_MIN,
     ALERT_RATING_COUNT_THRESHOLD,
+    ALERT_PROGRESS_BAR_WIDTH,
+    ALERT_ZSCORE_MAX_VALUE,
 )
 
 
@@ -153,7 +155,7 @@ class AlertFormatter:
         """格式化多周期Z-score验证"""
         def format_zscore_line(label: str, timeframe: str, zscore: float, threshold: float) -> str:
             status = "✅" if abs(zscore) > threshold else "❌"
-            progress = self._make_progress_bar(abs(zscore), max_val=3.0, width=10)
+            progress = self._make_progress_bar(abs(zscore), max_val=ALERT_ZSCORE_MAX_VALUE, width=ALERT_PROGRESS_BAR_WIDTH)
             return f"├─ {label} ({timeframe}): {zscore:+.2f}  {status}  {progress}"
 
         # 验证状态
@@ -181,7 +183,7 @@ class AlertFormatter:
         ]
         return '\n'.join(lines)
 
-    def _make_progress_bar(self, value: float, max_val: float = 3.0, width: int = 10) -> str:
+    def _make_progress_bar(self, value: float, max_val: float = ALERT_ZSCORE_MAX_VALUE, width: int = ALERT_PROGRESS_BAR_WIDTH) -> str:
         """生成ASCII进度条"""
         ratio = min(abs(value) / max_val, 1.0)
         filled = int(ratio * width)

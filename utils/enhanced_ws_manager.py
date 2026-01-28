@@ -24,15 +24,21 @@ from hyperliquid.websocket_manager import WebsocketManager
 import hyperliquid.utils.constants as constants
 
 from utils.logging_config import logger
+from utils.config import (
+    WS_PING_INTERVAL_MS, WS_PING_THREAD_SHUTDOWN_TIMEOUT,
+    WS_STATE_VALIDATION_DELAY, WS_READY_TIMEOUT,
+    WS_RECONNECT_MIN_DELAY, WS_RECONNECT_INITIAL_DELAY,
+    WS_RECONNECT_MAX_DELAY, WS_RECONNECT_MULTIPLIER, WS_RECONNECT_JITTER
+)
 
 # 修复: WebSocket ping 线程异常（内联 Monkey Patch）
 _orig_send_ping = WebsocketManager.send_ping
 def _safe_send_ping(self):
-    while not self.stop_event.wait(50):
+    while not self.stop_event.wait(WS_PING_INTERVAL_MS / 1000):
         if not self.ws.keep_running: break
-        try: 
+        try:
             self.ws.send(json.dumps({"method": "ping"}))
-        except Exception as e: 
+        except Exception as e:
             logger.warning(f"WS ping失败: {e}"); break
 WebsocketManager.send_ping = _safe_send_ping
 
@@ -127,9 +133,9 @@ class ReconnectionManager:
 
     def __init__(
         self,
-        initial_delay: float = 1.0,
-        max_delay: float = 60.0,
-        multiplier: float = 2.0,
+        initial_delay: float = WS_RECONNECT_INITIAL_DELAY,
+        max_delay: float = WS_RECONNECT_MAX_DELAY,
+        multiplier: float = WS_RECONNECT_MULTIPLIER,
         max_retries: Optional[int] = None
     ):
         """
@@ -161,11 +167,11 @@ class ReconnectionManager:
         delay = self.initial_delay * (self.multiplier ** self.retry_count)
         delay = min(delay, self.max_delay)
 
-        # 随机抖动 ±25%
-        jitter = delay * 0.25
+        # 随机抖动
+        jitter = delay * WS_RECONNECT_JITTER
         delay += random.uniform(-jitter, jitter)
 
-        return max(0.1, delay)  # 最小延迟0.1秒
+        return max(WS_RECONNECT_MIN_DELAY, delay)
 
     def should_retry(self) -> bool:
         """判断是否应该继续重试"""
@@ -328,7 +334,7 @@ class EnhancedWebSocketManager:
             self.ws_ready_event.set()
 
             # 验证连接
-            time.sleep(1)  # 给WebSocket一点时间完成握手
+            time.sleep(WS_STATE_VALIDATION_DELAY)  # 给WebSocket一点时间完成握手
             if self._is_connected():
                 self._update_state(ConnectionState.CONNECTED)
                 self.reconnection_manager.reset()
@@ -400,9 +406,9 @@ class EnhancedWebSocketManager:
             if self.info.ws_manager and hasattr(self.info.ws_manager, 'ping_thread'):
                 ping_thread = self.info.ws_manager.ping_thread
                 if ping_thread and ping_thread.is_alive():
-                    ping_thread.join(timeout=2.0)
+                    ping_thread.join(timeout=WS_PING_THREAD_SHUTDOWN_TIMEOUT)
                     if ping_thread.is_alive():
-                        cleanup_status.append("⚠️ Step4: ping线程未在2秒内退出")
+                        cleanup_status.append(f"⚠️ Step4: ping线程未在{WS_PING_THREAD_SHUTDOWN_TIMEOUT}秒内退出")
                     else:
                         cleanup_status.append("✅ Step4: ping线程已终止")
                 else:
@@ -575,7 +581,7 @@ class EnhancedWebSocketManager:
         while not self.stop_event.is_set():
             try:
                 # 等待连接就绪
-                if not self.ws_ready_event.wait(timeout=5):
+                if not self.ws_ready_event.wait(timeout=WS_READY_TIMEOUT):
                     continue
 
                 # 检查底层连接

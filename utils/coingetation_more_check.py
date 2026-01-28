@@ -4,6 +4,14 @@ import statsmodels.api as sm
 from statsmodels.tsa.stattools import adfuller
 import nolds
 
+from utils.config import (
+    HEALTH_MONITOR_LONG_WINDOW,
+    HEALTH_MONITOR_MAX_HALFLIFE,
+    HEALTH_MONITOR_MIN_HALFLIFE,
+    HEALTH_MONITOR_SCORE_WEIGHTS,
+    HEALTH_MONITOR_STATE_THRESHOLDS
+)
+
 
 class CointegrationHealthMonitor:
     """
@@ -22,10 +30,10 @@ class CointegrationHealthMonitor:
 
     def __init__(
         self,
-        window=200,
-        max_halflife=30,
-        min_halflife=5,
-        state_thresholds=(25, 18, 12),  # 调整为实际可达到的分数范围
+        window=HEALTH_MONITOR_LONG_WINDOW,
+        max_halflife=HEALTH_MONITOR_MAX_HALFLIFE,
+        min_halflife=HEALTH_MONITOR_MIN_HALFLIFE,
+        state_thresholds=HEALTH_MONITOR_STATE_THRESHOLDS,
         enable_diagnostics=True,
     ):
         """
@@ -95,11 +103,12 @@ class CointegrationHealthMonitor:
             except (IndexError, AttributeError):
                 pass
 
-        # 综合得分（权重：ADF 40%, 半衰期 30%, 稳定性 30%）
+        # 综合得分（使用配置的权重）
+        weights = HEALTH_MONITOR_SCORE_WEIGHTS
         health_score = (
-            0.4 * adf_score
-            + 0.3 * halflife_score
-            + 0.3 * stability_score
+            weights[0] * adf_score
+            + weights[1] * halflife_score
+            + weights[2] * stability_score
         )
 
         state = self._state_from_score(health_score)

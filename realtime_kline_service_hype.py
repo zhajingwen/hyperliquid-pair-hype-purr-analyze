@@ -80,6 +80,12 @@ from utils.config import (
     WS_TIMEOUT,
     WS_MAX_RETRIES,
     WS_ALERT_THRESHOLD,
+    # 服务线程超时配置
+    QUEUE_GET_TIMEOUT,
+    WORKER_THREAD_SHUTDOWN_TIMEOUT,
+    MAIN_THREAD_SHUTDOWN_TIMEOUT,
+    CPU_CHECK_INTERVAL,
+    DB_QUERY_LIMIT,
     # 工作线程配置（HYPE 专用）
     ANALYSIS_WORKERS_HYPE,
     # 批量写入配置
@@ -468,7 +474,7 @@ class RealtimeKlineServiceHypePurr:
                 # 获取K线数据（超时1秒）
                 kline_fetched = False
                 try:
-                    kline = self.kline_buffer.get(timeout=1.0)
+                    kline = self.kline_buffer.get(timeout=QUEUE_GET_TIMEOUT)
                     batch.append(kline)
                     items_to_mark_done += 1  # 每次成功获取，计数+1
                     kline_fetched = True
@@ -587,7 +593,7 @@ class RealtimeKlineServiceHypePurr:
                 # 获取分析结果（超时1秒）
                 result_fetched = False
                 try:
-                    analysis_record = self.analysis_result_buffer.get(timeout=1.0)
+                    analysis_record = self.analysis_result_buffer.get(timeout=QUEUE_GET_TIMEOUT)
                     batch.append(analysis_record)
                     items_to_mark_done += 1  # 每次成功获取，计数+1
                     result_fetched = True
@@ -721,7 +727,7 @@ class RealtimeKlineServiceHypePurr:
             try:
                 # 阻塞获取任务（1秒超时，允许检查stop_event）
                 try:
-                    task = self.analysis_queue.get(timeout=1.0)
+                    task = self.analysis_queue.get(timeout=QUEUE_GET_TIMEOUT)
                 except queue.Empty:
                     # 修复CPU占用: 队列为空时使用wait等待，避免CPU空转
                     if self.stop_event.wait(0.1):  # 100ms检查一次
@@ -860,7 +866,7 @@ class RealtimeKlineServiceHypePurr:
                     tf,
                     query_start_time,
                     end_time,
-                    limit=10000
+                    limit=DB_QUERY_LIMIT
                 )
 
                 # 查询目标币种K线
@@ -869,7 +875,7 @@ class RealtimeKlineServiceHypePurr:
                     tf,
                     query_start_time,
                     end_time,
-                    limit=10000
+                    limit=DB_QUERY_LIMIT
                 )
 
                 # === 新增：K线数据连续性校验与自动补充 ===
@@ -937,14 +943,14 @@ class RealtimeKlineServiceHypePurr:
                         tf,
                         query_start_time,
                         end_time,
-                        limit=10000
+                        limit=DB_QUERY_LIMIT
                     )
                     alt_klines = self.kline_repo.query_range(
                         symbol,
                         tf,
                         query_start_time,
                         end_time,
-                        limit=10000
+                        limit=DB_QUERY_LIMIT
                     )
 
                     logger.info(
@@ -1438,21 +1444,21 @@ class RealtimeKlineServiceHypePurr:
         # 等待工作线程退出
         for worker in self.analysis_workers:
             if worker.is_alive():
-                worker.join(timeout=5)
+                worker.join(timeout=WORKER_THREAD_SHUTDOWN_TIMEOUT)
                 if worker.is_alive():
                     logger.warning(f"⚠️ 工作线程 {worker.name} 未能在5秒内退出")
 
         # 等待批量写入线程结束
         if self.batch_writer_thread.is_alive():
-            self.batch_writer_thread.join(timeout=10)
+            self.batch_writer_thread.join(timeout=MAIN_THREAD_SHUTDOWN_TIMEOUT)
 
         # 等待队列健康监控线程结束
         if self.queue_monitor_thread.is_alive():
-            self.queue_monitor_thread.join(timeout=10)
+            self.queue_monitor_thread.join(timeout=MAIN_THREAD_SHUTDOWN_TIMEOUT)
 
         # 等待分析结果写入线程结束
         if self.analysis_result_writer_thread.is_alive():
-            self.analysis_result_writer_thread.join(timeout=10)
+            self.analysis_result_writer_thread.join(timeout=MAIN_THREAD_SHUTDOWN_TIMEOUT)
 
         # 输出统计信息
         stats = self.get_stats()
