@@ -57,7 +57,7 @@ class DelayCorrelationAnalyzer:
 
     # ========== 相关系数过滤配置 ==========
     # ('4h', '60d') 组合的相关系数阈值：大于此值保留，小于等于此值剔除
-    TARGET_CORR_THRESHOLD = 0.6
+    TARGET_CORR_THRESHOLD = 0.5
     # 目标时间周期和数据周期配置
     TARGET_TIMEFRAME = '4h'  # K线时间周期
     TARGET_PERIOD = '60d'    # 数据周期
@@ -1182,7 +1182,7 @@ class DelayCorrelationAnalyzer:
         # 输出调试日志，便于开发调试和问题排查
         logger.debug(
             f"分析中间结果 | 币种: {coin} | timeframe: {timeframe} | period: {period} | "
-            f"tau_star: {tau_star} | 相关系数: {related_matrix:.4f}"
+            f"最优延迟: {tau_star} | 相关系数: {related_matrix:.4f}"
         )
 
         # 返回分析结果元组
@@ -1525,7 +1525,7 @@ class DelayCorrelationAnalyzer:
                 # 处理异常格式，记录日志并跳过
                 logger.warning(f"结果格式异常，跳过 | 币种: {coin} | 结果长度: {len(result)} | 结果: {result}")
                 continue
-
+            # 相关系数, 时间周期, 数据周期, 最优延迟
             corr, tf, p, ts = result
             if not np.isnan(corr):
                 valid_results.append((corr, tf, p, ts))
