@@ -18,15 +18,14 @@ from utils.config import (
     ZSCORE_THRESHOLDS,
     HEALTH_MONITOR_LONG_WINDOW,
     HEALTH_MONITOR_SHORT_WINDOW,
+    HEALTH_MONITOR_STATE_THRESHOLDS,
     ALERT_SIGNAL_STRENGTH,
     ALERT_QUALITY,
     ALERT_CORR,
     ALERT_HURST,
     ALERT_SCORE_DIFF,
-    ALERT_RISK_HIGH_SCORE_MIN,
     ALERT_RISK_HIGH_HURST,
     ALERT_RISK_MID,
-    ALERT_RISK_GREEN_SCORE_MIN,
     ALERT_RATING_COUNT_THRESHOLD,
     ALERT_PROGRESS_BAR_WIDTH,
     ALERT_ZSCORE_MAX_VALUE,
@@ -451,7 +450,7 @@ class AlertFormatter:
             halflife = long_window.get('halflife')
 
             # 短期协整得分极低
-            if short_score < ALERT_RISK_HIGH_SCORE_MIN:
+            if short_score < HEALTH_MONITOR_STATE_THRESHOLDS[2]:  # 10分，高风险阈值
                 risk_factors['high'].append(f"短期协整得分极低 ({short_score:.1f})")
 
             # 长短期得分差异过大
@@ -487,7 +486,7 @@ class AlertFormatter:
 
         if health_monitor:
             # 短期协整得分 WARNING/DANGER
-            if ALERT_RISK_HIGH_SCORE_MIN <= short_score < ALERT_RISK_GREEN_SCORE_MIN:
+            if HEALTH_MONITOR_STATE_THRESHOLDS[2] <= short_score < HEALTH_MONITOR_STATE_THRESHOLDS[0]:  # 10-18分，警告区间
                 risk_factors['mid'].append(f"短期协整状态: {short_state} ({short_score:.1f})")
 
             # β系数变异
@@ -504,7 +503,7 @@ class AlertFormatter:
                 risk_factors['green'].append("多周期Z-score方向一致")
 
         # 长期窗口协整健康
-        if health_monitor and long_score >= ALERT_RISK_GREEN_SCORE_MIN:
+        if health_monitor and long_score >= HEALTH_MONITOR_STATE_THRESHOLDS[0]:  # 18分，绿色区域
             risk_factors['green'].append(f"长期协整健康 ({long_score:.1f})")
 
         # 4h相关系数高
