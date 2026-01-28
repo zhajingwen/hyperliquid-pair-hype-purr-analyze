@@ -18,24 +18,14 @@ from utils.config import (
     ZSCORE_THRESHOLDS,
     HEALTH_MONITOR_LONG_WINDOW,
     HEALTH_MONITOR_SHORT_WINDOW,
-    ALERT_SIGNAL_STRENGTH_EXTREME,
-    ALERT_SIGNAL_STRENGTH_STRONG,
-    ALERT_SIGNAL_STRENGTH_MEDIUM,
-    ALERT_QUALITY_EXCELLENT,
-    ALERT_QUALITY_GOOD,
-    ALERT_QUALITY_FAIR,
-    ALERT_CORR_EXCELLENT,
-    ALERT_CORR_GOOD,
-    ALERT_HURST_TREND,
-    ALERT_HURST_MEAN_REVERSION,
-    ALERT_SCORE_DIFF_HIGH,
-    ALERT_SCORE_DIFF_MEDIUM,
-    ALERT_SCORE_DETERIORATE,
+    ALERT_SIGNAL_STRENGTH,
+    ALERT_QUALITY,
+    ALERT_CORR,
+    ALERT_HURST,
+    ALERT_SCORE_DIFF,
     ALERT_RISK_HIGH_SCORE_MIN,
     ALERT_RISK_HIGH_HURST,
-    ALERT_RISK_MID_COINT_MIN,
-    ALERT_RISK_MID_ZSCORE_RATIO,
-    ALERT_RISK_MID_BETA_CV,
+    ALERT_RISK_MID,
     ALERT_RISK_GREEN_SCORE_MIN,
     ALERT_RATING_COUNT_THRESHOLD,
 )
@@ -115,13 +105,13 @@ class AlertFormatter:
         """格式化信号概览"""
         # 计算信号强度
         abs_zscore = abs(zscore_4h)
-        if abs_zscore > ALERT_SIGNAL_STRENGTH_EXTREME:
+        if abs_zscore > ALERT_SIGNAL_STRENGTH['extreme']:
             strength = "极强"
             strength_emoji = "🔥🔥🔥"
-        elif abs_zscore > ALERT_SIGNAL_STRENGTH_STRONG:
+        elif abs_zscore > ALERT_SIGNAL_STRENGTH['strong']:
             strength = "强"
             strength_emoji = "🔥🔥"
-        elif abs_zscore > ALERT_SIGNAL_STRENGTH_MEDIUM:
+        elif abs_zscore > ALERT_SIGNAL_STRENGTH['medium']:
             strength = "中等"
             strength_emoji = "🔥"
         else:
@@ -129,13 +119,13 @@ class AlertFormatter:
             strength_emoji = "💨"
 
         # 信号质量评估
-        if cointegration_count >= ALERT_QUALITY_EXCELLENT:
+        if cointegration_count >= ALERT_QUALITY['excellent']:
             quality_emoji = "⭐⭐⭐"
             quality_text = "优秀"
-        elif cointegration_count >= ALERT_QUALITY_GOOD:
+        elif cointegration_count >= ALERT_QUALITY['good']:
             quality_emoji = "⭐⭐"
             quality_text = "良好"
-        elif cointegration_count >= ALERT_QUALITY_FAIR:
+        elif cointegration_count >= ALERT_QUALITY['fair']:
             quality_emoji = "⭐"
             quality_text = "一般"
         else:
@@ -235,9 +225,9 @@ class AlertFormatter:
 
             # 相关系数评级
             if corr is not None:
-                if corr > ALERT_CORR_EXCELLENT:
+                if corr > ALERT_CORR['excellent']:
                     corr_str += " 🟢"
-                elif corr > ALERT_CORR_GOOD:
+                elif corr > ALERT_CORR['good']:
                     corr_str += " 🟡"
                 else:
                     corr_str += " 🔴"
@@ -351,7 +341,7 @@ class AlertFormatter:
             # 显示 phi 和 Hurst
             phi_str = f"{phi:.4f}" if phi is not None else "N/A"
             if hurst is not None:
-                hurst_status = "🔴 趋势" if hurst > ALERT_HURST_TREND else ("🟢 均值回复" if hurst < ALERT_HURST_MEAN_REVERSION else "🟡 随机")
+                hurst_status = "🔴 趋势" if hurst > ALERT_HURST['trend'] else ("🟢 均值回复" if hurst < ALERT_HURST['mean_reversion'] else "🟡 随机")
                 lines.append(f"├─ phi: {phi_str} | Hurst: {hurst:.3f} ({hurst_status})")
             else:
                 lines.append(f"├─ phi: {phi_str}")
@@ -367,9 +357,9 @@ class AlertFormatter:
 
         # 窗口对比分析
         diff_warning = ""
-        if abs(score_diff) > ALERT_SCORE_DIFF_HIGH:
+        if abs(score_diff) > ALERT_SCORE_DIFF['high']:
             diff_warning = " ⚠️ 差异较大"
-        elif abs(score_diff) > ALERT_SCORE_DIFF_MEDIUM:
+        elif abs(score_diff) > ALERT_SCORE_DIFF['medium']:
             diff_warning = " 📊 需关注"
 
         long_score = long_window.get('health_score', 0)
@@ -377,7 +367,7 @@ class AlertFormatter:
 
         if short_score > long_score:
             trend = "📈 短期改善中"
-        elif short_score < long_score - ALERT_SCORE_DETERIORATE:
+        elif short_score < long_score - ALERT_SCORE_DIFF['deteriorate']:
             trend = "📉 短期恶化中"
         else:
             trend = "➡️ 相对稳定"
@@ -463,7 +453,7 @@ class AlertFormatter:
                 risk_factors['high'].append(f"短期协整得分极低 ({short_score:.1f})")
 
             # 长短期得分差异过大
-            if abs(score_diff) > ALERT_SCORE_DIFF_HIGH:
+            if abs(score_diff) > ALERT_SCORE_DIFF['high']:
                 risk_factors['high'].append(f"长短期得分差异过大 ({score_diff:+.1f})")
 
             # Hurst指数过高
@@ -484,13 +474,13 @@ class AlertFormatter:
 
         # ===== 中等风险因素检测 =====
         # 协整检验通过率低
-        if cointegration_count < ALERT_RISK_MID_COINT_MIN:
+        if cointegration_count < ALERT_RISK_MID['coint_min']:
             risk_factors['mid'].append(f"协整通过率较低 ({cointegration_count}/6)")
 
         # Z-score短强长弱
         if len(zscore_list) == 3:
             abs_5m, abs_1h, abs_4h = abs(zscore_list[0]), abs(zscore_list[1]), abs(zscore_list[2])
-            if abs_5m > abs_4h * ALERT_RISK_MID_ZSCORE_RATIO:
+            if abs_5m > abs_4h * ALERT_RISK_MID['zscore_ratio']:
                 risk_factors['mid'].append("短周期Z-score远强于长周期")
 
         if health_monitor:
@@ -501,7 +491,7 @@ class AlertFormatter:
             # β系数变异
             stability_details = long_window.get('stability_details', {})
             beta_cv = stability_details.get('beta_cv', 0)
-            if beta_cv > ALERT_RISK_MID_BETA_CV:
+            if beta_cv > ALERT_RISK_MID['beta_cv']:
                 risk_factors['mid'].append(f"β系数波动较大 (CV={beta_cv:.3f})")
 
         # ===== 有利因素检测 =====
@@ -517,11 +507,11 @@ class AlertFormatter:
 
         # 4h相关系数高
         corr_4h = detail_4h.get('correlation')
-        if corr_4h is not None and corr_4h > ALERT_CORR_GOOD:
+        if corr_4h is not None and corr_4h > ALERT_CORR['good']:
             risk_factors['green'].append(f"4h相关系数高 ({corr_4h:.4f})")
 
         # 协整通过率高
-        if cointegration_count >= ALERT_QUALITY_GOOD:
+        if cointegration_count >= ALERT_QUALITY['good']:
             risk_factors['green'].append(f"协整通过率高 ({cointegration_count}/6)")
 
         return risk_factors

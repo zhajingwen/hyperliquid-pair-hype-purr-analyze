@@ -35,8 +35,6 @@ from utils.config import (
     ALPHA_SIGNIFICANCE_LEVEL,
     ALPHA_CROSS_ASSET_THRESHOLD,
     ALPHA_SAME_ASSET_THRESHOLD,
-    ZSCORE_STRONG_THRESHOLD,
-    ZSCORE_MEDIUM_THRESHOLD,
     ZSCORE_THRESHOLDS,
     HEALTH_MONITOR_LONG_WINDOW,
     HEALTH_MONITOR_SHORT_WINDOW,
@@ -723,9 +721,9 @@ def analyze_pair_advanced(
         # 7. 信号强度评估
         if is_anomaly:
             abs_zscore = abs(result['zscore'])
-            if abs_zscore > ZSCORE_STRONG_THRESHOLD:
+            if abs_zscore > ZSCORE_THRESHOLDS['strong']:
                 result['signal_strength'] = 'strong'
-            elif abs_zscore > ZSCORE_MEDIUM_THRESHOLD:
+            elif abs_zscore > ZSCORE_THRESHOLDS['medium']:
                 result['signal_strength'] = 'medium'
             else:
                 result['signal_strength'] = 'weak'

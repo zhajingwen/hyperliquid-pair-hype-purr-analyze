@@ -94,7 +94,9 @@ COINTEGRATION_THRESHOLD = int(os.getenv('COINTEGRATION_THRESHOLD', '2'))  # 协�
 ZSCORE_THRESHOLDS = {
     'long': float(os.getenv('ZSCORE_THRESHOLD_LONG', '0.2')),  # 做多信号（4h长周期）
     'middle': float(os.getenv('ZSCORE_THRESHOLD_MIDDLE', '1.5')),  # 中性信号（1h中周期）
-    'short': float(os.getenv('ZSCORE_THRESHOLD_SHORT', '1.8'))  # 做空信号（5m短周期）
+    'short': float(os.getenv('ZSCORE_THRESHOLD_SHORT', '1.8')),  # 做空信号（5m短周期）
+    'strong': float(os.getenv('ZSCORE_STRONG_THRESHOLD', '2.5')),  # 强信号阈值
+    'medium': float(os.getenv('ZSCORE_MEDIUM_THRESHOLD', '2.0')),  # 中等信号阈值
 }
 
 # ============ 去重配置 ============
@@ -141,11 +143,6 @@ ALPHA_SIGNIFICANCE_LEVEL = float(os.getenv('ALPHA_SIGNIFICANCE_LEVEL', '0.05')) 
 ALPHA_CROSS_ASSET_THRESHOLD = float(os.getenv('ALPHA_CROSS_ASSET_THRESHOLD', '5'))  # 跨资产Alpha阈值（|α|>5→无截距模型）
 ALPHA_SAME_ASSET_THRESHOLD = float(os.getenv('ALPHA_SAME_ASSET_THRESHOLD', '2'))  # 同资产Alpha阈值（|α|<2→标准EG模型）
 
-# ============ 信号强度阈值 ============
-# 信号分级：|Z| > 2.5 强信号，2.0 < |Z| <= 2.5 中等信号，|Z| <= 2.0 弱信号
-ZSCORE_STRONG_THRESHOLD = float(os.getenv('ZSCORE_STRONG_THRESHOLD', '2.5'))  # 强信号阈值
-ZSCORE_MEDIUM_THRESHOLD = float(os.getenv('ZSCORE_MEDIUM_THRESHOLD', '2.0'))  # 中等信号阈值
-
 # ============ 健康监控参数 ============
 # 长窗口（200期）也作为健康监控最小数据点需求
 HEALTH_MONITOR_LONG_WINDOW = int(os.getenv('HEALTH_MONITOR_LONG_WINDOW', '200'))  # 长期窗口（4h≈33天）
@@ -162,43 +159,37 @@ REQUIRED_PERIODS = [
 ]
 
 # ============ 告警格式化配置 ============
-# -------- 信号强度判断阈值 --------
-ALERT_SIGNAL_STRENGTH_EXTREME = float(os.getenv('ALERT_SIGNAL_STRENGTH_EXTREME', '1.5'))  # 极强信号
-ALERT_SIGNAL_STRENGTH_STRONG = float(os.getenv('ALERT_SIGNAL_STRENGTH_STRONG', '1.0'))  # 强信号
-ALERT_SIGNAL_STRENGTH_MEDIUM = float(os.getenv('ALERT_SIGNAL_STRENGTH_MEDIUM', '0.5'))  # 中等信号
-
-# -------- 信号质量评估阈值（基于协整通过数量）--------
-ALERT_QUALITY_EXCELLENT = int(os.getenv('ALERT_QUALITY_EXCELLENT', '5'))  # 优秀：>=5个周期通过
-ALERT_QUALITY_GOOD = int(os.getenv('ALERT_QUALITY_GOOD', '4'))  # 良好：>=4个周期通过（也用于有利因素判断）
-ALERT_QUALITY_FAIR = int(os.getenv('ALERT_QUALITY_FAIR', '3'))  # 一般：>=3个周期通过
-
-# -------- 相关系数评级阈值 --------
-ALERT_CORR_EXCELLENT = float(os.getenv('ALERT_CORR_EXCELLENT', '0.8'))  # 优秀：>=0.8 强正相关
-ALERT_CORR_GOOD = float(os.getenv('ALERT_CORR_GOOD', '0.6'))  # 良好：>=0.6（也用于有利因素判断）
-
-# -------- Hurst指数判断阈值 --------
+ALERT_SIGNAL_STRENGTH = {
+    'extreme': float(os.getenv('ALERT_SIGNAL_STRENGTH_EXTREME', '1.5')),  # 极强信号
+    'strong': float(os.getenv('ALERT_SIGNAL_STRENGTH_STRONG', '1.0')),  # 强信号
+    'medium': float(os.getenv('ALERT_SIGNAL_STRENGTH_MEDIUM', '0.5')),  # 中等信号
+}
+ALERT_QUALITY = {
+    'excellent': int(os.getenv('ALERT_QUALITY_EXCELLENT', '5')),  # 优秀：>=5个周期通过
+    'good': int(os.getenv('ALERT_QUALITY_GOOD', '4')),  # 良好：>=4个周期通过（也用于有利因素判断）
+    'fair': int(os.getenv('ALERT_QUALITY_FAIR', '3')),  # 一般：>=3个周期通过
+}
+ALERT_CORR = {
+    'excellent': float(os.getenv('ALERT_CORR_EXCELLENT', '0.8')),  # 优秀：>=0.8 强正相关
+    'good': float(os.getenv('ALERT_CORR_GOOD', '0.6')),  # 良好：>=0.6（也用于有利因素判断）
+}
 # Hurst < 0.4 均值回复（有利），0.4-0.6 中性，> 0.6 趋势性（不利）
-ALERT_HURST_TREND = float(os.getenv('ALERT_HURST_TREND', '0.6'))  # 趋势性阈值
-ALERT_HURST_MEAN_REVERSION = float(os.getenv('ALERT_HURST_MEAN_REVERSION', '0.4'))  # 均值回复阈值
-
-# -------- 健康监控窗口对比阈值 --------
-ALERT_SCORE_DIFF_HIGH = int(os.getenv('ALERT_SCORE_DIFF_HIGH', '15'))  # 得分差异过大（也用于高风险因素判断）
-ALERT_SCORE_DIFF_MEDIUM = int(os.getenv('ALERT_SCORE_DIFF_MEDIUM', '10'))  # 得分差异需关注
-ALERT_SCORE_DETERIORATE = int(os.getenv('ALERT_SCORE_DETERIORATE', '5'))  # 短期恶化早期预警
-
-# -------- 风险评估 - 高风险因素阈值 --------
-ALERT_RISK_HIGH_SCORE_MIN = int(os.getenv('ALERT_RISK_HIGH_SCORE_MIN', '10'))  # 得分<10 → 高风险
+ALERT_HURST = {
+    'trend': float(os.getenv('ALERT_HURST_TREND', '0.6')),  # 趋势性阈值
+    'mean_reversion': float(os.getenv('ALERT_HURST_MEAN_REVERSION', '0.4')),  # 均值回复阈值
+}
+ALERT_SCORE_DIFF = {
+    'high': int(os.getenv('ALERT_SCORE_DIFF_HIGH', '15')),  # 得分差异过大（也用于高风险因素判断）
+    'medium': int(os.getenv('ALERT_SCORE_DIFF_MEDIUM', '10')),  # 得分差异需关注
+    'deteriorate': int(os.getenv('ALERT_SCORE_DETERIORATE', '5')),  # 短期恶化早期预警
+}
+ALERT_RISK_HIGH_SCORE_MIN = HEALTH_MONITOR_STATE_THRESHOLDS[2]  # DANGER分界 (10)
 ALERT_RISK_HIGH_HURST = float(os.getenv('ALERT_RISK_HIGH_HURST', '0.7'))  # Hurst>0.7 → 高风险
-
-# -------- 风险评估 - 中等风险因素阈值 --------
-ALERT_RISK_MID_COINT_MIN = int(os.getenv('ALERT_RISK_MID_COINT_MIN', '3'))  # 协整通过<3 → 中风险
-ALERT_RISK_MID_ZSCORE_RATIO = int(os.getenv('ALERT_RISK_MID_ZSCORE_RATIO', '3'))  # 短/长Z-score>3倍 → 中风险
-ALERT_RISK_MID_BETA_CV = float(os.getenv('ALERT_RISK_MID_BETA_CV', '0.2'))  # β变异系数>0.2 → 中风险
-
-# -------- 风险评估 - 有利因素阈值 --------
-# 有利因素：得分>=18(复用HEALTHY分界点)，相关系数>=0.6(复用ALERT_CORR_GOOD)，协整>=4(复用ALERT_QUALITY_GOOD)
-ALERT_RISK_GREEN_SCORE_MIN = int(os.getenv('ALERT_RISK_GREEN_SCORE_MIN', '18'))  # 得分>=18 → 有利
-
-# -------- 综合评级判断阈值 --------
+ALERT_RISK_MID = {
+    'coint_min': int(os.getenv('ALERT_RISK_MID_COINT_MIN', '3')),  # 协整通过<3 → 中风险
+    'zscore_ratio': int(os.getenv('ALERT_RISK_MID_ZSCORE_RATIO', '3')),  # 短/长Z-score>3倍 → 中风险
+    'beta_cv': float(os.getenv('ALERT_RISK_MID_BETA_CV', '0.2')),  # β变异系数>0.2 → 中风险
+}
+ALERT_RISK_GREEN_SCORE_MIN = HEALTH_MONITOR_STATE_THRESHOLDS[0]  # HEALTHY分界 (18)
 # 高风险>=2→不建议交易，中风险>=2→谨慎，有利>=2→推荐
 ALERT_RATING_COUNT_THRESHOLD = int(os.getenv('ALERT_RATING_COUNT_THRESHOLD', '2'))  # 因素数量触发阈值（统一）
