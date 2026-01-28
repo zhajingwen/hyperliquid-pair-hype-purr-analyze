@@ -27,7 +27,6 @@ from utils.config import (
     MIN_POINTS_FOR_COINTEGRATION,
     MIN_POINTS_FOR_ZSCORE,
     MIN_POINTS_FOR_OLS,
-    MIN_POINTS_FOR_HEALTH_MONITOR,
     BETA_WINDOW,
     ZSCORE_WINDOW,
     COINTEGRATION_THRESHOLD,
@@ -669,7 +668,7 @@ def analyze_pair_advanced(
                         'alt': alt_prices
                     }).dropna()
 
-                    if len(aligned) >= MIN_POINTS_FOR_HEALTH_MONITOR:
+                    if len(aligned) >= HEALTH_MONITOR_LONG_WINDOW:
                         log_base_series = np.log(aligned['base'])
                         log_alt_series = np.log(aligned['alt'])
 

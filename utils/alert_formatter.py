@@ -15,12 +15,9 @@ from datetime import datetime, timezone
 from typing import Dict, Optional, List, Tuple
 from utils.logging_config import logger
 from utils.config import (
-    # Z-score阈值配置（复用现有）
     ZSCORE_THRESHOLDS,
-    # 健康监控窗口配置（复用现有）
     HEALTH_MONITOR_LONG_WINDOW,
     HEALTH_MONITOR_SHORT_WINDOW,
-    # 告警格式化专用配置
     ALERT_SIGNAL_STRENGTH_EXTREME,
     ALERT_SIGNAL_STRENGTH_STRONG,
     ALERT_SIGNAL_STRENGTH_MEDIUM,
@@ -35,18 +32,12 @@ from utils.config import (
     ALERT_SCORE_DIFF_MEDIUM,
     ALERT_SCORE_DETERIORATE,
     ALERT_RISK_HIGH_SCORE_MIN,
-    ALERT_RISK_HIGH_SCORE_DIFF,
     ALERT_RISK_HIGH_HURST,
     ALERT_RISK_MID_COINT_MIN,
     ALERT_RISK_MID_ZSCORE_RATIO,
-    ALERT_RISK_MID_SCORE_MIN,
     ALERT_RISK_MID_BETA_CV,
     ALERT_RISK_GREEN_SCORE_MIN,
-    ALERT_RISK_GREEN_CORR_MIN,
-    ALERT_RISK_GREEN_COINT_MIN,
-    ALERT_RATING_HIGH_COUNT,
-    ALERT_RATING_MID_COUNT,
-    ALERT_RATING_GREEN_COUNT,
+    ALERT_RATING_COUNT_THRESHOLD,
 )
 
 
@@ -472,7 +463,7 @@ class AlertFormatter:
                 risk_factors['high'].append(f"短期协整得分极低 ({short_score:.1f})")
 
             # 长短期得分差异过大
-            if abs(score_diff) > ALERT_RISK_HIGH_SCORE_DIFF:
+            if abs(score_diff) > ALERT_SCORE_DIFF_HIGH:
                 risk_factors['high'].append(f"长短期得分差异过大 ({score_diff:+.1f})")
 
             # Hurst指数过高
@@ -504,7 +495,7 @@ class AlertFormatter:
 
         if health_monitor:
             # 短期协整得分 WARNING/DANGER
-            if ALERT_RISK_HIGH_SCORE_MIN <= short_score < ALERT_RISK_MID_SCORE_MIN:
+            if ALERT_RISK_HIGH_SCORE_MIN <= short_score < ALERT_RISK_GREEN_SCORE_MIN:
                 risk_factors['mid'].append(f"短期协整状态: {short_state} ({short_score:.1f})")
 
             # β系数变异
@@ -526,11 +517,11 @@ class AlertFormatter:
 
         # 4h相关系数高
         corr_4h = detail_4h.get('correlation')
-        if corr_4h is not None and corr_4h > ALERT_RISK_GREEN_CORR_MIN:
+        if corr_4h is not None and corr_4h > ALERT_CORR_GOOD:
             risk_factors['green'].append(f"4h相关系数高 ({corr_4h:.4f})")
 
         # 协整通过率高
-        if cointegration_count >= ALERT_RISK_GREEN_COINT_MIN:
+        if cointegration_count >= ALERT_QUALITY_GOOD:
             risk_factors['green'].append(f"协整通过率高 ({cointegration_count}/6)")
 
         return risk_factors
@@ -572,7 +563,7 @@ class AlertFormatter:
         direction = multi_period_result.get('direction', 'none')
         direction_text = "做多" if direction == 'long' else "做空"
 
-        if high_count >= ALERT_RATING_HIGH_COUNT:
+        if high_count >= ALERT_RATING_COUNT_THRESHOLD:
             return (
                 "🔴 高风险",
                 "存在多个高风险因素",
@@ -584,7 +575,7 @@ class AlertFormatter:
                 risk_factors['high'][0],
                 "需人工判断，建议观望或极小仓位试探"
             )
-        elif mid_count >= ALERT_RATING_MID_COUNT:
+        elif mid_count >= ALERT_RATING_COUNT_THRESHOLD:
             return (
                 "⚠️ 谨慎",
                 "存在多个中等风险因素",
@@ -596,7 +587,7 @@ class AlertFormatter:
                 risk_factors['mid'][0],
                 f"可考虑{direction_text}，建议半仓操作"
             )
-        elif green_count >= ALERT_RATING_GREEN_COUNT:
+        elif green_count >= ALERT_RATING_COUNT_THRESHOLD:
             return (
                 "🟢 推荐",
                 "多项有利因素确认",

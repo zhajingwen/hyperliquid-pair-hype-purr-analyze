@@ -45,7 +45,7 @@ from utils.timescaledb import (
     SymbolMetadataRepository,
     AnalysisResultRepository
 )
-from utils.analysis_core import analyze_multi_period, prepare_price_series
+from utils.analysis_core import analyze_multi_period, prepare_price_series, calculate_correlation
 from utils.lark_bot import sender_colourful
 from utils.kline_data_filler_lazy import KlineDataFillerLazy
 from utils.alert_formatter import AlertFormatter
@@ -982,7 +982,9 @@ class RealtimeKlineServiceHypePurr:
                 period_key = (tf, f"{window.days}d")
                 price_data_cache[period_key] = {
                     'base_prices': base_series,
-                    'alt_prices': alt_series
+                    'alt_prices': alt_series,
+                    'base_klines': base_klines,
+                    'alt_klines': alt_klines
                 }
 
             # 数据验证：至少需要3个周期的数据
@@ -999,19 +1001,14 @@ class RealtimeKlineServiceHypePurr:
             period_key_4h_60d = ('4h', '60d')
             if period_key_4h_60d in price_data_cache:
                 cache_data = price_data_cache[period_key_4h_60d]
-                base_prices = cache_data['base_prices']
-                alt_prices = cache_data['alt_prices']
+                corr_4h_60d_pre = calculate_correlation(
+                    cache_data['base_klines'], cache_data['alt_klines']
+                )
 
-                # 计算收益率相关系数（与 multi_coins5.py 保持一致）
-                # 使用收益率而非价格，更能反映两个币种变动的真实相关性
-                base_returns = base_prices.pct_change().fillna(0)
-                alt_returns = alt_prices.pct_change().fillna(0)
-                corr_4h_60d_pre = base_returns.corr(alt_returns)
-
-                if corr_4h_60d_pre is None or corr_4h_60d_pre <= TARGET_CORR_THRESHOLD:
+                if corr_4h_60d_pre <= TARGET_CORR_THRESHOLD:
                     logger.info(
                         f"相关系数过滤未通过: {symbol} | "
-                        f"4h/60d 相关系数: {f'{corr_4h_60d_pre:.4f}' if corr_4h_60d_pre else 'N/A'} <= {TARGET_CORR_THRESHOLD}"
+                        f"4h/60d 相关系数: {corr_4h_60d_pre:.4f} <= {TARGET_CORR_THRESHOLD}"
                     )
                     return
                 else:
