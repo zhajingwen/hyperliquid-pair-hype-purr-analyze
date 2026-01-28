@@ -244,9 +244,9 @@ class AlertFormatter:
 
             # 相关系数评级
             if corr is not None:
-                if corr > 0.8:
+                if corr > ALERT_CORR_EXCELLENT:
                     corr_str += " 🟢"
-                elif corr > 0.6:
+                elif corr > ALERT_CORR_GOOD:
                     corr_str += " 🟡"
                 else:
                     corr_str += " 🔴"
@@ -360,7 +360,7 @@ class AlertFormatter:
             # 显示 phi 和 Hurst
             phi_str = f"{phi:.4f}" if phi is not None else "N/A"
             if hurst is not None:
-                hurst_status = "🔴 趋势" if hurst > 0.6 else ("🟢 均值回复" if hurst < 0.4 else "🟡 随机")
+                hurst_status = "🔴 趋势" if hurst > ALERT_HURST_TREND else ("🟢 均值回复" if hurst < ALERT_HURST_MEAN_REVERSION else "🟡 随机")
                 lines.append(f"├─ phi: {phi_str} | Hurst: {hurst:.3f} ({hurst_status})")
             else:
                 lines.append(f"├─ phi: {phi_str}")
@@ -369,16 +369,16 @@ class AlertFormatter:
             return lines
 
         lines = ["**【协整健康监控】** (4h周期)"]
-        lines.extend(format_window_section("长期窗口", long_window, 200))
+        lines.extend(format_window_section("长期窗口", long_window, HEALTH_MONITOR_LONG_WINDOW))
         lines.append("")
-        lines.extend(format_window_section("短期窗口", short_window, 100))
+        lines.extend(format_window_section("短期窗口", short_window, HEALTH_MONITOR_SHORT_WINDOW))
         lines.append("")
 
         # 窗口对比分析
         diff_warning = ""
-        if abs(score_diff) > 15:
+        if abs(score_diff) > ALERT_SCORE_DIFF_HIGH:
             diff_warning = " ⚠️ 差异较大"
-        elif abs(score_diff) > 10:
+        elif abs(score_diff) > ALERT_SCORE_DIFF_MEDIUM:
             diff_warning = " 📊 需关注"
 
         long_score = long_window.get('health_score', 0)
@@ -386,7 +386,7 @@ class AlertFormatter:
 
         if short_score > long_score:
             trend = "📈 短期改善中"
-        elif short_score < long_score - 5:
+        elif short_score < long_score - ALERT_SCORE_DETERIORATE:
             trend = "📉 短期恶化中"
         else:
             trend = "➡️ 相对稳定"
@@ -467,19 +467,19 @@ class AlertFormatter:
             hurst = long_window.get('hurst')
             halflife = long_window.get('halflife')
 
-            # 短期协整得分 < 10 (DEAD)
-            if short_score < 10:
+            # 短期协整得分极低
+            if short_score < ALERT_RISK_HIGH_SCORE_MIN:
                 risk_factors['high'].append(f"短期协整得分极低 ({short_score:.1f})")
 
-            # 长短期得分差异 > 15
-            if abs(score_diff) > 15:
+            # 长短期得分差异过大
+            if abs(score_diff) > ALERT_RISK_HIGH_SCORE_DIFF:
                 risk_factors['high'].append(f"长短期得分差异过大 ({score_diff:+.1f})")
 
-            # Hurst指数 > 0.7
-            if hurst is not None and hurst > 0.7:
+            # Hurst指数过高
+            if hurst is not None and hurst > ALERT_RISK_HIGH_HURST:
                 risk_factors['high'].append(f"Hurst指数过高 ({hurst:.3f}), 趋势性强")
 
-            # 半衰期 = inf
+            # 半衰期无穷大
             if halflife == 'inf' or halflife == float('inf'):
                 risk_factors['high'].append("半衰期无穷大, 不具均值回复性")
 
@@ -492,25 +492,25 @@ class AlertFormatter:
             risk_factors['high'].append("New方法全部未通过 (0/3)")
 
         # ===== 中等风险因素检测 =====
-        # 协整检验通过率 < 50%
-        if cointegration_count < 3:
+        # 协整检验通过率低
+        if cointegration_count < ALERT_RISK_MID_COINT_MIN:
             risk_factors['mid'].append(f"协整通过率较低 ({cointegration_count}/6)")
 
         # Z-score短强长弱
         if len(zscore_list) == 3:
             abs_5m, abs_1h, abs_4h = abs(zscore_list[0]), abs(zscore_list[1]), abs(zscore_list[2])
-            if abs_5m > abs_4h * 3:
+            if abs_5m > abs_4h * ALERT_RISK_MID_ZSCORE_RATIO:
                 risk_factors['mid'].append("短周期Z-score远强于长周期")
 
         if health_monitor:
             # 短期协整得分 WARNING/DANGER
-            if 10 <= short_score < 18:
+            if ALERT_RISK_HIGH_SCORE_MIN <= short_score < ALERT_RISK_MID_SCORE_MIN:
                 risk_factors['mid'].append(f"短期协整状态: {short_state} ({short_score:.1f})")
 
             # β系数变异
             stability_details = long_window.get('stability_details', {})
             beta_cv = stability_details.get('beta_cv', 0)
-            if beta_cv > 0.2:
+            if beta_cv > ALERT_RISK_MID_BETA_CV:
                 risk_factors['mid'].append(f"β系数波动较大 (CV={beta_cv:.3f})")
 
         # ===== 有利因素检测 =====
@@ -521,16 +521,16 @@ class AlertFormatter:
                 risk_factors['green'].append("多周期Z-score方向一致")
 
         # 长期窗口协整健康
-        if health_monitor and long_score >= 18:
+        if health_monitor and long_score >= ALERT_RISK_GREEN_SCORE_MIN:
             risk_factors['green'].append(f"长期协整健康 ({long_score:.1f})")
 
-        # 4h相关系数 > 0.6
+        # 4h相关系数高
         corr_4h = detail_4h.get('correlation')
-        if corr_4h is not None and corr_4h > 0.6:
+        if corr_4h is not None and corr_4h > ALERT_RISK_GREEN_CORR_MIN:
             risk_factors['green'].append(f"4h相关系数高 ({corr_4h:.4f})")
 
-        # 协整通过率 >= 67%
-        if cointegration_count >= 4:
+        # 协整通过率高
+        if cointegration_count >= ALERT_RISK_GREEN_COINT_MIN:
             risk_factors['green'].append(f"协整通过率高 ({cointegration_count}/6)")
 
         return risk_factors
@@ -572,7 +572,7 @@ class AlertFormatter:
         direction = multi_period_result.get('direction', 'none')
         direction_text = "做多" if direction == 'long' else "做空"
 
-        if high_count >= 2:
+        if high_count >= ALERT_RATING_HIGH_COUNT:
             return (
                 "🔴 高风险",
                 "存在多个高风险因素",
@@ -584,7 +584,7 @@ class AlertFormatter:
                 risk_factors['high'][0],
                 "需人工判断，建议观望或极小仓位试探"
             )
-        elif mid_count >= 2:
+        elif mid_count >= ALERT_RATING_MID_COUNT:
             return (
                 "⚠️ 谨慎",
                 "存在多个中等风险因素",
@@ -596,7 +596,7 @@ class AlertFormatter:
                 risk_factors['mid'][0],
                 f"可考虑{direction_text}，建议半仓操作"
             )
-        elif green_count >= 2:
+        elif green_count >= ALERT_RATING_GREEN_COUNT:
             return (
                 "🟢 推荐",
                 "多项有利因素确认",
