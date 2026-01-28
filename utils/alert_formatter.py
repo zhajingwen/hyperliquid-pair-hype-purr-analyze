@@ -55,9 +55,9 @@ class AlertFormatter:
 
     # 周期到Z-score阈值类型的映射（复用config.py中的ZSCORE_THRESHOLDS）
     TIMEFRAME_TO_THRESHOLD_TYPE = {
-        '5m': 'short',   # 短周期 -> 1.8
-        '1h': 'middle',  # 中周期 -> 1.5
-        '4h': 'long'     # 长周期 -> 0.2
+        '5m': 'short',   # 短周期 (默认 1.8)
+        '1h': 'middle',  # 中周期 (默认 1.5)
+        '4h': 'long'     # 长周期 (默认 0.2)
     }
 
     def format_rich_alert(

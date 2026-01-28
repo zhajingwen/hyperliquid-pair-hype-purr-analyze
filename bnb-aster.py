@@ -111,7 +111,7 @@ class DelayCorrelationAnalyzer:
         Args:
             exchange_name: 交易所名称，支持ccxt库支持的所有交易所
             timeout: 请求超时时间（毫秒）
-            default_combinations: K线组合列表，如 [("5m", "7d"), ("1h", "30d")] (从短周期到长周期的顺序)
+            default_combinations: K线组合列表，如 [("5m", "7d"), ("1h", "30d"), ("4h", "60d")] (从短周期到长周期的顺序)
         """
         self.exchange_name = exchange_name
         self.exchange = getattr(ccxt, exchange_name)({
@@ -119,9 +119,9 @@ class DelayCorrelationAnalyzer:
             "enableRateLimit": True,
             "rateLimit": 1500
         })
-        # 保留多周期组合用于相关性对比：5分钟K线7天、1小时K线30天、4小时K线60天
+        # K线组合：5分钟K线7天、1小时K线30天、4小时K线60天
         # Beta/协整/ADF检验将使用配置周期(STATS_PERIOD)数据计算
-        self.combinations = default_combinations or [("5m", "7d"), ("1h", "30d")]
+        self.combinations = default_combinations or [("5m", "7d"), ("1h", "30d"), ("4h", "60d")]
         self.short_periods = ['7d']
         self.long_periods = ['60d']
         # 基准币种交易对：作为参考基准，用于计算与其他山寨币的相关系数和Beta系数
@@ -597,7 +597,7 @@ class DelayCorrelationAnalyzer:
         
         Returns:
             tuple: (方向描述, 方向代码)
-                - 方向描述: "做空{coin}/做多{基准币种}" 或 "做多{coin}/做空{基准币种}"（coin保留完整值）
+                - 方向描述: "做空{coin}/做多基准币种{base_symbol}" 或 "做多{coin}/做空基准币种{base_symbol}"（coin保留完整值）
                 - 方向代码: "short_alt_long_base" 或 "long_alt_short_base"
         
         Note:
@@ -1112,8 +1112,8 @@ class DelayCorrelationAnalyzer:
         # 格式: {(timeframe, period): {'base_prices': pd.Series, 'alt_prices': pd.Series}}
         price_data_cache = {}
 
-        # 直接遍历预定义的组合列表：5m/7d 和 1h/30d
-        # 注意：虽然遍历两种周期获取数据，但统计检验（Beta/协整/ADF）使用配置周期(STATS_PERIOD)数据
+        # 直接遍历预定义的组合列表：5m/7d、1h/30d 和 4h/60d
+        # 注意：虽然遍历三种周期获取数据，但统计检验（Beta/协整/ADF）使用配置周期(STATS_PERIOD)数据
         for timeframe, period in self.combinations:
             # 获取当前组合的数据，检查是否为空
             current_alt_df = self._get_alt_data(coin, period, timeframe, coin)
@@ -1206,7 +1206,6 @@ class DelayCorrelationAnalyzer:
         """
         logger.info(f"启动分析器 | 交易所: {self.exchange_name} | "
                     f"基准币种: {self.base_symbol} | "
-                    # f"目标币种: PURR | "
                     f"K线组合: {self.combinations}")
         
         # 直接使用固定交易对，跳过 load_markets() 以加快启动速度

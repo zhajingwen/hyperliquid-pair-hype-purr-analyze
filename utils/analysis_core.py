@@ -544,6 +544,7 @@ def analyze_pair_advanced(
     4. 健康监控（如果启用且周期为4h/60d）
     5. Z-score计算（基于OLS价差）
     6. 异常检测
+    7. 信号强度评估
 
     Args:
         base_klines: 基础币种K线数据
