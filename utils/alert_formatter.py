@@ -28,9 +28,9 @@ class AlertFormatter:
 
     # 健康状态阈值（仅做参考，实际阈值由 CointegrationHealthMonitor 控制）
     HEALTH_THRESHOLDS = {
-        'HEALTHY': 18,
-        'WARNING': 14,
-        'DANGER': 10
+        'HEALTHY': 25,
+        'WARNING': 18,
+        'DANGER': 12
     }
 
     def __init__(self):

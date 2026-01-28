@@ -342,6 +342,7 @@ class DelayCorrelationAnalyzer:
             base_prices: 基准币种价格序列（pandas Series）
             alt_prices: 山寨币价格序列（pandas Series）
             coin: 币种名称（可选，用于日志）
+            base_symbol: 基准币种名称（可选，用于日志）
 
         Returns:
             dict: {
