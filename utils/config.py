@@ -173,3 +173,48 @@ HEALTH_MONITOR_PERIOD = tuple(os.getenv('HEALTH_MONITOR_PERIOD', '4h,60d').split
 REQUIRED_PERIODS = [
     tuple(p.split(',')) for p in os.getenv('REQUIRED_PERIODS', '5m,7d;1h,30d;4h,60d').split(';')
 ]
+
+# ============ 告警格式化配置 ============
+# 信号强度判断阈值
+ALERT_SIGNAL_STRENGTH_EXTREME = float(os.getenv('ALERT_SIGNAL_STRENGTH_EXTREME', '1.5'))  # 极强信号阈值
+ALERT_SIGNAL_STRENGTH_STRONG = float(os.getenv('ALERT_SIGNAL_STRENGTH_STRONG', '1.0'))    # 强信号阈值
+ALERT_SIGNAL_STRENGTH_MEDIUM = float(os.getenv('ALERT_SIGNAL_STRENGTH_MEDIUM', '0.5'))    # 中等信号阈值
+
+# 信号质量评估阈值（基于协整通过数量）
+ALERT_QUALITY_EXCELLENT = int(os.getenv('ALERT_QUALITY_EXCELLENT', '5'))  # 优秀质量阈值
+ALERT_QUALITY_GOOD = int(os.getenv('ALERT_QUALITY_GOOD', '4'))            # 良好质量阈值
+ALERT_QUALITY_FAIR = int(os.getenv('ALERT_QUALITY_FAIR', '3'))            # 一般质量阈值
+
+# 相关系数评级阈值
+ALERT_CORR_EXCELLENT = float(os.getenv('ALERT_CORR_EXCELLENT', '0.8'))  # 相关系数优秀阈值（绿色）
+ALERT_CORR_GOOD = float(os.getenv('ALERT_CORR_GOOD', '0.6'))            # 相关系数良好阈值（黄色）
+
+# Hurst指数判断阈值
+ALERT_HURST_TREND = float(os.getenv('ALERT_HURST_TREND', '0.6'))                    # Hurst趋势阈值（>此值为趋势性）
+ALERT_HURST_MEAN_REVERSION = float(os.getenv('ALERT_HURST_MEAN_REVERSION', '0.4'))  # Hurst均值回复阈值（<此值为均值回复）
+
+# 健康监控窗口对比阈值
+ALERT_SCORE_DIFF_HIGH = int(os.getenv('ALERT_SCORE_DIFF_HIGH', '15'))      # 得分差异过大阈值
+ALERT_SCORE_DIFF_MEDIUM = int(os.getenv('ALERT_SCORE_DIFF_MEDIUM', '10'))  # 得分差异需关注阈值
+ALERT_SCORE_DETERIORATE = int(os.getenv('ALERT_SCORE_DETERIORATE', '5'))   # 短期恶化判断阈值
+
+# 风险评估 - 高风险因素阈值
+ALERT_RISK_HIGH_SCORE_MIN = int(os.getenv('ALERT_RISK_HIGH_SCORE_MIN', '10'))        # 高风险：最低得分阈值
+ALERT_RISK_HIGH_SCORE_DIFF = int(os.getenv('ALERT_RISK_HIGH_SCORE_DIFF', '15'))      # 高风险：得分差异阈值
+ALERT_RISK_HIGH_HURST = float(os.getenv('ALERT_RISK_HIGH_HURST', '0.7'))             # 高风险：Hurst阈值
+
+# 风险评估 - 中等风险因素阈值
+ALERT_RISK_MID_COINT_MIN = int(os.getenv('ALERT_RISK_MID_COINT_MIN', '3'))           # 中风险：协整最低通过数
+ALERT_RISK_MID_ZSCORE_RATIO = int(os.getenv('ALERT_RISK_MID_ZSCORE_RATIO', '3'))     # 中风险：Z-score倍数（短周期/长周期）
+ALERT_RISK_MID_SCORE_MIN = int(os.getenv('ALERT_RISK_MID_SCORE_MIN', '18'))          # 中风险：得分阈值（WARNING/DANGER状态）
+ALERT_RISK_MID_BETA_CV = float(os.getenv('ALERT_RISK_MID_BETA_CV', '0.2'))           # 中风险：β变异系数阈值
+
+# 风险评估 - 有利因素阈值
+ALERT_RISK_GREEN_SCORE_MIN = int(os.getenv('ALERT_RISK_GREEN_SCORE_MIN', '18'))      # 有利因素：健康得分阈值
+ALERT_RISK_GREEN_CORR_MIN = float(os.getenv('ALERT_RISK_GREEN_CORR_MIN', '0.6'))     # 有利因素：相关系数阈值
+ALERT_RISK_GREEN_COINT_MIN = int(os.getenv('ALERT_RISK_GREEN_COINT_MIN', '4'))       # 有利因素：协整通过数阈值
+
+# 综合评级判断阈值
+ALERT_RATING_HIGH_COUNT = int(os.getenv('ALERT_RATING_HIGH_COUNT', '2'))    # 评级：高风险数量阈值
+ALERT_RATING_MID_COUNT = int(os.getenv('ALERT_RATING_MID_COUNT', '2'))      # 评级：中风险数量阈值
+ALERT_RATING_GREEN_COUNT = int(os.getenv('ALERT_RATING_GREEN_COUNT', '2'))  # 评级：有利因素数量阈值

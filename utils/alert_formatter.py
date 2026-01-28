@@ -14,16 +14,50 @@
 from datetime import datetime, timezone
 from typing import Dict, Optional, List, Tuple
 from utils.logging_config import logger
+from utils.config import (
+    # Z-score阈值配置（复用现有）
+    ZSCORE_THRESHOLDS,
+    # 健康监控窗口配置（复用现有）
+    HEALTH_MONITOR_LONG_WINDOW,
+    HEALTH_MONITOR_SHORT_WINDOW,
+    # 告警格式化专用配置
+    ALERT_SIGNAL_STRENGTH_EXTREME,
+    ALERT_SIGNAL_STRENGTH_STRONG,
+    ALERT_SIGNAL_STRENGTH_MEDIUM,
+    ALERT_QUALITY_EXCELLENT,
+    ALERT_QUALITY_GOOD,
+    ALERT_QUALITY_FAIR,
+    ALERT_CORR_EXCELLENT,
+    ALERT_CORR_GOOD,
+    ALERT_HURST_TREND,
+    ALERT_HURST_MEAN_REVERSION,
+    ALERT_SCORE_DIFF_HIGH,
+    ALERT_SCORE_DIFF_MEDIUM,
+    ALERT_SCORE_DETERIORATE,
+    ALERT_RISK_HIGH_SCORE_MIN,
+    ALERT_RISK_HIGH_SCORE_DIFF,
+    ALERT_RISK_HIGH_HURST,
+    ALERT_RISK_MID_COINT_MIN,
+    ALERT_RISK_MID_ZSCORE_RATIO,
+    ALERT_RISK_MID_SCORE_MIN,
+    ALERT_RISK_MID_BETA_CV,
+    ALERT_RISK_GREEN_SCORE_MIN,
+    ALERT_RISK_GREEN_CORR_MIN,
+    ALERT_RISK_GREEN_COINT_MIN,
+    ALERT_RATING_HIGH_COUNT,
+    ALERT_RATING_MID_COUNT,
+    ALERT_RATING_GREEN_COUNT,
+)
 
 
 class AlertFormatter:
     """多周期配对交易信号告警格式化器"""
 
-    # Z-score 阈值
-    ZSCORE_THRESHOLDS = {
-        '5m': 1.8,
-        '1h': 1.5,
-        '4h': 0.2
+    # 周期到Z-score阈值类型的映射（复用config.py中的ZSCORE_THRESHOLDS）
+    TIMEFRAME_TO_THRESHOLD_TYPE = {
+        '5m': 'short',   # 短周期 -> 1.8
+        '1h': 'middle',  # 中周期 -> 1.5
+        '4h': 'long'     # 长周期 -> 0.2
     }
 
     def format_rich_alert(
@@ -90,13 +124,13 @@ class AlertFormatter:
         """格式化信号概览"""
         # 计算信号强度
         abs_zscore = abs(zscore_4h)
-        if abs_zscore > 1.5:
+        if abs_zscore > ALERT_SIGNAL_STRENGTH_EXTREME:
             strength = "极强"
             strength_emoji = "🔥🔥🔥"
-        elif abs_zscore > 1.0:
+        elif abs_zscore > ALERT_SIGNAL_STRENGTH_STRONG:
             strength = "强"
             strength_emoji = "🔥🔥"
-        elif abs_zscore > 0.5:
+        elif abs_zscore > ALERT_SIGNAL_STRENGTH_MEDIUM:
             strength = "中等"
             strength_emoji = "🔥"
         else:
@@ -104,13 +138,13 @@ class AlertFormatter:
             strength_emoji = "💨"
 
         # 信号质量评估
-        if cointegration_count >= 5:
+        if cointegration_count >= ALERT_QUALITY_EXCELLENT:
             quality_emoji = "⭐⭐⭐"
             quality_text = "优秀"
-        elif cointegration_count >= 4:
+        elif cointegration_count >= ALERT_QUALITY_GOOD:
             quality_emoji = "⭐⭐"
             quality_text = "良好"
-        elif cointegration_count >= 3:
+        elif cointegration_count >= ALERT_QUALITY_FAIR:
             quality_emoji = "⭐"
             quality_text = "一般"
         else:
@@ -149,11 +183,16 @@ class AlertFormatter:
         # 趋势特征分析
         trend_feature = self._analyze_trend_feature(zscore_5m, zscore_1h, zscore_4h)
 
+        # 从配置获取阈值（通过周期映射）
+        threshold_5m = ZSCORE_THRESHOLDS[self.TIMEFRAME_TO_THRESHOLD_TYPE['5m']]
+        threshold_1h = ZSCORE_THRESHOLDS[self.TIMEFRAME_TO_THRESHOLD_TYPE['1h']]
+        threshold_4h = ZSCORE_THRESHOLDS[self.TIMEFRAME_TO_THRESHOLD_TYPE['4h']]
+
         lines = [
             "**【多周期Z-score验证】**",
-            format_zscore_line("🕐 短周期", "5m", zscore_5m, self.ZSCORE_THRESHOLDS['5m']),
-            format_zscore_line("🕑 中周期", "1h", zscore_1h, self.ZSCORE_THRESHOLDS['1h']),
-            format_zscore_line("🕓 长周期", "4h", zscore_4h, self.ZSCORE_THRESHOLDS['4h']),
+            format_zscore_line("🕐 短周期", "5m", zscore_5m, threshold_5m),
+            format_zscore_line("🕑 中周期", "1h", zscore_1h, threshold_1h),
+            format_zscore_line("🕓 长周期", "4h", zscore_4h, threshold_4h),
             f"├─ 符号一致性: {sign_status}",
             f"└─ 趋势特征: {trend_feature}",
             "",
