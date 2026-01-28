@@ -26,17 +26,6 @@ class AlertFormatter:
         '4h': 0.2
     }
 
-    # 健康状态阈值（仅做参考，实际阈值由 CointegrationHealthMonitor 控制）
-    HEALTH_THRESHOLDS = {
-        'HEALTHY': 25,
-        'WARNING': 18,
-        'DANGER': 12
-    }
-
-    def __init__(self):
-        """初始化格式化器"""
-        pass
-
     def format_rich_alert(
         self,
         symbol: str,
@@ -475,10 +464,6 @@ class AlertFormatter:
                 risk_factors['mid'].append("短周期Z-score远强于长周期")
 
         if health_monitor:
-            short_window = health_monitor.get('short_window', {})
-            short_score = short_window.get('health_score', 100)
-            short_state = short_window.get('state', '')
-
             # 短期协整得分 WARNING/DANGER
             if 10 <= short_score < 18:
                 risk_factors['mid'].append(f"短期协整状态: {short_state} ({short_score:.1f})")
@@ -497,11 +482,8 @@ class AlertFormatter:
                 risk_factors['green'].append("多周期Z-score方向一致")
 
         # 长期窗口协整健康
-        if health_monitor:
-            long_window = health_monitor.get('long_window', {})
-            long_score = long_window.get('health_score', 0)
-            if long_score >= 18:
-                risk_factors['green'].append(f"长期协整健康 ({long_score:.1f})")
+        if health_monitor and long_score >= 18:
+            risk_factors['green'].append(f"长期协整健康 ({long_score:.1f})")
 
         # 4h相关系数 > 0.6
         corr_4h = detail_4h.get('correlation')
@@ -572,7 +554,7 @@ class AlertFormatter:
         elif mid_count == 1:
             return (
                 "🟡 中等",
-                risk_factors['mid'][0] if risk_factors['mid'] else "综合评估",
+                risk_factors['mid'][0],
                 f"可考虑{direction_text}，建议半仓操作"
             )
         elif green_count >= 2:

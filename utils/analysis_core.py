@@ -22,6 +22,30 @@ from statsmodels.tsa.stattools import coint, adfuller
 import statsmodels.api as sm
 
 from utils.logging_config import logger
+from utils.config import (
+    MIN_POINTS_FOR_CORRELATION,
+    MIN_POINTS_FOR_COINTEGRATION,
+    MIN_POINTS_FOR_ZSCORE,
+    MIN_POINTS_FOR_OLS,
+    MIN_POINTS_FOR_HEALTH_MONITOR,
+    BETA_WINDOW,
+    ZSCORE_WINDOW,
+    COINTEGRATION_THRESHOLD,
+    COINTEGRATION_SIGNIFICANCE_LEVEL,
+    TARGET_CORR_THRESHOLD,
+    ALPHA_SIGNIFICANCE_LEVEL,
+    ALPHA_CROSS_ASSET_THRESHOLD,
+    ALPHA_SAME_ASSET_THRESHOLD,
+    ZSCORE_STRONG_THRESHOLD,
+    ZSCORE_MEDIUM_THRESHOLD,
+    ZSCORE_THRESHOLDS,
+    HEALTH_MONITOR_LONG_WINDOW,
+    HEALTH_MONITOR_SHORT_WINDOW,
+    HEALTH_MONITOR_STATE_THRESHOLDS,
+    HEALTH_MONITOR_PERIOD,
+    REQUIRED_PERIODS,
+    MIN_DATA_POINTS
+)
 
 
 # =====================================================
@@ -88,8 +112,8 @@ def calculate_correlation(
         base_prices = prepare_price_series(base_klines)
         alt_prices = prepare_price_series(alt_klines)
 
-        if len(base_prices) < 20 or len(alt_prices) < 20:
-            logger.warning("数据点不足20个，无法计算可靠的相关性")
+        if len(base_prices) < MIN_POINTS_FOR_CORRELATION or len(alt_prices) < MIN_POINTS_FOR_CORRELATION:
+            logger.warning(f"数据点不足{MIN_POINTS_FOR_CORRELATION}个，无法计算可靠的相关性")
             return 0.0
 
         # 对齐时间索引
@@ -98,16 +122,16 @@ def calculate_correlation(
             'alt': alt_prices
         }).dropna()
 
-        if len(aligned) < 20:
-            logger.warning("对齐后数据点不足20个")
+        if len(aligned) < MIN_POINTS_FOR_CORRELATION:
+            logger.warning(f"对齐后数据点不足{MIN_POINTS_FOR_CORRELATION}个")
             return 0.0
 
         # 计算收益率序列（与 multi_coins5.py 对齐）
         base_returns = aligned['base'].pct_change().dropna()
         alt_returns = aligned['alt'].pct_change().dropna()
 
-        if len(base_returns) < 19:
-            logger.warning("收益率序列数据点不足19个")
+        if len(base_returns) < MIN_POINTS_FOR_ZSCORE:
+            logger.warning(f"收益率序列数据点不足{MIN_POINTS_FOR_ZSCORE}个")
             return 0.0
 
         # 计算收益率相关系数
@@ -146,8 +170,8 @@ def check_cointegration(
         base_prices = prepare_price_series(base_klines)
         alt_prices = prepare_price_series(alt_klines)
 
-        if len(base_prices) < 30 or len(alt_prices) < 30:
-            logger.warning("数据点不足30个，协整检验不可靠")
+        if len(base_prices) < MIN_POINTS_FOR_COINTEGRATION or len(alt_prices) < MIN_POINTS_FOR_COINTEGRATION:
+            logger.warning(f"数据点不足{MIN_POINTS_FOR_COINTEGRATION}个，协整检验不可靠")
             return False, 1.0
 
         # 对齐时间索引
@@ -156,8 +180,8 @@ def check_cointegration(
             'alt': alt_prices
         }).dropna()
 
-        if len(aligned) < 30:
-            logger.warning("对齐后数据点不足30个")
+        if len(aligned) < MIN_POINTS_FOR_COINTEGRATION:
+            logger.warning(f"对齐后数据点不足{MIN_POINTS_FOR_COINTEGRATION}个")
             return False, 1.0
 
         # Engle-Granger协整检验
@@ -221,8 +245,8 @@ def calculate_zscore_simple(
         base_prices = prepare_price_series(base_klines)
         alt_prices = prepare_price_series(alt_klines)
 
-        if len(base_prices) < 30 or len(alt_prices) < 30:
-            logger.warning("数据点不足30个，Z-score计算不可靠")
+        if len(base_prices) < MIN_POINTS_FOR_COINTEGRATION or len(alt_prices) < MIN_POINTS_FOR_COINTEGRATION:
+            logger.warning(f"数据点不足{MIN_POINTS_FOR_COINTEGRATION}个，Z-score计算不可靠")
             return 0.0
 
         # 对齐时间索引
@@ -231,8 +255,8 @@ def calculate_zscore_simple(
             'alt': alt_prices
         }).dropna()
 
-        if len(aligned) < 30:
-            logger.warning("对齐后数据点不足30个")
+        if len(aligned) < MIN_POINTS_FOR_COINTEGRATION:
+            logger.warning(f"对齐后数据点不足{MIN_POINTS_FOR_COINTEGRATION}个")
             return 0.0
 
         # 计算价格比率
@@ -272,8 +296,8 @@ def _select_cointegration_model(
     智能协整模型选择
 
     根据α的显著性和绝对值大小选择最优模型：
-    - |α| > 5 且显著 → 无α模型（跨资产类配对）
-    - |α| < 2 且显著 → 标准EG模型（同类资产配对）
+    - |α| > ALPHA_CROSS_ASSET_THRESHOLD 且显著 → 无α模型（跨资产类配对）
+    - |α| < ALPHA_SAME_ASSET_THRESHOLD 且显著 → 标准EG模型（同类资产配对）
     - 其他 → 无α模型
 
     Args:
@@ -283,20 +307,20 @@ def _select_cointegration_model(
     Returns:
         (model_type, use_alpha, model_reason): 模型类型、是否使用α、选择原因
     """
-    if alpha_pvalue < 0.05 and abs(alpha) > 5:
+    if alpha_pvalue < ALPHA_SIGNIFICANCE_LEVEL and abs(alpha) > ALPHA_CROSS_ASSET_THRESHOLD:
         # α显著且绝对值很大 → 跨资产类配对（如NEAR/BTC）
-        return "no_intercept_forced", False, f"|α|={abs(alpha):.1f}>5, 跨资产类配对"
+        return "no_intercept_forced", False, f"|α|={abs(alpha):.1f}>{ALPHA_CROSS_ASSET_THRESHOLD}, 跨资产类配对"
 
-    elif alpha_pvalue < 0.05 and abs(alpha) < 2:
+    elif alpha_pvalue < ALPHA_SIGNIFICANCE_LEVEL and abs(alpha) < ALPHA_SAME_ASSET_THRESHOLD:
         # α显著且绝对值较小 → 同类资产配对（如UNI/SUSHI）
-        return "standard_EG", True, f"|α|={abs(alpha):.1f}<2, 同类资产配对"
+        return "standard_EG", True, f"|α|={abs(alpha):.1f}<{ALPHA_SAME_ASSET_THRESHOLD}, 同类资产配对"
 
     else:
-        # α不显著或中等范围（2<=|α|<=5）
-        if alpha_pvalue >= 0.05:
+        # α不显著或中等范围（ALPHA_SAME_ASSET_THRESHOLD<=|α|<=ALPHA_CROSS_ASSET_THRESHOLD）
+        if alpha_pvalue >= ALPHA_SIGNIFICANCE_LEVEL:
             reason = "α不显著"
         else:
-            reason = f"|α|={abs(alpha):.1f}∈[2,5], 中等范围"
+            reason = f"|α|={abs(alpha):.1f}∈[{ALPHA_SAME_ASSET_THRESHOLD},{ALPHA_CROSS_ASSET_THRESHOLD}], 中等范围"
         return "no_intercept", False, reason
 
 
@@ -341,8 +365,8 @@ def calculate_cointegration_params_ols(
         }).dropna()
 
         # 数据验证
-        if len(aligned) < 10:
-            logger.debug(f"协整参数计算失败：对齐后数据点不足10个")
+        if len(aligned) < MIN_POINTS_FOR_OLS:
+            logger.debug(f"协整参数计算失败：对齐后数据点不足{MIN_POINTS_FOR_OLS}个")
             return None
 
         # 计算对数价格
@@ -399,8 +423,8 @@ def calculate_cointegration_params_ols(
 def calculate_cointegration_params_dual_window(
     base_klines: List[Dict],
     alt_klines: List[Dict],
-    beta_window: int = 100,
-    zscore_window: int = 30
+    beta_window: int = None,
+    zscore_window: int = None
 ) -> Optional[Dict]:
     """
     双窗口策略OLS协整参数计算
@@ -413,8 +437,8 @@ def calculate_cointegration_params_dual_window(
     Args:
         base_klines: 基础币种K线数据
         alt_klines: 目标币种K线数据
-        beta_window: OLS回归窗口大小（默认100）
-        zscore_window: Z-score计算窗口大小（默认30）
+        beta_window: OLS回归窗口大小（默认从配置读取）
+        zscore_window: Z-score计算窗口大小（默认从配置读取）
 
     Returns:
         Dict: {
@@ -430,6 +454,12 @@ def calculate_cointegration_params_dual_window(
             'model_reason': 模型选择原因
         } 或 None
     """
+    # 应用默认值
+    if beta_window is None:
+        beta_window = BETA_WINDOW
+    if zscore_window is None:
+        zscore_window = ZSCORE_WINDOW
+    
     try:
         base_prices = prepare_price_series(base_klines)
         alt_prices = prepare_price_series(alt_klines)
@@ -522,8 +552,8 @@ def calculate_cointegration_params_dual_window(
 def calculate_zscore_ols(
     base_klines: List[Dict],
     alt_klines: List[Dict],
-    window: int = 30,
-    beta_window: int = 100,
+    window: int = None,
+    beta_window: int = None,
     cointegration_result: Optional[Dict] = None
 ) -> Optional[float]:
     """
@@ -536,13 +566,19 @@ def calculate_zscore_ols(
     Args:
         base_klines: 基础币种K线数据
         alt_klines: 目标币种K线数据
-        window: Z-score统计窗口大小（默认30）
-        beta_window: OLS回归窗口大小（默认100）
+        window: Z-score统计窗口大小（默认从配置读取）
+        beta_window: OLS回归窗口大小（默认从配置读取）
         cointegration_result: 预计算的协整结果（可选）
 
     Returns:
         float: Z-score值，失败返回None
     """
+    # 应用默认值
+    if window is None:
+        window = ZSCORE_WINDOW
+    if beta_window is None:
+        beta_window = BETA_WINDOW
+    
     try:
         # 如果未提供协整结果，自动计算
         if cointegration_result is None:
@@ -630,8 +666,8 @@ def detect_anomaly(
 def analyze_pair(
     base_klines: List[Dict],
     alt_klines: List[Dict],
-    corr_threshold: float = 0.5,
-    coint_significance: float = 0.05,
+    corr_threshold: float = None,
+    coint_significance: float = None,
     zscore_threshold: float = 2.0
 ) -> Dict:
     """
@@ -646,8 +682,8 @@ def analyze_pair(
     Args:
         base_klines: 基础币种K线数据
         alt_klines: 目标币种K线数据
-        corr_threshold: 相关性阈值（默认0.5）
-        coint_significance: 协整检验显著性水平（默认0.05）
+        corr_threshold: 相关性阈值（默认从配置读取）
+        coint_significance: 协整检验显著性水平（默认从配置读取）
         zscore_threshold: Z-score异常阈值（默认2.0）
 
     Returns:
@@ -662,6 +698,12 @@ def analyze_pair(
                 'signal_strength': str
             }
     """
+    # 应用默认值
+    if corr_threshold is None:
+        corr_threshold = TARGET_CORR_THRESHOLD
+    if coint_significance is None:
+        coint_significance = COINTEGRATION_SIGNIFICANCE_LEVEL
+    
     result = {
         'correlation': 0.0,
         'cointegration_passed': False,
@@ -719,8 +761,8 @@ def analyze_pair(
 def analyze_pair_advanced(
     base_klines: List[Dict],
     alt_klines: List[Dict],
-    beta_window: int = 100,
-    zscore_window: int = 30,
+    beta_window: int = None,
+    zscore_window: int = None,
     zscore_threshold: float = 2.0,
     enable_health_monitor: bool = True,
     stats_period_key: Optional[Tuple[str, str]] = None
@@ -739,8 +781,8 @@ def analyze_pair_advanced(
     Args:
         base_klines: 基础币种K线数据
         alt_klines: 目标币种K线数据
-        beta_window: OLS回归窗口大小（默认100）
-        zscore_window: Z-score计算窗口大小（默认30）
+        beta_window: OLS回归窗口大小（默认从配置读取）
+        zscore_window: Z-score计算窗口大小（默认从配置读取）
         zscore_threshold: Z-score异常阈值（默认2.0）
         enable_health_monitor: 是否启用健康监控（默认True）
         stats_period_key: 统计周期键，如 ('4h', '60d')，用于判断是否启用健康监控
@@ -775,6 +817,12 @@ def analyze_pair_advanced(
             'signal_strength': str
         }
     """
+    # 应用默认值
+    if beta_window is None:
+        beta_window = BETA_WINDOW
+    if zscore_window is None:
+        zscore_window = ZSCORE_WINDOW
+    
     result = {
         'correlation': 0.0,
         'cointegration_old': {
@@ -837,10 +885,10 @@ def analyze_pair_advanced(
                 'rsquared': coint_new.get('rsquared')
             }
 
-        # 4. 健康监控（仅在4h/60d周期启用）
+        # 4. 健康监控（仅在配置的监控周期启用）
         if enable_health_monitor and stats_period_key:
             timeframe, window_str = stats_period_key
-            if timeframe == '4h' and window_str == '60d':
+            if timeframe == HEALTH_MONITOR_PERIOD[0] and window_str == HEALTH_MONITOR_PERIOD[1]:
                 try:
                     from utils.coingetation_more_check import CointegrationHealthMonitor
 
@@ -853,23 +901,23 @@ def analyze_pair_advanced(
                         'alt': alt_prices
                     }).dropna()
 
-                    if len(aligned) >= 200:
+                    if len(aligned) >= MIN_POINTS_FOR_HEALTH_MONITOR:
                         log_base_series = np.log(aligned['base'])
                         log_alt_series = np.log(aligned['alt'])
 
-                        # 长期监控（200期 = 33天）
+                        # 长期监控（配置周期）
                         monitor_long = CointegrationHealthMonitor(
-                            window=200,
+                            window=HEALTH_MONITOR_LONG_WINDOW,
                             enable_diagnostics=True,
-                            state_thresholds=(18, 14, 10)
+                            state_thresholds=HEALTH_MONITOR_STATE_THRESHOLDS
                         )
                         result_long = monitor_long.update(log_base_series, log_alt_series)
 
-                        # 短期监控（100期 = 16.7天）
+                        # 短期监控（配置周期）
                         monitor_short = CointegrationHealthMonitor(
-                            window=100,
+                            window=HEALTH_MONITOR_SHORT_WINDOW,
                             enable_diagnostics=True,
-                            state_thresholds=(18, 14, 10)
+                            state_thresholds=HEALTH_MONITOR_STATE_THRESHOLDS
                         )
                         result_short = monitor_short.update(log_base_series, log_alt_series)
 
@@ -908,9 +956,9 @@ def analyze_pair_advanced(
         # 7. 信号强度评估
         if is_anomaly:
             abs_zscore = abs(result['zscore'])
-            if abs_zscore > 2.5:
+            if abs_zscore > ZSCORE_STRONG_THRESHOLD:
                 result['signal_strength'] = 'strong'
-            elif abs_zscore > 2.0:
+            elif abs_zscore > ZSCORE_MEDIUM_THRESHOLD:
                 result['signal_strength'] = 'medium'
             else:
                 result['signal_strength'] = 'weak'
@@ -926,9 +974,9 @@ def analyze_multi_period(
     price_data_cache: Dict[Tuple[str, str], Dict],
     base_symbol: Optional[str] = None,
     target_symbol: Optional[str] = None,
-    beta_window: int = 100,
-    zscore_window: int = 30,
-    cointegration_threshold: int = 2,
+    beta_window: int = None,
+    zscore_window: int = None,
+    cointegration_threshold: int = None,
     zscore_thresholds: Optional[Dict[str, float]] = None
 ) -> Optional[Dict]:
     """
@@ -944,10 +992,10 @@ def analyze_multi_period(
                 ('1h', '30d'): {'base_prices': pd.Series, 'alt_prices': pd.Series},
                 ('4h', '60d'): {'base_prices': pd.Series, 'alt_prices': pd.Series}
             }
-        beta_window: OLS回归窗口（默认100）
-        zscore_window: Z-score计算窗口（默认30）
-        cointegration_threshold: 协整通过门槛（默认2，即至少2个周期协整通过）
-        zscore_thresholds: Z-score阈值字典
+        beta_window: OLS回归窗口（默认从配置读取）
+        zscore_window: Z-score计算窗口（默认从配置读取）
+        cointegration_threshold: 协整通过门槛（默认从配置读取）
+        zscore_thresholds: Z-score阈值字典（默认从配置读取）
             {
                 'long': 0.2,    # 4h 长周期
                 'middle': 1.5,  # 1h 中周期
@@ -979,17 +1027,19 @@ def analyze_multi_period(
        - New方法：双窗口OLS协整分析
        - Z-score计算（基于OLS价差）
     2. 统计协整通过数量（Old + New，共6个结果）
-    3. 验证：协整通过数 >= cointegration_threshold（默认2）
+    3. 验证：协整通过数 >= cointegration_threshold（默认从配置读取）
     4. 验证：3个周期Z-score符号一致
     5. 验证：3个周期Z-score都超过各自阈值
     """
-    # 设置默认阈值
+    # 应用默认值
+    if beta_window is None:
+        beta_window = BETA_WINDOW
+    if zscore_window is None:
+        zscore_window = ZSCORE_WINDOW
+    if cointegration_threshold is None:
+        cointegration_threshold = COINTEGRATION_THRESHOLD
     if zscore_thresholds is None:
-        zscore_thresholds = {
-            'long': 0.2,    # 4h
-            'middle': 1.5,  # 1h
-            'short': 1.8    # 5m
-        }
+        zscore_thresholds = ZSCORE_THRESHOLDS
 
     # 构建日志前缀（target_symbol vs base_symbol）
     log_prefix = ""
@@ -1014,7 +1064,7 @@ def analyze_multi_period(
             return "健康: N/A"
 
     # 验证输入数据
-    required_periods = [('5m', '7d'), ('1h', '30d'), ('4h', '60d')]
+    required_periods = REQUIRED_PERIODS
     for period_key in required_periods:
         if period_key not in price_data_cache:
             logger.warning(f"{log_prefix}缺少必需周期数据: {period_key}")
@@ -1036,8 +1086,8 @@ def analyze_multi_period(
         alt_klines = [{'time': t, 'close': p} for t, p in alt_prices.items()]
 
         # 数据验证
-        if len(base_klines) < 100 or len(alt_klines) < 100:
-            logger.warning(f"{log_prefix}周期 {period_key} 数据点不足100个")
+        if len(base_klines) < MIN_DATA_POINTS or len(alt_klines) < MIN_DATA_POINTS:
+            logger.warning(f"{log_prefix}周期 {period_key} 数据点不足{MIN_DATA_POINTS}个")
             return None
 
         # 执行高级分析（包含Old和New方法）

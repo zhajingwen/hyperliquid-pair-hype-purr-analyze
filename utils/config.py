@@ -149,3 +149,27 @@ QUEUE_WARNING_THRESHOLD = float(os.getenv('QUEUE_WARNING_THRESHOLD', '0.8'))
 # 如果需要统一管理，可以从 config.py 导入
 LOG_MAX_BYTES = int(os.getenv('LOG_MAX_BYTES', str(100 * 1024 * 1024)))  # 100MB
 LOG_BACKUP_COUNT = int(os.getenv('LOG_BACKUP_COUNT', '5'))
+
+# ============ OLS 协整分析参数 ============
+MIN_POINTS_FOR_OLS = int(os.getenv('MIN_POINTS_FOR_OLS', '10'))
+MIN_POINTS_FOR_HEALTH_MONITOR = int(os.getenv('MIN_POINTS_FOR_HEALTH_MONITOR', '200'))
+
+# 协整模型选择阈值
+ALPHA_SIGNIFICANCE_LEVEL = float(os.getenv('ALPHA_SIGNIFICANCE_LEVEL', '0.05'))
+ALPHA_CROSS_ASSET_THRESHOLD = float(os.getenv('ALPHA_CROSS_ASSET_THRESHOLD', '5'))
+ALPHA_SAME_ASSET_THRESHOLD = float(os.getenv('ALPHA_SAME_ASSET_THRESHOLD', '2'))
+
+# ============ 信号强度阈值 ============
+ZSCORE_STRONG_THRESHOLD = float(os.getenv('ZSCORE_STRONG_THRESHOLD', '2.5'))
+ZSCORE_MEDIUM_THRESHOLD = float(os.getenv('ZSCORE_MEDIUM_THRESHOLD', '2.0'))
+
+# ============ 健康监控参数 ============
+HEALTH_MONITOR_LONG_WINDOW = int(os.getenv('HEALTH_MONITOR_LONG_WINDOW', '200'))
+HEALTH_MONITOR_SHORT_WINDOW = int(os.getenv('HEALTH_MONITOR_SHORT_WINDOW', '100'))
+HEALTH_MONITOR_STATE_THRESHOLDS = tuple(map(int, os.getenv('HEALTH_MONITOR_STATE_THRESHOLDS', '18,14,10').split(',')))
+HEALTH_MONITOR_PERIOD = tuple(os.getenv('HEALTH_MONITOR_PERIOD', '4h,60d').split(','))
+
+# ============ 多周期分析配置 ============
+REQUIRED_PERIODS = [
+    tuple(p.split(',')) for p in os.getenv('REQUIRED_PERIODS', '5m,7d;1h,30d;4h,60d').split(';')
+]
