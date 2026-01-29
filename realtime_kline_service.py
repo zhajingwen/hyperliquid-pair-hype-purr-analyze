@@ -274,13 +274,13 @@ class RealtimeKlineService:
 
         logger.info("✅ 实时K线分析服务初始化完成")
 
-    def _batch_upsert_with_retry(self, batch, max_retries=3, on_conflict='update'):
+    def _batch_upsert_with_retry(self, batch, max_retries=5, on_conflict='update'):
         """
-        批量写入数据库，带死锁重试机制
+        K线批量写入数据库，带死锁重试机制
 
         Args:
             batch: 数据批次
-            max_retries: 最大重试次数（默认3次）
+            max_retries: 最大重试次数（默认5次，优化自3次）
             on_conflict: 冲突处理策略
 
         Returns:
@@ -289,25 +289,70 @@ class RealtimeKlineService:
         Raises:
             Exception: 重试耗尽后抛出原始异常
         """
+        import random
         for attempt in range(max_retries):
             try:
                 return self.kline_repo.batch_upsert_copy(batch, on_conflict=on_conflict)
             except psycopg.errors.DeadlockDetected as e:
                 if attempt < max_retries - 1:
-                    # 指数退避：0.1s, 0.2s, 0.4s
-                    wait_time = 0.1 * (2 ** attempt)
+                    # 指数退避 + 随机抖动：0.1s → 0.2s → 0.4s → 0.8s → 1.6s
+                    base_delay = 0.1 * (2 ** attempt)
+                    jitter = base_delay * 0.25  # ±25% 随机抖动
+                    wait_time = base_delay + random.uniform(-jitter, jitter)
                     logger.warning(
-                        f"数据库死锁检测到，{wait_time:.1f}秒后重试 "
-                        f"({attempt + 1}/{max_retries}) | {e}"
+                        f"K线写入死锁，{wait_time:.2f}秒后重试 "
+                        f"({attempt + 1}/{max_retries})"
                     )
                     time.sleep(wait_time)
                     continue
                 else:
-                    logger.error(f"死锁重试耗尽 ({max_retries}次)，放弃写入", exc_info=True)
+                    logger.error(f"K线写入死锁重试耗尽 ({max_retries}次)", exc_info=True)
                     raise
             except Exception as e:
                 # 其他异常直接抛出
-                logger.error(f"批量写入失败（非死锁）: {e}", exc_info=True)
+                logger.error(f"K线批量写入失败（非死锁）: {e}", exc_info=True)
+                raise
+
+    def _batch_insert_analysis_with_retry(self, batch, use_copy_method, max_retries=5):
+        """
+        分析结果批量写入数据库，带死锁重试机制
+
+        Args:
+            batch: 数据批次
+            use_copy_method: 是否使用COPY方法
+            max_retries: 最大重试次数（默认5次）
+
+        Returns:
+            写入记录数
+
+        Raises:
+            Exception: 重试耗尽后抛出原始异常
+        """
+        import random
+        for attempt in range(max_retries):
+            try:
+                if use_copy_method:
+                    return self.analysis_repo.batch_insert_copy(batch)
+                else:
+                    return self.analysis_repo.batch_insert(batch)
+            except psycopg.errors.DeadlockDetected as e:
+                if attempt < max_retries - 1:
+                    # 指数退避 + 随机抖动：0.1s → 0.2s → 0.4s → 0.8s → 1.6s
+                    base_delay = 0.1 * (2 ** attempt)
+                    jitter = base_delay * 0.25  # ±25% 随机抖动
+                    wait_time = base_delay + random.uniform(-jitter, jitter)
+                    logger.warning(
+                        f"分析结果写入死锁，{wait_time:.2f}秒后重试 "
+                        f"({attempt + 1}/{max_retries})"
+                    )
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    logger.error(f"分析结果写入死锁重试耗尽 ({max_retries}次)", exc_info=True)
+                    raise
+            except Exception as e:
+                # 其他异常直接抛出
+                logger.error(f"分析结果批量写入失败（非死锁）: {e}", exc_info=True)
                 raise
 
     def _get_active_symbols(self) -> List[str]:
@@ -717,12 +762,13 @@ class RealtimeKlineService:
                         )
                     )
 
-                    # 批量写入数据库（根据配置选择写入方法）
+                    # 批量写入数据库（带死锁重试保护）
                     try:
-                        if use_copy_method:
-                            count = self.analysis_repo.batch_insert_copy(dedup_batch)
-                        else:
-                            count = self.analysis_repo.batch_insert(dedup_batch)
+                        count = self._batch_insert_analysis_with_retry(
+                            dedup_batch,
+                            use_copy_method=use_copy_method,
+                            max_retries=5
+                        )
                         self.stats['analysis_results_written'] += count
                         self.stats['analysis_results_deduped'] += dedup_count
 
@@ -775,11 +821,12 @@ class RealtimeKlineService:
                 dedup_batch = list(dedup_dict.values())
                 dedup_count = batch_count - len(dedup_batch)
 
-                # 根据配置选择写入方法
-                if use_copy_method:
-                    count = self.analysis_repo.batch_insert_copy(dedup_batch)
-                else:
-                    count = self.analysis_repo.batch_insert(dedup_batch)
+                # 根据配置选择写入方法（带死锁重试保护）
+                count = self._batch_insert_analysis_with_retry(
+                    dedup_batch,
+                    use_copy_method=use_copy_method,
+                    max_retries=5
+                )
                 self.stats['analysis_results_written'] += count
                 self.stats['analysis_results_deduped'] += dedup_count
 
