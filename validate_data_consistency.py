@@ -1078,8 +1078,8 @@ class DataConsistencyValidator:
 
         report_lines.append("")
 
-        # 2. 数据缺失检测
-        report_lines.append(self._colorize(f"2. 数据缺失检测（最近{hours}小时）", TerminalColors.bold))
+        # 2. 分析结果完整性检测
+        report_lines.append(self._colorize(f"2. 分析结果完整性检测（最近{hours}小时）", TerminalColors.bold))
         report_lines.append("-" * 60)
         missing_data = metrics['missing_data']
 
@@ -1203,7 +1203,7 @@ def main():
         '--hours',
         type=int,
         default=1,
-        help='延迟统计和数据缺失检测的时间窗口（小时），默认1小时'
+        help='延迟统计和完整性检测的时间窗口（小时），默认1小时'
     )
     parser.add_argument(
         '--days',
