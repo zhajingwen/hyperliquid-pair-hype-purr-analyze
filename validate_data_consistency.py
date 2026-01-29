@@ -451,49 +451,41 @@ class DataConsistencyValidator:
             logger.error(f"  数据缺失检测失败 - {e}")
             return []
 
-    def _calculate_lag_for_timeframe(
+    def _calculate_lag_statistics(
         self,
-        timeframe: str,
         hours: int,
         symbol: Optional[str] = None
-    ) -> Tuple[str, Optional[Dict[str, float]]]:
+    ) -> Optional[Dict[str, float]]:
         """
-        计算单个周期的延迟统计（用于并发执行）
+        直接使用预存储的 analysis_delay_seconds 字段统计延迟
+
+        注意：不再按timeframe分别统计，因为analysis_delay_seconds是统一的真实延迟
+
+        Args:
+            hours: 查询最近N小时的数据
+            symbol: 指定币种（可选）
 
         Returns:
-            (timeframe, 统计结果字典)
+            延迟统计字典，包含总记录数、平均值、最大值、最小值、P95、中位数
         """
         query = """
-            WITH lag_data AS (
-                SELECT
-                    a.symbol,
-                    a.analysis_time,
-                    EXTRACT(EPOCH FROM (a.analysis_time - MAX(k.time))) as lag_seconds
-                FROM analysis_results a
-                JOIN klines k ON k.symbol = a.symbol AND k.timeframe = %s
-                WHERE a.analysis_time > NOW() - INTERVAL '%s hours'
-                    AND k.time <= a.analysis_time
-        """
-
-        params = [timeframe, hours]
-
-        if symbol:
-            query += " AND a.symbol = %s"
-            params.append(symbol)
-
-        query += """
-                GROUP BY a.symbol, a.analysis_time
-            )
             SELECT
                 COUNT(*) as total_records,
-                AVG(lag_seconds) as avg_lag,
-                MAX(lag_seconds) as max_lag,
-                MIN(lag_seconds) as min_lag,
-                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY lag_seconds) as p95_lag,
-                PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY lag_seconds) as median_lag
-            FROM lag_data
-            WHERE lag_seconds IS NOT NULL;
+                AVG(analysis_delay_seconds) as avg_lag,
+                MAX(analysis_delay_seconds) as max_lag,
+                MIN(analysis_delay_seconds) as min_lag,
+                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY analysis_delay_seconds) as p95_lag,
+                PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY analysis_delay_seconds) as median_lag
+            FROM analysis_results
+            WHERE created_at > NOW() - INTERVAL '%s hours'
+                AND analysis_delay_seconds IS NOT NULL
         """
+
+        params = [hours]
+
+        if symbol:
+            query += " AND symbol = %s"
+            params.append(symbol)
 
         try:
             result = self.client.execute_query(query, tuple(params), fetch_one=True)
@@ -510,71 +502,131 @@ class DataConsistencyValidator:
                 # 检查阈值
                 if result['max_lag'] > self.config.lag_threshold_seconds:
                     self.warnings.append(
-                        f"延迟过大: {timeframe} 周期最大延迟达到 {result['max_lag']:.1f} 秒"
+                        f"延迟过大: 最大延迟达到 {result['max_lag']:.1f} 秒"
                     )
 
-                return timeframe, stat
+                return stat
             else:
-                logger.warning(f"  {timeframe}: 无统计数据")
-                return timeframe, None
+                logger.warning("  无统计数据")
+                return None
         except Exception as e:
-            logger.error(f"  {timeframe}: 统计计算失败 - {e}")
-            return timeframe, None
+            logger.error(f"  统计计算失败 - {e}")
+            return None
 
     def calculate_lag_statistics(
         self,
         hours: int = 1,
         symbol: Optional[str] = None,
-        parallel: bool = True
-    ) -> Dict[str, Dict[str, float]]:
+        parallel: bool = True  # 保留参数以保持兼容性，但不再使用
+    ) -> Dict[str, float]:
         """
-        计算时间延迟统计（支持并发）
+        计算时间延迟统计（直接使用预存储的analysis_delay_seconds字段）
+
+        注意：不再按timeframe分别统计，因为analysis_delay_seconds记录的是真实延迟
 
         Args:
             hours: 查询最近N小时的数据
             symbol: 指定币种（可选）
-            parallel: 是否并发执行（默认True）
+            parallel: 保留以保持兼容性，但不再使用
 
         Returns:
-            延迟统计字典，键为时间周期
+            延迟统计字典，包含总记录数、平均值、最大值、最小值、P95、中位数
         """
-        logger.info(f"开始计算时间延迟统计（最近{hours}小时，并发={parallel}）...")
-        stats = {}
+        logger.info(f"开始计算时间延迟统计（最近{hours}小时）...")
 
-        if parallel:
-            # 并发查询所有周期
-            with ThreadPoolExecutor(max_workers=self.config.max_concurrent_queries) as executor:
-                futures = {
-                    executor.submit(
-                        self._calculate_lag_for_timeframe,
-                        tf, hours, symbol
-                    ): tf for tf in self.timeframes
+        stat = self._calculate_lag_statistics(hours, symbol)
+
+        if stat:
+            logger.info(f"  总记录数: {stat['total_records']}")
+            logger.info(f"  平均延迟: {stat['avg_lag']:.2f}秒")
+            logger.info(f"  最大延迟: {stat['max_lag']:.2f}秒")
+            logger.info(f"  P95延迟: {stat['p95_lag']:.2f}秒")
+
+        return stat if stat else {}
+
+    def check_delay_field_quality(
+        self,
+        hours: int = 24,
+        symbol: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        检查 analysis_delay_seconds 字段的数据质量
+
+        Args:
+            hours: 查询最近N小时的数据
+            symbol: 指定币种（可选）
+
+        Returns:
+            包含以下字段的字典：
+            - total_records: 总记录数
+            - null_count: NULL值数量
+            - null_percentage: NULL百分比
+            - negative_count: 负数数量（异常）
+            - extreme_count: 极端值数量（>1小时）
+            - kline_time_null_count: kline_time字段NULL数量
+        """
+        logger.info(f"开始检查延迟字段数据质量（最近{hours}小时）...")
+
+        query = """
+            SELECT
+                COUNT(*) as total_records,
+                COUNT(CASE WHEN analysis_delay_seconds IS NULL THEN 1 END) as null_count,
+                COUNT(CASE WHEN analysis_delay_seconds < 0 THEN 1 END) as negative_count,
+                COUNT(CASE WHEN analysis_delay_seconds > 3600 THEN 1 END) as extreme_count,
+                COUNT(CASE WHEN kline_time IS NULL THEN 1 END) as kline_time_null_count
+            FROM analysis_results
+            WHERE created_at > NOW() - INTERVAL '%s hours'
+        """
+
+        params = [hours]
+
+        if symbol:
+            query += " AND symbol = %s"
+            params.append(symbol)
+
+        try:
+            result = self.client.execute_query(query, tuple(params), fetch_one=True)
+            if result:
+                total = result['total_records']
+                null_count = result['null_count']
+                null_percentage = (null_count / total * 100) if total > 0 else 0
+
+                quality_info = {
+                    'total_records': total,
+                    'null_count': null_count,
+                    'null_percentage': null_percentage,
+                    'negative_count': result['negative_count'],
+                    'extreme_count': result['extreme_count'],
+                    'kline_time_null_count': result['kline_time_null_count']
                 }
 
-                # 使用进度条显示并发查询进度
-                with tqdm(total=len(self.timeframes), desc="计算延迟统计", unit="周期", 
-                         disable=not TQDM_AVAILABLE) as pbar:
-                    for future in as_completed(futures):
-                        try:
-                            timeframe, stat = future.result()
-                            stats[timeframe] = stat
-                            if stat:
-                                logger.info(f"  {timeframe}: {stat['total_records']} 条记录")
-                        except Exception as e:
-                            tf = futures[future]
-                            logger.error(f"  {tf}: 查询异常 - {e}")
-                            stats[tf] = None
-                        pbar.update(1)
-        else:
-            # 顺序执行
-            for timeframe in tqdm(self.timeframes, desc="计算延迟统计", unit="周期", 
-                                disable=not TQDM_AVAILABLE):
-                tf, stat = self._calculate_lag_for_timeframe(timeframe, hours, symbol)
-                stats[tf] = stat
-                if stat:
-                    logger.info(f"  {timeframe}: {stat['total_records']} 条记录")
+                logger.info(f"  总记录数: {total}")
+                logger.info(f"  NULL值数量: {null_count} ({null_percentage:.2f}%)")
+                logger.info(f"  负数数量: {result['negative_count']}")
+                logger.info(f"  极端值数量(>1小时): {result['extreme_count']}")
+                logger.info(f"  kline_time为NULL: {result['kline_time_null_count']}")
 
-        return stats
+                # 添加警告
+                if null_percentage > 5:
+                    self.warnings.append(
+                        f"延迟字段NULL值过多: {null_count}条 ({null_percentage:.2f}%)"
+                    )
+                if result['negative_count'] > 0:
+                    self.warnings.append(
+                        f"发现异常负延迟: {result['negative_count']}条"
+                    )
+                if result['extreme_count'] > total * 0.01:  # >1%为极端值
+                    self.warnings.append(
+                        f"发现过多极端延迟(>1小时): {result['extreme_count']}条"
+                    )
+
+                return quality_info
+            else:
+                logger.warning("  无数据")
+                return {}
+        except Exception as e:
+            logger.error(f"  数据质量检查失败 - {e}")
+            return {}
 
     def check_data_coverage(
         self,
@@ -855,6 +907,7 @@ class DataConsistencyValidator:
             symbol=symbol,
             parallel=parallel
         )
+        delay_quality = self.check_delay_field_quality(hours=hours, symbol=symbol)
         missing_data = self.detect_missing_data(hours=hours, symbol=symbol)
         coverage_data = self.check_data_coverage(days=days, symbol=symbol)
 
@@ -867,6 +920,7 @@ class DataConsistencyValidator:
                 'parallel_execution': parallel
             },
             'lag_statistics': lag_stats,
+            'delay_field_quality': delay_quality,
             'missing_data': missing_data,
             'coverage_data': coverage_data,
             'warnings': self.warnings,
@@ -963,35 +1017,54 @@ class DataConsistencyValidator:
         report_lines.append(f"  验证币种: {len(set(r['symbol'] for r in coverage_data)) if coverage_data else 0} 个")
         report_lines.append("")
 
-        # 1. 多周期时间延迟统计
-        report_lines.append(self._colorize(f"1. 多周期时间延迟统计（最近{hours}小时）", TerminalColors.bold))
+        # 1. 时间延迟统计（使用预存储字段）
+        report_lines.append(self._colorize(f"1. 时间延迟统计（最近{hours}小时）", TerminalColors.bold))
         report_lines.append("-" * 60)
         lag_stats = metrics['lag_statistics']
 
-        if any(lag_stats.values()):
-            for timeframe in self.timeframes:
-                stat = lag_stats.get(timeframe)
-                if stat:
-                    # 根据延迟大小选择颜色
-                    avg_lag = stat['avg_lag']
-                    if avg_lag < self.config.lag_threshold_seconds:
-                        color_func = TerminalColors.success
-                    elif avg_lag < self.config.lag_threshold_seconds * 5:
-                        color_func = TerminalColors.warning
-                    else:
-                        color_func = TerminalColors.error
-                    
-                    delay_bar = self._format_delay_bar(stat['avg_lag'])
-                    report_lines.append(
-                        f"   {timeframe:3s}: {delay_bar} "
-                        f"平均 {self._colorize(f'{stat['avg_lag']:.2f}秒', color_func)}, "
-                        f"最大 {stat['max_lag']:.2f}秒 "
-                        f"({stat['total_records']} 条)"
-                    )
-                else:
-                    report_lines.append(f"   {timeframe:3s}: {self._colorize('无数据', TerminalColors.warning)}")
+        if lag_stats:
+            # 根据延迟大小选择颜色
+            avg_lag = lag_stats['avg_lag']
+            if avg_lag < self.config.lag_threshold_seconds:
+                color_func = TerminalColors.success
+            elif avg_lag < self.config.lag_threshold_seconds * 5:
+                color_func = TerminalColors.warning
+            else:
+                color_func = TerminalColors.error
+
+            delay_bar = self._format_delay_bar(lag_stats['avg_lag'])
+            report_lines.append(
+                f"   总体延迟: {delay_bar} "
+                f"平均 {self._colorize(f'{lag_stats['avg_lag']:.2f}秒', color_func)}"
+            )
+            report_lines.append(f"   统计详情:")
+            report_lines.append(f"     • 记录数量: {lag_stats['total_records']} 条")
+            report_lines.append(f"     • 最小延迟: {lag_stats['min_lag']:.2f}秒")
+            report_lines.append(f"     • 中位延迟: {lag_stats['median_lag']:.2f}秒")
+            report_lines.append(f"     • P95延迟:  {lag_stats['p95_lag']:.2f}秒")
+            report_lines.append(f"     • 最大延迟: {self._colorize(f'{lag_stats['max_lag']:.2f}秒', TerminalColors.error if lag_stats['max_lag'] > self.config.lag_threshold_seconds else TerminalColors.success)}")
         else:
             report_lines.append(f"   {self._colorize('⚠️  无延迟统计数据', TerminalColors.warning)}")
+
+        # 1.1 数据质量检查
+        quality_info = metrics.get('delay_field_quality', {})
+        if quality_info:
+            report_lines.append("")
+            report_lines.append("   数据质量:")
+            null_pct = quality_info.get('null_percentage', 0)
+            if null_pct < 1:
+                null_color = TerminalColors.success
+            elif null_pct < 5:
+                null_color = TerminalColors.warning
+            else:
+                null_color = TerminalColors.error
+
+            report_lines.append(f"     • NULL值率: {self._colorize(f'{null_pct:.2f}%', null_color)} ({quality_info.get('null_count', 0)}/{quality_info.get('total_records', 0)})")
+
+            if quality_info.get('negative_count', 0) > 0:
+                report_lines.append(f"     • 异常负值: {self._colorize(str(quality_info['negative_count']), TerminalColors.error)} 条")
+            if quality_info.get('extreme_count', 0) > 0:
+                report_lines.append(f"     • 极端值(>1h): {self._colorize(str(quality_info['extreme_count']), TerminalColors.warning)} 条")
 
         report_lines.append("")
 

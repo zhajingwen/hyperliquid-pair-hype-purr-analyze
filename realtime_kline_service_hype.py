@@ -5,9 +5,19 @@
 - WebSocket 实时数据接收（6个订阅: 2个币种(HYPE/PURR) × 3周期(5m/1h/4h)）
 - 直接订阅交易所原生 1h/4h K线（精度优于本地聚合）
 - 异步批量写入数据库（1000-2000条或5秒触发）
-- 每根5m K线闭合后立即触发分析
+- 收到5m K线WebSocket推送时触发分析（受去重窗口保护）
 - Z-score 异常检测 + 飞书告警
 - 固定分析 HYPE/USDC:USDC 与 PURR/USDC:USDC 配对
+
+去重保护机制：
+- 入队去重窗口: 30秒（ENQUEUE_DEDUP_WINDOWS['5m']）
+- 分析去重窗口: 60秒（DEDUP_WINDOWS['5m']）
+- 注意: 去重窗口 < K线周期(300秒)，理论上一根K线可触发多次分析
+
+推送时机依赖：
+- 实际触发时机取决于Hyperliquid WebSocket的推送策略
+- 代码假设交易所推送频率合理（理想: 仅在K线闭合时推送）
+- 无显式闭合检测逻辑，完全依赖交易所数据质量
 
 架构亮点：
 - 直接订阅交易所 5m/1h/4h K线，数据精度与 REST API 一致
@@ -124,11 +134,11 @@ class RealtimeKlineServiceHypePurr:
                        ↓
          ┌─────────────┴─────────────┐
          ↓                           ↓
-    5m/1h/4h K线 →          5m触发 _analyze_and_alert()
-    kline_buffer                (实时分析引擎)
-    (Queue队列)                       ↓
-         ↓                       飞书告警
-    _batch_writer()
+    5m/1h/4h K线 →          5m推送触发 _analyze_and_alert()
+    kline_buffer                (受去重窗口保护: 30s入队/60s分析)
+    (Queue队列)                 (实时分析引擎)
+         ↓                           ↓
+    _batch_writer()                飞书告警
     (批量写入线程)
          ↓
     TimescaleDB (UPSERT)
@@ -469,7 +479,10 @@ class RealtimeKlineServiceHypePurr:
         流程:
         1. 解析K线数据
         2. 放入缓冲队列（异步批量写入）
-        3. 触发实时分析（仅5m周期，异步队列）
+        3. 触发实时分析（仅5m周期，异步队列，受去重窗口保护）
+           - 入队去重: 30秒内相同(symbol, timeframe)不重复入队
+           - 分析去重: 60秒内相同(symbol, timeframe)不重复分析
+           - 注意: 触发时机依赖WebSocket推送，无闭合检测
 
         Args:
             msg: WebSocket 消息
@@ -797,9 +810,10 @@ class RealtimeKlineServiceHypePurr:
 
         去重策略（Phase 1.5 差异化优化 + 跨线程共享）:
         - 使用类级别 self.recent_analysis 字典实现跨线程去重
-        - 5m周期: 60秒冷却（每5分钟更新一次K线）
-        - 1h周期: 300秒冷却（每60分钟更新一次K线，减少80%不必要分析）
-        - 4h周期: 900秒冷却（每240分钟更新一次K线，减少93%不必要分析）
+        - 5m周期: 60秒冷却（注意: 小于K线周期300秒，可能多次触发）
+        - 1h周期: 300秒冷却（注意: 小于K线周期3600秒，可能多次触发）
+        - 4h周期: 900秒冷却（注意: 小于K线周期14400秒，可能多次触发）
+        - 实际触发次数取决于WebSocket推送频率，无显式闭合检测
         - 预期节省: 70-80%总体CPU资源
         """
         logger.info(f"[{threading.current_thread().name}] 分析工作线程已启动")
