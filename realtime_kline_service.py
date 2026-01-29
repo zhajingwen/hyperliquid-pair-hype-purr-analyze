@@ -570,6 +570,12 @@ class RealtimeKlineService:
 
                     dedup_batch = list(dedup_dict.values())
 
+                    # 按 (time, symbol, timeframe) 排序，保证锁获取顺序一致，减少死锁
+                    dedup_batch = sorted(
+                        dedup_batch,
+                        key=lambda x: (x['time'], x['symbol'], x['timeframe'])
+                    )
+
                     # 批量写入数据库（带死锁重试）
                     try:
                         count = self._batch_upsert_with_retry(dedup_batch, on_conflict='update')
@@ -623,6 +629,13 @@ class RealtimeKlineService:
                     dedup_dict[key] = kline
 
                 dedup_batch = list(dedup_dict.values())
+
+                # 按 (time, symbol, timeframe) 排序，保证锁获取顺序一致，减少死锁
+                dedup_batch = sorted(
+                    dedup_batch,
+                    key=lambda x: (x['time'], x['symbol'], x['timeframe'])
+                )
+
                 count = self._batch_upsert_with_retry(dedup_batch, on_conflict='update')
                 self.stats['klines_written'] += count
 
@@ -693,6 +706,16 @@ class RealtimeKlineService:
 
                     dedup_batch = list(dedup_dict.values())
                     dedup_count = batch_count - len(dedup_batch)
+
+                    # 按 (时间, symbol, base_symbol) 排序，保证锁获取顺序一致，减少死锁
+                    dedup_batch = sorted(
+                        dedup_batch,
+                        key=lambda x: (
+                            x['analysis_time'].replace(second=0, microsecond=0),
+                            x['symbol'],
+                            x['base_symbol']
+                        )
+                    )
 
                     # 批量写入数据库（根据配置选择写入方法）
                     try:
