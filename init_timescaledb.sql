@@ -61,6 +61,10 @@ CREATE TABLE IF NOT EXISTS analysis_results (
     symbol VARCHAR(50) NOT NULL,
     base_symbol VARCHAR(50) NOT NULL,
 
+    -- 时间链路字段
+    kline_time TIMESTAMPTZ,                    -- K线原始时间（新增）
+    analysis_delay_seconds FLOAT,              -- 分析延迟（秒，新增）
+
     -- 相关系数（不同周期）
     corr_5m_7d DOUBLE PRECISION,
     corr_1h_30d DOUBLE PRECISION,
@@ -147,6 +151,19 @@ ON analysis_results (analysis_time DESC)
 WHERE is_anomaly = TRUE;
 
 \echo '✅ 索引 idx_analysis_anomaly_time 已创建'
+
+-- 索引6: analysis_results 按 kline_time 查询（可选）
+CREATE INDEX IF NOT EXISTS idx_analysis_kline_time
+ON analysis_results (symbol, kline_time DESC);
+
+\echo '✅ 索引 idx_analysis_kline_time 已创建'
+
+-- 索引7: 延迟监控查询索引（可选）
+CREATE INDEX IF NOT EXISTS idx_analysis_delay
+ON analysis_results (analysis_delay_seconds DESC)
+WHERE analysis_delay_seconds > 5;  -- 只索引延迟较高的记录
+
+\echo '✅ 索引 idx_analysis_delay 已创建'
 
 -- =====================================================
 -- 5. 配置保留策略（自动清理历史数据）
