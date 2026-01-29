@@ -6,7 +6,7 @@
 
 功能：
 1. 多周期K线时间差验证（5m/1h/4h）
-2. 数据缺失检测
+2. 分析结果完整性检测
 3. 时间延迟统计（平均值、最大值、P95）
 4. K线数据覆盖率检查
 5. 并发查询优化
@@ -378,77 +378,87 @@ class DataConsistencyValidator:
         symbol: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
-        检测数据缺失
+        检测分析结果中的数据完整性（修复后的版本）
 
-        查找存在分析结果但缺少对应K线数据的情况。
+        ⚠️ 修复说明：
+        原版本检测的是 klines 表中的K线数据（在分析时刻±1小时内），
+        这导致大量误报，因为：
+        1. 4h周期的K线每4小时才更新一次，在1小时窗口内经常找不到
+        2. 但分析实际使用的是更早的历史数据（7-60天），可能是完整的
+
+        修复后的版本直接检测 analysis_results 表中的字段完整性，
+        这才是真正反映数据完整性的指标。
 
         Args:
             hours: 查询最近N小时的数据
             symbol: 指定币种（可选）
 
         Returns:
-            缺失数据记录列表
+            数据不完整的记录列表
         """
-        logger.info(f"开始检测数据缺失（最近{hours}小时）...")
+        logger.info(f"开始检测分析结果数据完整性（最近{hours}小时）...")
 
-        # 优化后的SQL - 使用位运算替代ARRAY_AGG
         query = """
-            WITH timeframe_bits AS (
-                SELECT 
-                    a.symbol,
-                    a.analysis_time,
-                    BIT_OR(
-                        CASE k.timeframe
-                            WHEN '5m' THEN 1
-                            WHEN '1h' THEN 2
-                            WHEN '4h' THEN 4
-                            ELSE 0
-                        END
-                    ) as available_mask
-                FROM analysis_results a
-                LEFT JOIN klines k ON 
-                    k.symbol = a.symbol 
-                    AND k.timeframe IN ('5m', '1h', '4h')
-                    AND k.time BETWEEN a.analysis_time - INTERVAL '1 hour' AND a.analysis_time
-                WHERE a.analysis_time > NOW() - INTERVAL '%s hours'
+            SELECT
+                symbol,
+                analysis_time,
+                created_at,
+                -- 相关系数完整性
+                (corr_5m_7d IS NOT NULL) as has_5m_corr,
+                (corr_1h_30d IS NOT NULL) as has_1h_corr,
+                (corr_4h_60d IS NOT NULL) as has_4h_corr,
+                -- Z-score完整性
+                (zscore_5m IS NOT NULL) as has_5m_zscore,
+                (zscore_1h IS NOT NULL) as has_1h_zscore,
+                (zscore_4h IS NOT NULL) as has_4h_zscore,
+                -- 完整周期数（基于相关系数）
+                (corr_5m_7d IS NOT NULL)::int +
+                (corr_1h_30d IS NOT NULL)::int +
+                (corr_4h_60d IS NOT NULL)::int as complete_periods
+            FROM analysis_results
+            WHERE created_at > NOW() - INTERVAL '%s hours'
+                AND (
+                    corr_5m_7d IS NULL OR
+                    corr_1h_30d IS NULL OR
+                    corr_4h_60d IS NULL OR
+                    zscore_5m IS NULL OR
+                    zscore_1h IS NULL OR
+                    zscore_4h IS NULL
+                )
         """
 
         params = [hours]
 
         if symbol:
-            query += " AND a.symbol = %s"
+            query += " AND symbol = %s"
             params.append(symbol)
 
-        query += """
-                GROUP BY a.symbol, a.analysis_time
-            )
-            SELECT 
-                symbol,
-                analysis_time,
-                -- 计算有多少个周期
-                ((available_mask & 1)::int + (available_mask & 2)::int / 2 + (available_mask & 4)::int / 4) as available_timeframes,
-                (available_mask & 1 > 0) as has_5m,
-                (available_mask & 2 > 0) as has_1h,
-                (available_mask & 4 > 0) as has_4h
-            FROM timeframe_bits
-            WHERE available_mask IS NULL OR available_mask != 7  -- 不是全部3个周期 (1+2+4=7)
-            ORDER BY analysis_time DESC;
-        """
+        query += " ORDER BY created_at DESC LIMIT 100"
 
         try:
             records = self.client.execute_query(query, tuple(params))
             if records:
-                logger.warning(f"  发现 {len(records)} 条数据缺失记录")
+                logger.warning(f"  发现 {len(records)} 条数据不完整记录")
                 for record in records:
+                    # 识别缺失的周期
+                    missing_fields = []
+                    if not record['has_5m_corr']:
+                        missing_fields.append('5m')
+                    if not record['has_1h_corr']:
+                        missing_fields.append('1h')
+                    if not record['has_4h_corr']:
+                        missing_fields.append('4h')
+
                     self.warnings.append(
-                        f"数据缺失: {record['symbol']} 在 {record['analysis_time']} "
-                        f"只有 {record['available_timeframes']} 个周期的数据"
+                        f"数据不完整: {record['symbol']} @ {record['analysis_time']} | "
+                        f"缺失周期: {', '.join(missing_fields)} | "
+                        f"完整周期数: {record['complete_periods']}/3"
                     )
             else:
-                logger.info("  ✅ 无数据缺失")
+                logger.info("  ✅ 所有记录数据完整")
             return records or []
         except Exception as e:
-            logger.error(f"  数据缺失检测失败 - {e}")
+            logger.error(f"  数据完整性检测失败 - {e}")
             return []
 
     def _calculate_lag_statistics(

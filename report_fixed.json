@@ -1,0 +1,5955 @@
+{
+  "metadata": {
+    "generated_at": "2026-01-29T12:12:28.211692+00:00",
+    "hours_window": 1,
+    "days_window": 7,
+    "symbol_filter": null,
+    "parallel_execution": false
+  },
+  "lag_statistics": {
+    "total_records": 162,
+    "avg_lag": 147.12754209876556,
+    "max_lag": 299.208111,
+    "min_lag": 3.439605,
+    "p95_lag": 282.63439115,
+    "median_lag": 138.876685
+  },
+  "delay_field_quality": {
+    "total_records": 163,
+    "null_count": 0,
+    "null_percentage": 0.0,
+    "negative_count": 0,
+    "extreme_count": 0,
+    "kline_time_null_count": 0
+  },
+  "missing_data": [
+    {
+      "symbol": "TAO/USDC:USDC",
+      "analysis_time": "2026-01-29T11:59:42.723834+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "TAO/USDC:USDC",
+      "analysis_time": "2026-01-29T11:58:30.787760+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "MINA/USDC:USDC",
+      "analysis_time": "2026-01-29T11:56:28.604283+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "MINA/USDC:USDC",
+      "analysis_time": "2026-01-29T11:55:17.842528+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "YGG/USDC:USDC",
+      "analysis_time": "2026-01-29T11:49:22.323465+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "XAI/USDC:USDC",
+      "analysis_time": "2026-01-29T11:40:54.232620+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "TAO/USDC:USDC",
+      "analysis_time": "2026-01-29T11:39:58.056097+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "MINA/USDC:USDC",
+      "analysis_time": "2026-01-29T11:39:24.873390+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "TAO/USDC:USDC",
+      "analysis_time": "2026-01-29T11:38:57.933379+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "TAO/USDC:USDC",
+      "analysis_time": "2026-01-29T11:37:40.583746+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "XAI/USDC:USDC",
+      "analysis_time": "2026-01-29T11:37:26.158569+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "ENA/USDC:USDC",
+      "analysis_time": "2026-01-29T11:36:22.287792+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "MINA/USDC:USDC",
+      "analysis_time": "2026-01-29T11:36:22.283447+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "TAO/USDC:USDC",
+      "analysis_time": "2026-01-29T11:36:17.381901+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "XAI/USDC:USDC",
+      "analysis_time": "2026-01-29T11:35:20.807412+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "TAO/USDC:USDC",
+      "analysis_time": "2026-01-29T11:34:27.745926+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "ENA/USDC:USDC",
+      "analysis_time": "2026-01-29T11:33:43.657432+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "MINA/USDC:USDC",
+      "analysis_time": "2026-01-29T11:33:31.454772+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "TAO/USDC:USDC",
+      "analysis_time": "2026-01-29T11:33:23.436450+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "XAI/USDC:USDC",
+      "analysis_time": "2026-01-29T11:33:08.033881+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "ENA/USDC:USDC",
+      "analysis_time": "2026-01-29T11:32:17.636861+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "TAO/USDC:USDC",
+      "analysis_time": "2026-01-29T11:32:07.341380+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "MINA/USDC:USDC",
+      "analysis_time": "2026-01-29T11:31:34.389146+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "XAI/USDC:USDC",
+      "analysis_time": "2026-01-29T11:31:18.183495+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "ENA/USDC:USDC",
+      "analysis_time": "2026-01-29T11:30:59.827081+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "TAO/USDC:USDC",
+      "analysis_time": "2026-01-29T11:30:50.865671+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "XAI/USDC:USDC",
+      "analysis_time": "2026-01-29T11:30:03.439605+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "ENA/USDC:USDC",
+      "analysis_time": "2026-01-29T11:29:47.664012+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "TAO/USDC:USDC",
+      "analysis_time": "2026-01-29T11:29:27.339230+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "XAI/USDC:USDC",
+      "analysis_time": "2026-01-29T11:28:21.757202+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "ENA/USDC:USDC",
+      "analysis_time": "2026-01-29T11:28:07.937519+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "TAO/USDC:USDC",
+      "analysis_time": "2026-01-29T11:27:45.804575+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "XAI/USDC:USDC",
+      "analysis_time": "2026-01-29T11:27:16.167777+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "APE/USDC:USDC",
+      "analysis_time": "2026-01-29T11:26:38.283317+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "ENA/USDC:USDC",
+      "analysis_time": "2026-01-29T11:26:20.116293+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "TAO/USDC:USDC",
+      "analysis_time": "2026-01-29T11:26:18.299081+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "XAI/USDC:USDC",
+      "analysis_time": "2026-01-29T11:26:16.184547+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "XAI/USDC:USDC",
+      "analysis_time": "2026-01-29T11:25:10.190378+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "ENA/USDC:USDC",
+      "analysis_time": "2026-01-29T11:24:59.208111+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "TAO/USDC:USDC",
+      "analysis_time": "2026-01-29T11:24:29.109292+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "OP/USDC:USDC",
+      "analysis_time": "2026-01-29T11:24:25.556778+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "ENA/USDC:USDC",
+      "analysis_time": "2026-01-29T11:23:23.545982+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "XAI/USDC:USDC",
+      "analysis_time": "2026-01-29T11:23:20.699515+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "APE/USDC:USDC",
+      "analysis_time": "2026-01-29T11:23:17.941976+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "SUSHI/USDC:USDC",
+      "analysis_time": "2026-01-29T11:23:06.504140+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "TRB/USDC:USDC",
+      "analysis_time": "2026-01-29T11:23:00.548015+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "OP/USDC:USDC",
+      "analysis_time": "2026-01-29T11:22:56.167402+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "TAO/USDC:USDC",
+      "analysis_time": "2026-01-29T11:22:37.825449+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "XAI/USDC:USDC",
+      "analysis_time": "2026-01-29T11:22:20.116509+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "W/USDC:USDC",
+      "analysis_time": "2026-01-29T11:22:13.621863+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "CAKE/USDC:USDC",
+      "analysis_time": "2026-01-29T11:22:12.011413+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "OP/USDC:USDC",
+      "analysis_time": "2026-01-29T11:21:55.800173+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "ENA/USDC:USDC",
+      "analysis_time": "2026-01-29T11:21:41.386138+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "APE/USDC:USDC",
+      "analysis_time": "2026-01-29T11:21:36.974923+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "TAO/USDC:USDC",
+      "analysis_time": "2026-01-29T11:21:10.799835+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "W/USDC:USDC",
+      "analysis_time": "2026-01-29T11:21:07.139214+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "XAI/USDC:USDC",
+      "analysis_time": "2026-01-29T11:21:06.240546+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "SUSHI/USDC:USDC",
+      "analysis_time": "2026-01-29T11:20:59.375433+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "ENA/USDC:USDC",
+      "analysis_time": "2026-01-29T11:20:25.896937+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "OP/USDC:USDC",
+      "analysis_time": "2026-01-29T11:20:25.891924+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "APE/USDC:USDC",
+      "analysis_time": "2026-01-29T11:20:18.397418+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "BIGTIME/USDC:USDC",
+      "analysis_time": "2026-01-29T11:20:11.741618+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "XAI/USDC:USDC",
+      "analysis_time": "2026-01-29T11:19:53.197696+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "CAKE/USDC:USDC",
+      "analysis_time": "2026-01-29T11:19:52.493528+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "TAO/USDC:USDC",
+      "analysis_time": "2026-01-29T11:19:43.628867+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "SUSHI/USDC:USDC",
+      "analysis_time": "2026-01-29T11:19:40.934977+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "KAS/USDC:USDC",
+      "analysis_time": "2026-01-29T11:19:07.504519+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "ENA/USDC:USDC",
+      "analysis_time": "2026-01-29T11:18:57.077780+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "OP/USDC:USDC",
+      "analysis_time": "2026-01-29T11:18:25.658074+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "APE/USDC:USDC",
+      "analysis_time": "2026-01-29T11:18:25.179015+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "TAO/USDC:USDC",
+      "analysis_time": "2026-01-29T11:18:21.507391+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "MINA/USDC:USDC",
+      "analysis_time": "2026-01-29T11:18:10.600567+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "KAS/USDC:USDC",
+      "analysis_time": "2026-01-29T11:17:45.696899+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "OP/USDC:USDC",
+      "analysis_time": "2026-01-29T11:16:58.227723+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "ENA/USDC:USDC",
+      "analysis_time": "2026-01-29T11:16:58.178828+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "SUSHI/USDC:USDC",
+      "analysis_time": "2026-01-29T11:15:50.659085+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "OP/USDC:USDC",
+      "analysis_time": "2026-01-29T11:15:41.256085+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "XAI/USDC:USDC",
+      "analysis_time": "2026-01-29T11:15:39.516624+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "ENA/USDC:USDC",
+      "analysis_time": "2026-01-29T11:15:24.832578+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "KAS/USDC:USDC",
+      "analysis_time": "2026-01-29T11:15:23.955895+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "OP/USDC:USDC",
+      "analysis_time": "2026-01-29T11:14:25.554844+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "XAI/USDC:USDC",
+      "analysis_time": "2026-01-29T11:14:08.569132+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "KAS/USDC:USDC",
+      "analysis_time": "2026-01-29T11:13:29.818118+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "CAKE/USDC:USDC",
+      "analysis_time": "2026-01-29T11:13:25.875634+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "XAI/USDC:USDC",
+      "analysis_time": "2026-01-29T11:13:03.965819+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "ENA/USDC:USDC",
+      "analysis_time": "2026-01-29T11:13:03.600179+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    },
+    {
+      "symbol": "OP/USDC:USDC",
+      "analysis_time": "2026-01-29T11:12:55.633811+00:00",
+      "available_timeframes": 2,
+      "has_5m": true,
+      "has_1h": true,
+      "has_4h": false
+    }
+  ],
+  "coverage_data": [
+    {
+      "symbol": "BOME/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:05:00+00:00",
+      "total_klines": 286,
+      "expected_count": 286,
+      "coverage_pct": 100.0
+    },
+    {
+      "symbol": "CELO/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "SPX/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "EIGEN/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "PENGU/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "kLUNC/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "kSHIB/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "RENDER/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "PYTH/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "AXS/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "SUSHI/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:05:00+00:00",
+      "total_klines": 287,
+      "expected_count": 286,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "UNI/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "MON/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "XPL/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "MAV/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "APEX/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ZORA/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "SUPER/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "IP/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "FARTCOIN/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "GMT/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "TAO/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ARK/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ADA/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "BLAST/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T11:50:00+00:00",
+      "total_klines": 284,
+      "expected_count": 283,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ENS/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "SKR/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "PROMPT/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "WCT/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ETC/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "LINK/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "FOGO/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "BIGTIME/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "COMP/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "HBAR/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "kNEIRO/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "SUI/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ONDO/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "BTC/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "SOPH/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "AIXBT/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "APT/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ASTER/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ZETA/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "LAYER/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "USTC/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:05:00+00:00",
+      "total_klines": 287,
+      "expected_count": 286,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "IMX/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "XLM/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "STRK/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "AVAX/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "GRIFFAIN/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "MORPHO/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "BERA/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "NXPC/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 286,
+      "expected_count": 285,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "S/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "MET/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ENA/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "TRUMP/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "POL/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "SAGA/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "FIL/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "TON/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "FET/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "MEGA/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:05:00+00:00",
+      "total_klines": 287,
+      "expected_count": 286,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "IOTA/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "kPEPE/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "POLYX/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "NEO/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "CFX/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "STX/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "JUP/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "VINE/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "GRASS/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "AVNT/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "SOL/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "TIA/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "STBL/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "CC/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "SKY/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "VIRTUAL/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "GMX/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:05:00+00:00",
+      "total_klines": 287,
+      "expected_count": 286,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ALGO/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "WLD/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "W/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ZRO/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ACE/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ME/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "PROVE/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ATOM/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "DYDX/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "BABY/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "SCR/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "MERL/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "POPCAT/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "MEME/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "TRB/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "HYPER/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "OP/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "DOT/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "SEI/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "SYRUP/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "AR/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "INIT/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "0G/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:05:00+00:00",
+      "total_klines": 287,
+      "expected_count": 286,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "MEW/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ORDI/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "GOAT/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "GAS/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:05:00+00:00",
+      "total_klines": 287,
+      "expected_count": 286,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "APE/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ZK/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ARB/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ZEC/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "CHILLGUY/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "UMA/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "NEAR/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "LTC/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "OM/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:05:00+00:00",
+      "total_klines": 287,
+      "expected_count": 286,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ANIME/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "YGG/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "TRX/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ALT/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "SNX/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "LINEA/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "AAVE/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "KAITO/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "MELANIA/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ETHFI/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "SAND/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "BSV/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "INJ/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "VVV/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "PNUT/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "LDO/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "NOT/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T11:45:00+00:00",
+      "total_klines": 283,
+      "expected_count": 282,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "USUAL/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "DYM/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "GALA/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "PEOPLE/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "RUNE/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "DOGE/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "WIF/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "DASH/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "TST/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "MOODENG/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ETH/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "IO/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "TNSR/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T11:50:00+00:00",
+      "total_klines": 284,
+      "expected_count": 283,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "BRETT/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "DOOD/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "RSR/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 286,
+      "expected_count": 285,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "WLFI/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ICP/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "PENDLE/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "CRV/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "BANANA/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "JTO/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "REZ/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "TURBO/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "BNB/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "HYPE/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "LIT/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "2Z/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "BCH/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "NIL/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "MINA/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "RESOLV/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "STABLE/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "XAI/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "BLUR/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "MOVE/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "kBONK/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ZEN/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "PAXG/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "BIO/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "PUMP/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "CAKE/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "kFLOKI/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "MNT/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "MAVIA/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "AERO/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "XRP/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "ZEREBRO/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "PURR/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "HEMI/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "XMR/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "MANTA/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "KAS/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T12:10:00+00:00",
+      "total_klines": 288,
+      "expected_count": 287,
+      "coverage_pct": 100.35
+    },
+    {
+      "symbol": "HMSTR/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T11:15:00+00:00",
+      "total_klines": 277,
+      "expected_count": 276,
+      "coverage_pct": 100.36
+    },
+    {
+      "symbol": "YZY/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T10:50:00+00:00",
+      "total_klines": 272,
+      "expected_count": 271,
+      "coverage_pct": 100.37
+    },
+    {
+      "symbol": "FTT/USDC:USDC",
+      "timeframe": "5m",
+      "first_kline": "2026-01-28T12:15:00+00:00",
+      "last_kline": "2026-01-29T10:50:00+00:00",
+      "total_klines": 272,
+      "expected_count": 271,
+      "coverage_pct": 100.37
+    },
+    {
+      "symbol": "AVAX/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "W/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "BTC/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "SEI/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "BCH/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "MEGA/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "JTO/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "DYDX/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "TIA/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "VIRTUAL/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ETH/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "STABLE/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ANIME/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "BABY/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "JUP/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "MEME/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "HEMI/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "BSV/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "WLFI/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "COMP/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "XRP/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "WLD/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "WCT/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "LINK/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "S/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "DASH/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "UNI/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "BNB/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "AR/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "USUAL/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "STRK/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "MOVE/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "AERO/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ZEREBRO/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "MANTA/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "INJ/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ADA/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ACE/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ZEC/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "BIGTIME/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "SAND/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "TRX/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "2Z/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "XAI/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "PROVE/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "kLUNC/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "SCR/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "CC/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ETHFI/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "TRUMP/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "MERL/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "APEX/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ME/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "MAV/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "USTC/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "FARTCOIN/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ICP/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "RSR/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "PENDLE/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "GMT/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "BOME/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "RUNE/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ALT/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "SUI/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "INIT/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "DOT/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "CHILLGUY/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "PUMP/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "POLYX/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "MAVIA/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ETC/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "STX/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "AIXBT/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "DOGE/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "XPL/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "TON/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "BANANA/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "MNT/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ZETA/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "IMX/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "TRB/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ENA/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "PENGU/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "CRV/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "HYPER/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "NEO/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "FET/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "SAGA/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "BERA/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "SOPH/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ORDI/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "VVV/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "kSHIB/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ASTER/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "kFLOKI/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "TURBO/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "EIGEN/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "OM/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "PYTH/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "BRETT/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "MINA/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "WIF/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "DOOD/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ZORA/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "GALA/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "PEOPLE/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "GRASS/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "NEAR/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "DYM/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "LINEA/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "TAO/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "TST/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "PURR/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "LTC/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "BIO/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "LIT/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "RESOLV/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "SYRUP/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "XMR/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "LAYER/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "PAXG/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "CFX/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "VINE/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "GOAT/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ALGO/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "KAITO/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "GMX/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "SUSHI/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "APE/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "PROMPT/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "LDO/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "kBONK/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ZK/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "HBAR/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ZRO/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "POL/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "AVNT/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ARK/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "BLUR/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "CAKE/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ZEN/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "MON/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "SPX/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "SKR/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "YGG/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ENS/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "MET/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "kPEPE/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ARB/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ONDO/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "GAS/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "MOODENG/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "RENDER/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "AAVE/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "HYPE/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "MORPHO/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "SKY/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "IOTA/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "GRIFFAIN/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "kNEIRO/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "IP/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "IO/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "OP/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "PNUT/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "POPCAT/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "0G/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "AXS/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "KAS/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "NXPC/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "XLM/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "CELO/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "FIL/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "APT/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "MELANIA/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "FOGO/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "REZ/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "SNX/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "STBL/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "MEW/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "NIL/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "UMA/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "ATOM/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "SUPER/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "SOL/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 24,
+      "expected_count": 23,
+      "coverage_pct": 104.35
+    },
+    {
+      "symbol": "TNSR/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T11:00:00+00:00",
+      "total_klines": 23,
+      "expected_count": 22,
+      "coverage_pct": 104.55
+    },
+    {
+      "symbol": "BLAST/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T11:00:00+00:00",
+      "total_klines": 23,
+      "expected_count": 22,
+      "coverage_pct": 104.55
+    },
+    {
+      "symbol": "HMSTR/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T11:00:00+00:00",
+      "total_klines": 23,
+      "expected_count": 22,
+      "coverage_pct": 104.55
+    },
+    {
+      "symbol": "NOT/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T11:00:00+00:00",
+      "total_klines": 23,
+      "expected_count": 22,
+      "coverage_pct": 104.55
+    },
+    {
+      "symbol": "YZY/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T10:00:00+00:00",
+      "total_klines": 22,
+      "expected_count": 21,
+      "coverage_pct": 104.76
+    },
+    {
+      "symbol": "FTT/USDC:USDC",
+      "timeframe": "1h",
+      "first_kline": "2026-01-28T13:00:00+00:00",
+      "last_kline": "2026-01-29T10:00:00+00:00",
+      "total_klines": 22,
+      "expected_count": 21,
+      "coverage_pct": 104.76
+    },
+    {
+      "symbol": "TIA/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "PURR/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ADA/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "SKY/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ME/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "VINE/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ALT/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "CHILLGUY/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ZEN/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "kSHIB/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "OP/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "JUP/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "DYDX/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "MINA/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "PENDLE/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "UMA/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ONDO/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "HBAR/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "MOODENG/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ZEC/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "BOME/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "kNEIRO/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "NEAR/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "AR/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "JTO/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ZORA/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "TON/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "LINEA/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "MAVIA/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "SOL/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "SAGA/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "MET/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "kPEPE/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "MANTA/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ACE/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "CRV/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "XLM/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "CAKE/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "MAV/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "DASH/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "INJ/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "PEOPLE/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "WLFI/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "BNB/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "UNI/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "SNX/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ETH/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "SYRUP/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "TRUMP/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ANIME/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "TRB/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ORDI/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "kFLOKI/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "DYM/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ICP/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "PUMP/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "BSV/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "STRK/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "kBONK/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ARK/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "VVV/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "POPCAT/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "MELANIA/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ZRO/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "BCH/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "2Z/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "S/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "TST/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "LINK/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "SPX/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "PROMPT/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "XMR/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "kLUNC/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "EIGEN/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "BABY/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ATOM/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "KAITO/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "PNUT/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "MEW/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "IP/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "LAYER/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "TAO/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "DOGE/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "AVAX/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "AXS/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "STBL/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "APT/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "MEGA/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "PAXG/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "HYPE/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "IOTA/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ZEREBRO/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "MERL/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "RUNE/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "BERA/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "INIT/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "BANANA/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "SEI/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "GRASS/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "RENDER/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "SCR/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "RSR/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ALGO/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "POLYX/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "GMX/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "NIL/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "PYTH/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "BRETT/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "STABLE/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ETC/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "POL/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "PROVE/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "BIO/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "APE/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "COMP/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "GALA/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "DOOD/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "WCT/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "W/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "SAND/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "KAS/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "XAI/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "GRIFFAIN/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "0G/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "PENGU/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "TRX/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "AIXBT/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "LDO/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "SUI/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "SOPH/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "VIRTUAL/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "SUPER/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "NXPC/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "LTC/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "FARTCOIN/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ASTER/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "MNT/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "APEX/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "DOT/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "AAVE/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "GMT/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "IO/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ENS/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "XRP/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "REZ/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "RESOLV/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "OM/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "HEMI/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "SUSHI/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ARB/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "MOVE/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "CELO/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "IMX/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "MORPHO/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "BLUR/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "CC/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "HYPER/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "USUAL/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ZK/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "MEME/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "YGG/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "AERO/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "AVNT/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "MON/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "CFX/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "BTC/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "GOAT/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "WIF/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "TURBO/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "XPL/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ENA/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "STX/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "GAS/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "NEO/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "BIGTIME/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ETHFI/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "ZETA/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "FIL/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "USTC/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "WLD/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "FET/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 6,
+      "expected_count": 5,
+      "coverage_pct": 120.0
+    },
+    {
+      "symbol": "FTT/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T08:00:00+00:00",
+      "total_klines": 5,
+      "expected_count": 4,
+      "coverage_pct": 125.0
+    },
+    {
+      "symbol": "NOT/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T08:00:00+00:00",
+      "total_klines": 5,
+      "expected_count": 4,
+      "coverage_pct": 125.0
+    },
+    {
+      "symbol": "BLAST/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T08:00:00+00:00",
+      "total_klines": 5,
+      "expected_count": 4,
+      "coverage_pct": 125.0
+    },
+    {
+      "symbol": "HMSTR/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T08:00:00+00:00",
+      "total_klines": 5,
+      "expected_count": 4,
+      "coverage_pct": 125.0
+    },
+    {
+      "symbol": "TNSR/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T08:00:00+00:00",
+      "total_klines": 5,
+      "expected_count": 4,
+      "coverage_pct": 125.0
+    },
+    {
+      "symbol": "YZY/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T16:00:00+00:00",
+      "last_kline": "2026-01-29T08:00:00+00:00",
+      "total_klines": 5,
+      "expected_count": 4,
+      "coverage_pct": 125.0
+    },
+    {
+      "symbol": "LIT/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T15:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 11,
+      "expected_count": 5,
+      "coverage_pct": 220.0
+    },
+    {
+      "symbol": "FOGO/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T15:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 11,
+      "expected_count": 5,
+      "coverage_pct": 220.0
+    },
+    {
+      "symbol": "SKR/USDC:USDC",
+      "timeframe": "4h",
+      "first_kline": "2026-01-28T15:00:00+00:00",
+      "last_kline": "2026-01-29T12:00:00+00:00",
+      "total_klines": 11,
+      "expected_count": 5,
+      "coverage_pct": 220.0
+    }
+  ],
+  "warnings": [
+    "延迟过大: 最大延迟达到 299.2 秒",
+    "数据缺失: TAO/USDC:USDC 在 2026-01-29 11:59:42.723834+00:00 只有 2 个周期的数据",
+    "数据缺失: TAO/USDC:USDC 在 2026-01-29 11:58:30.787760+00:00 只有 2 个周期的数据",
+    "数据缺失: MINA/USDC:USDC 在 2026-01-29 11:56:28.604283+00:00 只有 2 个周期的数据",
+    "数据缺失: MINA/USDC:USDC 在 2026-01-29 11:55:17.842528+00:00 只有 2 个周期的数据",
+    "数据缺失: YGG/USDC:USDC 在 2026-01-29 11:49:22.323465+00:00 只有 2 个周期的数据",
+    "数据缺失: XAI/USDC:USDC 在 2026-01-29 11:40:54.232620+00:00 只有 2 个周期的数据",
+    "数据缺失: TAO/USDC:USDC 在 2026-01-29 11:39:58.056097+00:00 只有 2 个周期的数据",
+    "数据缺失: MINA/USDC:USDC 在 2026-01-29 11:39:24.873390+00:00 只有 2 个周期的数据",
+    "数据缺失: TAO/USDC:USDC 在 2026-01-29 11:38:57.933379+00:00 只有 2 个周期的数据",
+    "数据缺失: TAO/USDC:USDC 在 2026-01-29 11:37:40.583746+00:00 只有 2 个周期的数据",
+    "数据缺失: XAI/USDC:USDC 在 2026-01-29 11:37:26.158569+00:00 只有 2 个周期的数据",
+    "数据缺失: ENA/USDC:USDC 在 2026-01-29 11:36:22.287792+00:00 只有 2 个周期的数据",
+    "数据缺失: MINA/USDC:USDC 在 2026-01-29 11:36:22.283447+00:00 只有 2 个周期的数据",
+    "数据缺失: TAO/USDC:USDC 在 2026-01-29 11:36:17.381901+00:00 只有 2 个周期的数据",
+    "数据缺失: XAI/USDC:USDC 在 2026-01-29 11:35:20.807412+00:00 只有 2 个周期的数据",
+    "数据缺失: TAO/USDC:USDC 在 2026-01-29 11:34:27.745926+00:00 只有 2 个周期的数据",
+    "数据缺失: ENA/USDC:USDC 在 2026-01-29 11:33:43.657432+00:00 只有 2 个周期的数据",
+    "数据缺失: MINA/USDC:USDC 在 2026-01-29 11:33:31.454772+00:00 只有 2 个周期的数据",
+    "数据缺失: TAO/USDC:USDC 在 2026-01-29 11:33:23.436450+00:00 只有 2 个周期的数据",
+    "数据缺失: XAI/USDC:USDC 在 2026-01-29 11:33:08.033881+00:00 只有 2 个周期的数据",
+    "数据缺失: ENA/USDC:USDC 在 2026-01-29 11:32:17.636861+00:00 只有 2 个周期的数据",
+    "数据缺失: TAO/USDC:USDC 在 2026-01-29 11:32:07.341380+00:00 只有 2 个周期的数据",
+    "数据缺失: MINA/USDC:USDC 在 2026-01-29 11:31:34.389146+00:00 只有 2 个周期的数据",
+    "数据缺失: XAI/USDC:USDC 在 2026-01-29 11:31:18.183495+00:00 只有 2 个周期的数据",
+    "数据缺失: ENA/USDC:USDC 在 2026-01-29 11:30:59.827081+00:00 只有 2 个周期的数据",
+    "数据缺失: TAO/USDC:USDC 在 2026-01-29 11:30:50.865671+00:00 只有 2 个周期的数据",
+    "数据缺失: XAI/USDC:USDC 在 2026-01-29 11:30:03.439605+00:00 只有 2 个周期的数据",
+    "数据缺失: ENA/USDC:USDC 在 2026-01-29 11:29:47.664012+00:00 只有 2 个周期的数据",
+    "数据缺失: TAO/USDC:USDC 在 2026-01-29 11:29:27.339230+00:00 只有 2 个周期的数据",
+    "数据缺失: XAI/USDC:USDC 在 2026-01-29 11:28:21.757202+00:00 只有 2 个周期的数据",
+    "数据缺失: ENA/USDC:USDC 在 2026-01-29 11:28:07.937519+00:00 只有 2 个周期的数据",
+    "数据缺失: TAO/USDC:USDC 在 2026-01-29 11:27:45.804575+00:00 只有 2 个周期的数据",
+    "数据缺失: XAI/USDC:USDC 在 2026-01-29 11:27:16.167777+00:00 只有 2 个周期的数据",
+    "数据缺失: APE/USDC:USDC 在 2026-01-29 11:26:38.283317+00:00 只有 2 个周期的数据",
+    "数据缺失: ENA/USDC:USDC 在 2026-01-29 11:26:20.116293+00:00 只有 2 个周期的数据",
+    "数据缺失: TAO/USDC:USDC 在 2026-01-29 11:26:18.299081+00:00 只有 2 个周期的数据",
+    "数据缺失: XAI/USDC:USDC 在 2026-01-29 11:26:16.184547+00:00 只有 2 个周期的数据",
+    "数据缺失: XAI/USDC:USDC 在 2026-01-29 11:25:10.190378+00:00 只有 2 个周期的数据",
+    "数据缺失: ENA/USDC:USDC 在 2026-01-29 11:24:59.208111+00:00 只有 2 个周期的数据",
+    "数据缺失: TAO/USDC:USDC 在 2026-01-29 11:24:29.109292+00:00 只有 2 个周期的数据",
+    "数据缺失: OP/USDC:USDC 在 2026-01-29 11:24:25.556778+00:00 只有 2 个周期的数据",
+    "数据缺失: ENA/USDC:USDC 在 2026-01-29 11:23:23.545982+00:00 只有 2 个周期的数据",
+    "数据缺失: XAI/USDC:USDC 在 2026-01-29 11:23:20.699515+00:00 只有 2 个周期的数据",
+    "数据缺失: APE/USDC:USDC 在 2026-01-29 11:23:17.941976+00:00 只有 2 个周期的数据",
+    "数据缺失: SUSHI/USDC:USDC 在 2026-01-29 11:23:06.504140+00:00 只有 2 个周期的数据",
+    "数据缺失: TRB/USDC:USDC 在 2026-01-29 11:23:00.548015+00:00 只有 2 个周期的数据",
+    "数据缺失: OP/USDC:USDC 在 2026-01-29 11:22:56.167402+00:00 只有 2 个周期的数据",
+    "数据缺失: TAO/USDC:USDC 在 2026-01-29 11:22:37.825449+00:00 只有 2 个周期的数据",
+    "数据缺失: XAI/USDC:USDC 在 2026-01-29 11:22:20.116509+00:00 只有 2 个周期的数据",
+    "数据缺失: W/USDC:USDC 在 2026-01-29 11:22:13.621863+00:00 只有 2 个周期的数据",
+    "数据缺失: CAKE/USDC:USDC 在 2026-01-29 11:22:12.011413+00:00 只有 2 个周期的数据",
+    "数据缺失: OP/USDC:USDC 在 2026-01-29 11:21:55.800173+00:00 只有 2 个周期的数据",
+    "数据缺失: ENA/USDC:USDC 在 2026-01-29 11:21:41.386138+00:00 只有 2 个周期的数据",
+    "数据缺失: APE/USDC:USDC 在 2026-01-29 11:21:36.974923+00:00 只有 2 个周期的数据",
+    "数据缺失: TAO/USDC:USDC 在 2026-01-29 11:21:10.799835+00:00 只有 2 个周期的数据",
+    "数据缺失: W/USDC:USDC 在 2026-01-29 11:21:07.139214+00:00 只有 2 个周期的数据",
+    "数据缺失: XAI/USDC:USDC 在 2026-01-29 11:21:06.240546+00:00 只有 2 个周期的数据",
+    "数据缺失: SUSHI/USDC:USDC 在 2026-01-29 11:20:59.375433+00:00 只有 2 个周期的数据",
+    "数据缺失: ENA/USDC:USDC 在 2026-01-29 11:20:25.896937+00:00 只有 2 个周期的数据",
+    "数据缺失: OP/USDC:USDC 在 2026-01-29 11:20:25.891924+00:00 只有 2 个周期的数据",
+    "数据缺失: APE/USDC:USDC 在 2026-01-29 11:20:18.397418+00:00 只有 2 个周期的数据",
+    "数据缺失: BIGTIME/USDC:USDC 在 2026-01-29 11:20:11.741618+00:00 只有 2 个周期的数据",
+    "数据缺失: XAI/USDC:USDC 在 2026-01-29 11:19:53.197696+00:00 只有 2 个周期的数据",
+    "数据缺失: CAKE/USDC:USDC 在 2026-01-29 11:19:52.493528+00:00 只有 2 个周期的数据",
+    "数据缺失: TAO/USDC:USDC 在 2026-01-29 11:19:43.628867+00:00 只有 2 个周期的数据",
+    "数据缺失: SUSHI/USDC:USDC 在 2026-01-29 11:19:40.934977+00:00 只有 2 个周期的数据",
+    "数据缺失: KAS/USDC:USDC 在 2026-01-29 11:19:07.504519+00:00 只有 2 个周期的数据",
+    "数据缺失: ENA/USDC:USDC 在 2026-01-29 11:18:57.077780+00:00 只有 2 个周期的数据",
+    "数据缺失: OP/USDC:USDC 在 2026-01-29 11:18:25.658074+00:00 只有 2 个周期的数据",
+    "数据缺失: APE/USDC:USDC 在 2026-01-29 11:18:25.179015+00:00 只有 2 个周期的数据",
+    "数据缺失: TAO/USDC:USDC 在 2026-01-29 11:18:21.507391+00:00 只有 2 个周期的数据",
+    "数据缺失: MINA/USDC:USDC 在 2026-01-29 11:18:10.600567+00:00 只有 2 个周期的数据",
+    "数据缺失: KAS/USDC:USDC 在 2026-01-29 11:17:45.696899+00:00 只有 2 个周期的数据",
+    "数据缺失: OP/USDC:USDC 在 2026-01-29 11:16:58.227723+00:00 只有 2 个周期的数据",
+    "数据缺失: ENA/USDC:USDC 在 2026-01-29 11:16:58.178828+00:00 只有 2 个周期的数据",
+    "数据缺失: SUSHI/USDC:USDC 在 2026-01-29 11:15:50.659085+00:00 只有 2 个周期的数据",
+    "数据缺失: OP/USDC:USDC 在 2026-01-29 11:15:41.256085+00:00 只有 2 个周期的数据",
+    "数据缺失: XAI/USDC:USDC 在 2026-01-29 11:15:39.516624+00:00 只有 2 个周期的数据",
+    "数据缺失: ENA/USDC:USDC 在 2026-01-29 11:15:24.832578+00:00 只有 2 个周期的数据",
+    "数据缺失: KAS/USDC:USDC 在 2026-01-29 11:15:23.955895+00:00 只有 2 个周期的数据",
+    "数据缺失: OP/USDC:USDC 在 2026-01-29 11:14:25.554844+00:00 只有 2 个周期的数据",
+    "数据缺失: XAI/USDC:USDC 在 2026-01-29 11:14:08.569132+00:00 只有 2 个周期的数据",
+    "数据缺失: KAS/USDC:USDC 在 2026-01-29 11:13:29.818118+00:00 只有 2 个周期的数据",
+    "数据缺失: CAKE/USDC:USDC 在 2026-01-29 11:13:25.875634+00:00 只有 2 个周期的数据",
+    "数据缺失: XAI/USDC:USDC 在 2026-01-29 11:13:03.965819+00:00 只有 2 个周期的数据",
+    "数据缺失: ENA/USDC:USDC 在 2026-01-29 11:13:03.600179+00:00 只有 2 个周期的数据",
+    "数据缺失: OP/USDC:USDC 在 2026-01-29 11:12:55.633811+00:00 只有 2 个周期的数据"
+  ],
+  "config": {
+    "timeframes": [
+      "5m",
+      "1h",
+      "4h"
+    ],
+    "lag_threshold_seconds": 60,
+    "coverage_threshold_pct": 95.0,
+    "max_concurrent_queries": 3
+  }
+}
