@@ -14,7 +14,7 @@ K线数据连续性诊断工具
 """
 
 import sys
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 from utils.timescaledb import TimescaleDBClient, KlineRepository
 
 
@@ -25,7 +25,7 @@ def check_continuity(
     days: int = 7
 ):
     """检查指定币种的K线数据连续性"""
-    end_time = datetime.now(timezone.utc)
+    end_time = datetime.now()
     start_time = end_time - timedelta(days=days)
 
     klines = kline_repo.query_range(symbol, timeframe, start_time, end_time, limit=10000)
@@ -102,7 +102,7 @@ def compare_with_base(
     days: int = 7
 ):
     """对比目标币种与基准币种在同一时间的数据情况"""
-    end_time = datetime.now(timezone.utc)
+    end_time = datetime.now()
     start_time = end_time - timedelta(days=days)
 
     alt_klines = kline_repo.query_range(alt_symbol, timeframe, start_time, end_time, limit=10000)

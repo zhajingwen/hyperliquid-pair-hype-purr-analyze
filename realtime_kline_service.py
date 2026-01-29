@@ -30,7 +30,7 @@ import time
 import queue
 import threading
 from typing import List, Dict, Optional
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 from collections import defaultdict
 
 from hyperliquid.info import Info
@@ -427,7 +427,7 @@ class RealtimeKlineService:
             symbol = f"{coin}/USDC:USDC"
 
             # 转换时间戳
-            kline_time = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
+            kline_time = datetime.fromtimestamp(timestamp_ms / 1000)
 
             # 计算收益率
             return_pct = (close_price - open_price) / open_price if open_price > 0 else 0.0
@@ -959,7 +959,7 @@ class RealtimeKlineService:
 
             # 构建多周期数据缓存
             price_data_cache = {}
-            end_time = datetime.now(timezone.utc)
+            end_time = datetime.now()
 
             for tf, window in window_map.items():
                 query_start_time = end_time - window

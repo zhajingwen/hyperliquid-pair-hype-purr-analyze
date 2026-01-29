@@ -18,7 +18,7 @@ Date: 2026-01-23
 
 import time
 from typing import List, Dict, Tuple, Optional
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 import ccxt
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -607,7 +607,7 @@ class KlineDataFiller:
             timestamp_ms, open_price, high_price, low_price, close_price, volume = row[:6]
 
             # 转换时间戳
-            kline_time = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
+            kline_time = datetime.fromtimestamp(timestamp_ms / 1000)
 
             # 计算收益率
             return_pct = (close_price - open_price) / open_price if open_price > 0 else 0.0
@@ -673,7 +673,7 @@ class KlineDataFiller:
 
         # 需要补充数据
         if end_time is None:
-            end_time = datetime.now(timezone.utc)
+            end_time = datetime.now()
         if start_time is None:
             start_time = end_time - timedelta(days=window_days)
 
