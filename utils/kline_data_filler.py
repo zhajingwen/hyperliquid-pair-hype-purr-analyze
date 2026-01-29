@@ -21,6 +21,7 @@ from typing import List, Dict, Tuple, Optional
 from datetime import datetime, timedelta, timezone
 
 import ccxt
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from utils.timescaledb import KlineRepository, TimescaleDBClient
 from utils.logging_config import logger
@@ -112,8 +113,13 @@ class KlineDataFiller:
             exchange = exchange_class({
                 'enableRateLimit': True,
                 'rateLimit': 1500,  # 1.5秒间隔
+                'timeout': 30000,  # 增加超时到30秒（原默认10秒）
+                'options': {
+                    'defaultType': 'swap',
+                    'recvWindow': 60000,  # 接收窗口60秒
+                }
             })
-            logger.info(f"交易所 {exchange_id} 初始化成功")
+            logger.info(f"交易所 {exchange_id} 初始化成功（超时: 30s）")
             return exchange
         except Exception as e:
             logger.error(f"交易所初始化失败: {e}")
@@ -167,6 +173,31 @@ class KlineDataFiller:
 
         logger.warning(f"未知时间周期: {timeframe}，使用默认5分钟")
         return 5
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((ccxt.RequestTimeout, ccxt.NetworkError)),
+        reraise=True
+    )
+    def _fetch_ohlcv_with_retry(self, symbol, timeframe, since=None, limit=None):
+        """
+        带重试机制的 OHLCV 数据获取
+
+        Args:
+            symbol: 交易对符号
+            timeframe: 时间周期
+            since: 起始时间戳（毫秒）
+            limit: 数据量限制
+
+        Returns:
+            OHLCV 数据列表
+
+        Raises:
+            ccxt.RequestTimeout: 超时后重试3次仍失败
+            ccxt.NetworkError: 网络错误后重试3次仍失败
+        """
+        return self.exchange.fetch_ohlcv(symbol, timeframe, since, limit)
 
     def validate_continuity(
         self,
@@ -400,10 +431,10 @@ class KlineDataFiller:
         try:
             since = int(start_time.timestamp() * 1000)
 
-            # 单次 API 调用获取数据
-            ohlcv = self.exchange.fetch_ohlcv(
+            # 单次 API 调用获取数据（带重试）
+            ohlcv = self._fetch_ohlcv_with_retry(
                 api_symbol,
-                timeframe=timeframe,
+                timeframe,
                 since=since,
                 limit=min(limit, self.API_LIMIT)
             )
@@ -482,10 +513,10 @@ class KlineDataFiller:
 
             while since < until:
                 try:
-                    # 调用 ccxt API（使用规范化后的符号）
-                    ohlcv = self.exchange.fetch_ohlcv(
+                    # 调用 ccxt API（使用规范化后的符号，带重试）
+                    ohlcv = self._fetch_ohlcv_with_retry(
                         api_symbol,
-                        timeframe=timeframe,
+                        timeframe,
                         since=since,
                         limit=self.API_LIMIT
                     )

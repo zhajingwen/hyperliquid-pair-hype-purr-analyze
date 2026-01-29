@@ -42,7 +42,7 @@ QUEUE_CONFIG_GENERAL: Dict[str, int] = {'kline_buffer_size': 10000, 'analysis_qu
 QUEUE_CONFIG_HYPE: Dict[str, int] = {'kline_buffer_size': 1000, 'analysis_queue_size': 1000, 'analysis_result_buffer_size': 1000}
 
 # ============ 分析参数配置 ============
-MIN_4H_DATA_POINTS = 358
+MIN_4H_DATA_POINTS = 180  # 最小4H数据量（30天），降低新币种门槛
 MIN_DATA_POINTS = 100
 MIN_POINTS_FOR_CORRELATION = 20
 MIN_POINTS_FOR_ZSCORE = 19
@@ -78,7 +78,7 @@ QUEUE_MONITOR_INTERVAL = 60
 QUEUE_WARNING_THRESHOLD = 0.8
 
 # ============ OLS协整分析参数 ============
-MIN_POINTS_FOR_OLS = 10
+MIN_POINTS_FOR_OLS = 30  # 最小样本数，避免 sklearn UndefinedMetricWarning
 ALPHA_SIGNIFICANCE_LEVEL = 0.05
 ALPHA_CROSS_ASSET_THRESHOLD = 5.0
 ALPHA_SAME_ASSET_THRESHOLD = 2.0
@@ -103,7 +103,7 @@ ALERT_RISK_MID: Dict[str, float] = {'coint_min': 3, 'zscore_ratio': 3, 'beta_cv'
 ALERT_RATING_COUNT_THRESHOLD: int = 2
 
 # ============ WebSocket 高级配置 ============
-WS_PING_INTERVAL_MS = 50  # Ping间隔(毫秒)
+WS_PING_INTERVAL_MS = 60000  # Ping间隔(毫秒) - 每60秒心跳，防止会话过期
 WS_PING_THREAD_SHUTDOWN_TIMEOUT = 2.0  # Ping线程关闭超时(秒)
 WS_STATE_VALIDATION_DELAY = 1.0  # 状态验证延迟(秒)
 WS_READY_TIMEOUT = 5.0  # WebSocket就绪超时(秒)

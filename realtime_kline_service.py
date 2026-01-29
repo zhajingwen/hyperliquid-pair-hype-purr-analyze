@@ -35,6 +35,7 @@ from collections import defaultdict
 
 from hyperliquid.info import Info
 import hyperliquid.utils.constants as constants
+import psycopg.errors
 
 from utils.logging_config import logger
 from utils.enhanced_ws_manager import EnhancedWebSocketManager, ConnectionState
@@ -272,6 +273,42 @@ class RealtimeKlineService:
         }
 
         logger.info("✅ 实时K线分析服务初始化完成")
+
+    def _batch_upsert_with_retry(self, batch, max_retries=3, on_conflict='update'):
+        """
+        批量写入数据库，带死锁重试机制
+
+        Args:
+            batch: 数据批次
+            max_retries: 最大重试次数（默认3次）
+            on_conflict: 冲突处理策略
+
+        Returns:
+            写入记录数
+
+        Raises:
+            Exception: 重试耗尽后抛出原始异常
+        """
+        for attempt in range(max_retries):
+            try:
+                return self.kline_repo.batch_upsert_copy(batch, on_conflict=on_conflict)
+            except psycopg.errors.DeadlockDetected as e:
+                if attempt < max_retries - 1:
+                    # 指数退避：0.1s, 0.2s, 0.4s
+                    wait_time = 0.1 * (2 ** attempt)
+                    logger.warning(
+                        f"数据库死锁检测到，{wait_time:.1f}秒后重试 "
+                        f"({attempt + 1}/{max_retries}) | {e}"
+                    )
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    logger.error(f"死锁重试耗尽 ({max_retries}次)，放弃写入", exc_info=True)
+                    raise
+            except Exception as e:
+                # 其他异常直接抛出
+                logger.error(f"批量写入失败（非死锁）: {e}", exc_info=True)
+                raise
 
     def _get_active_symbols(self) -> List[str]:
         """
@@ -533,9 +570,9 @@ class RealtimeKlineService:
 
                     dedup_batch = list(dedup_dict.values())
 
-                    # 批量写入数据库
+                    # 批量写入数据库（带死锁重试）
                     try:
-                        count = self.kline_repo.batch_upsert_copy(dedup_batch, on_conflict='update')
+                        count = self._batch_upsert_with_retry(dedup_batch, on_conflict='update')
                         self.stats['klines_written'] += count
 
                         # 计算队列使用率
@@ -586,7 +623,7 @@ class RealtimeKlineService:
                     dedup_dict[key] = kline
 
                 dedup_batch = list(dedup_dict.values())
-                count = self.kline_repo.batch_upsert_copy(dedup_batch, on_conflict='update')
+                count = self._batch_upsert_with_retry(dedup_batch, on_conflict='update')
                 self.stats['klines_written'] += count
 
                 logger.info(f"停止前最后批量写入: {count} 条K线")
@@ -790,16 +827,8 @@ class RealtimeKlineService:
                         self.analysis_queue.task_done()
                         continue
 
-                # 【分析前同步写入】确保触发 K 线已入库（解决写入与分析异步问题）
-                kline_data = task.get('kline')
-                if kline_data:
-                    try:
-                        self.kline_repo.batch_upsert_copy([kline_data], on_conflict='update')
-                        logger.debug(f"分析前同步写入: {symbol} @ {timeframe}")
-                    except Exception as e:
-                        logger.warning(f"分析前同步写入失败: {symbol} @ {timeframe} | {e}")
-
                 # 执行分析（原 _analyze_and_alert 逻辑）
+                # 注意：K线数据由 _batch_writer 独占写入，避免死锁
                 try:
                     self._analyze_and_alert(symbol, timeframe)
                     self.stats['analyses_completed'] += 1
