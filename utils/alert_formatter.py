@@ -64,7 +64,7 @@ class AlertFormatter:
             str: 格式化的Markdown告警内容
         """
         if timestamp is None:
-            timestamp = datetime.now()
+            timestamp = datetime.now()  # 使用本地时间，更友好
 
         # 提取数据
         zscore_list = multi_period_result.get('zscore_list', [0, 0, 0])

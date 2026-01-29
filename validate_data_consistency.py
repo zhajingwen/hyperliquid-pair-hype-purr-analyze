@@ -19,7 +19,7 @@ Version: 2.0
 
 import argparse
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional, Any, Tuple
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -437,7 +437,7 @@ class DataConsistencyValidator:
 
         return {
             'metadata': {
-                'generated_at': datetime.now().isoformat(),
+                'generated_at': datetime.now(timezone.utc).isoformat(),
                 'hours_window': hours,
                 'days_window': days,
                 'symbol_filter': symbol,

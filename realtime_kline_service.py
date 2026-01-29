@@ -30,7 +30,7 @@ import time
 import queue
 import threading
 from typing import List, Dict, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 
 from hyperliquid.info import Info
@@ -471,8 +471,8 @@ class RealtimeKlineService:
             # 构建币种符号: ETH → ETH/USDC:USDC
             symbol = f"{coin}/USDC:USDC"
 
-            # 转换时间戳
-            kline_time = datetime.fromtimestamp(timestamp_ms / 1000)
+            # 转换时间戳 (UTC时区感知)
+            kline_time = datetime.fromtimestamp(timestamp_ms / 1000, timezone.utc)
 
             # 计算收益率
             return_pct = (close_price - open_price) / open_price if open_price > 0 else 0.0
@@ -1009,7 +1009,7 @@ class RealtimeKlineService:
 
             # 构建多周期数据缓存
             price_data_cache = {}
-            end_time = datetime.now()
+            end_time = datetime.now(timezone.utc)
 
             for tf, window in window_map.items():
                 query_start_time = end_time - window
@@ -1255,8 +1255,8 @@ class RealtimeKlineService:
             corr_1h_30d = details.get(('1h', '30d'), {}).get('correlation')
             corr_4h_60d = details.get(('4h', '60d'), {}).get('correlation')
 
-            # 计算分析时刻和延迟
-            analysis_now = datetime.now()
+            # 计算分析时刻和延迟 (UTC时区感知)
+            analysis_now = datetime.now(timezone.utc)
             delay_seconds = (analysis_now - kline_time).total_seconds() if kline_time else 0
 
             # 注意：字段需与数据库表 analysis_results 结构一致

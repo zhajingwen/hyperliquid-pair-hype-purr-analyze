@@ -673,7 +673,7 @@ class KlineDataFiller:
 
         # 需要补充数据
         if end_time is None:
-            end_time = datetime.now()
+            end_time = datetime.now(timezone.utc)
         if start_time is None:
             start_time = end_time - timedelta(days=window_days)
 
