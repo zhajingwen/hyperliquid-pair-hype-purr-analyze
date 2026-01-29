@@ -16,12 +16,11 @@ Date: 2026-01-19
 import time
 import json
 import threading
+import socket
+import websocket
 from enum import Enum
 from typing import Dict, List, Optional, Callable
 from datetime import datetime, timezone
-from hyperliquid.info import Info
-from hyperliquid.websocket_manager import WebsocketManager
-import hyperliquid.utils.constants as constants
 
 from utils.logging_config import logger
 from utils.config import (
@@ -31,16 +30,8 @@ from utils.config import (
     WS_RECONNECT_MAX_DELAY, WS_RECONNECT_MULTIPLIER, WS_RECONNECT_JITTER
 )
 
-# 修复: WebSocket ping 线程异常（内联 Monkey Patch）
-_orig_send_ping = WebsocketManager.send_ping
-def _safe_send_ping(self):
-    while not self.stop_event.wait(WS_PING_INTERVAL_MS / 1000):
-        if not self.ws.keep_running: break
-        try:
-            self.ws.send(json.dumps({"method": "ping"}))
-        except Exception as e:
-            logger.warning(f"WS ping失败: {e}"); break
-WebsocketManager.send_ping = _safe_send_ping
+# WebSocket URL 常量
+WS_URL = "wss://api.hyperliquid.xyz/ws"
 
 
 # =====================================================
@@ -85,12 +76,14 @@ class HealthMonitor:
         self.last_message_time = time.time()
         self.message_count = 0
         self._lock = threading.Lock()
+        self._warned = False  # 防止重复警告（参考 strong-hyperliquid-websocket）
 
     def on_message(self):
         """更新最后消息接收时间"""
         with self._lock:
             self.last_message_time = time.time()
             self.message_count += 1
+            self._warned = False  # 重置警告标志
 
     def is_alive(self) -> tuple[bool, float]:
         """
@@ -104,8 +97,9 @@ class HealthMonitor:
 
             if idle_time > self.timeout:
                 return False, idle_time
-            elif idle_time > self.warning_threshold:
+            elif idle_time > self.warning_threshold and not self._warned:
                 logger.warning(f"健康检查警告: {idle_time:.1f}秒未收到数据")
+                self._warned = True  # 设置警告标志，防止重复输出
 
             return True, idle_time
 
@@ -211,7 +205,7 @@ class EnhancedWebSocketManager:
     def __init__(
         self,
         subscriptions: List[Dict],
-        message_callback: Callable[[Dict], None],
+        message_callback: Optional[Callable[[Dict], None]] = None,
         on_state_change: Optional[Callable[[ConnectionState, Optional[Exception]], None]] = None,
         timeout: int = 30,
         skip_disconnects: bool = False,
@@ -224,7 +218,7 @@ class EnhancedWebSocketManager:
 
         Args:
             subscriptions: 订阅列表，格式: [{"type": "candle", "coin": "BTC", "interval": "5m"}, ...]
-            message_callback: 消息回调函数，签名: (msg: Dict) -> None
+            message_callback: (可选) 主消息回调函数，签名: (msg: Dict) -> None
             on_state_change: 状态变化回调，签名: (state: ConnectionState, error: Optional[Exception]) -> None
             timeout: 数据流超时（秒），默认30秒
             skip_disconnects: 是否跳过断连处理（用于测试）
@@ -233,12 +227,21 @@ class EnhancedWebSocketManager:
             alert_threshold: 连续失败告警阈值（默认5次），达到后触发告警
         """
         self.subscriptions = subscriptions
-        self.message_callback = message_callback
         self.on_state_change_callback = on_state_change
         self.timeout = timeout
         self.skip_disconnects = skip_disconnects
         self.alert_callback = alert_callback
         self.alert_threshold = alert_threshold
+
+        # ⭐ 改进 #1: 多回调系统 (借鉴 hyperliquid-trading-bot)
+        self.message_callbacks: List[Callable[[Dict], None]] = []
+        if message_callback:  # 保持向后兼容
+            self.message_callbacks.append(message_callback)
+
+        # ⭐ 改进 #2: 数据缓存 (借鉴 hyperliquid-trading-bot)
+        # 格式: {"BTC:5m": {...}, "ETH:1h": {...}}
+        self.latest_data: Dict[str, Dict] = {}
+        self.latest_data_lock = threading.RLock()
 
         # 状态管理
         self.state = ConnectionState.DISCONNECTED
@@ -248,10 +251,15 @@ class EnhancedWebSocketManager:
         self.subscriptions_lock = threading.RLock()
         self.active_subscriptions = set()  # 去重已激活订阅
 
-        # Hyperliquid SDK 组件
-        self.info = Info(constants.MAINNET_API_URL, skip_ws=False)
-        self.ws_manager: Optional[WebsocketManager] = None
+        # 原生 WebSocket 组件（替换 SDK）
+        self.ws_url = WS_URL
+        self.ws: Optional[websocket.WebSocketApp] = None
+        self.ws_thread: Optional[threading.Thread] = None
         self.ws_ready_event = threading.Event()
+
+        # Ping 线程管理
+        self.ping_thread: Optional[threading.Thread] = None
+        self.stop_ping = threading.Event()
 
         # 健康监控
         self.health_monitor = HealthMonitor(timeout=timeout)
@@ -286,34 +294,251 @@ class EnhancedWebSocketManager:
                 except Exception as e:
                     logger.error(f"状态回调执行失败: {e}", exc_info=True)
 
-    def _is_connected(self) -> bool:
-        """检查 WebSocket 是否已连接"""
-        if not self.info.ws_manager:
+    # =====================================================
+    # ⭐ 改进 #1: 多回调系统管理方法
+    # =====================================================
+
+    def add_callback(self, callback: Callable[[Dict], None]) -> None:
+        """
+        添加消息回调 (借鉴 hyperliquid-trading-bot)
+
+        Args:
+            callback: 消息回调函数，签名: (msg: Dict) -> None
+
+        示例:
+            def my_callback(msg):
+                print(f"收到消息: {msg}")
+
+            manager.add_callback(my_callback)
+        """
+        if callback not in self.message_callbacks:
+            self.message_callbacks.append(callback)
+            logger.info(f"✅ 添加回调成功 | 当前回调数: {len(self.message_callbacks)}")
+        else:
+            logger.warning("⚠️ 回调已存在，跳过添加")
+
+    def remove_callback(self, callback: Callable[[Dict], None]) -> bool:
+        """
+        移除消息回调
+
+        Args:
+            callback: 要移除的回调函数
+
+        Returns:
+            bool: 是否成功移除
+        """
+        try:
+            self.message_callbacks.remove(callback)
+            logger.info(f"✅ 移除回调成功 | 当前回调数: {len(self.message_callbacks)}")
+            return True
+        except ValueError:
+            logger.warning("⚠️ 回调不存在，无需移除")
             return False
 
+    def get_callbacks_count(self) -> int:
+        """获取当前回调数量"""
+        return len(self.message_callbacks)
+
+    # =====================================================
+    # ⭐ 改进 #2: 数据缓存方法
+    # =====================================================
+
+    def _cache_latest_data(self, msg: Dict) -> None:
+        """
+        缓存最新数据 (借鉴 hyperliquid-trading-bot)
+
+        支持的消息类型:
+        - candle: K线数据
+        - l2Book: 订单簿
+        - trades: 交易记录
+        - allMids: 全市场中间价
+        """
         try:
-            # 检查底层连接状态
-            return (
-                hasattr(self.info.ws_manager, 'ws') and
-                self.info.ws_manager.ws is not None and
-                self.info.ws_manager.ws.keep_running
-            )
-        except Exception:
+            channel = msg.get("channel")
+            data = msg.get("data", {})
+
+            if channel == "candle":
+                # K线数据: key = "BTC:5m"
+                symbol = data.get("s", "")  # "BTC/USDC:USDC"
+                interval = data.get("i", "")  # "5m"
+
+                if symbol and interval:
+                    # 提取币种名称
+                    coin = symbol.split("/")[0] if "/" in symbol else symbol
+                    cache_key = f"{coin}:{interval}"
+
+                    with self.latest_data_lock:
+                        self.latest_data[cache_key] = msg
+
+            elif channel == "l2Book":
+                # 订单簿: key = "BTC:l2Book"
+                coin = data.get("coin", "")
+                if coin:
+                    cache_key = f"{coin}:l2Book"
+                    with self.latest_data_lock:
+                        self.latest_data[cache_key] = msg
+
+            elif channel == "trades":
+                # 交易记录: key = "BTC:trades"
+                if isinstance(data, list) and len(data) > 0:
+                    coin = data[0].get("coin", "")
+                    if coin:
+                        cache_key = f"{coin}:trades"
+                        with self.latest_data_lock:
+                            self.latest_data[cache_key] = msg
+
+            elif channel == "allMids":
+                # 全市场中间价: key = "BTC:mid", "ETH:mid", ...
+                mids = data.get("mids", {})
+                with self.latest_data_lock:
+                    for coin, price in mids.items():
+                        cache_key = f"{coin}:mid"
+                        self.latest_data[cache_key] = {
+                            "channel": "allMids",
+                            "data": {"coin": coin, "price": price},
+                            "timestamp": time.time()
+                        }
+
+        except Exception as e:
+            logger.debug(f"数据缓存失败: {e}")
+
+    def get_latest_candle(self, coin: str, interval: str) -> Optional[Dict]:
+        """
+        获取最新K线数据 (同步查询接口)
+
+        Args:
+            coin: 币种名称，如 "BTC"
+            interval: 时间间隔，如 "5m"
+
+        Returns:
+            最新K线消息，如果不存在返回 None
+
+        示例:
+            candle = manager.get_latest_candle("BTC", "5m")
+            if candle:
+                data = candle.get("data", {})
+                close_price = data.get("c")
+                print(f"BTC 最新价格: {close_price}")
+        """
+        cache_key = f"{coin}:{interval}"
+        with self.latest_data_lock:
+            return self.latest_data.get(cache_key)
+
+    def get_latest_orderbook(self, coin: str) -> Optional[Dict]:
+        """获取最新订单簿数据"""
+        cache_key = f"{coin}:l2Book"
+        with self.latest_data_lock:
+            return self.latest_data.get(cache_key)
+
+    def get_latest_trades(self, coin: str) -> Optional[Dict]:
+        """获取最新交易记录"""
+        cache_key = f"{coin}:trades"
+        with self.latest_data_lock:
+            return self.latest_data.get(cache_key)
+
+    def get_latest_mid_price(self, coin: str) -> Optional[float]:
+        """
+        获取最新中间价 (allMids)
+
+        Args:
+            coin: 币种名称
+
+        Returns:
+            最新中间价，如果不存在返回 None
+        """
+        cache_key = f"{coin}:mid"
+        with self.latest_data_lock:
+            cached = self.latest_data.get(cache_key)
+            if cached:
+                data = cached.get("data", {})
+                price_str = data.get("price")
+                if price_str:
+                    try:
+                        return float(price_str)
+                    except (ValueError, TypeError):
+                        return None
+            return None
+
+    def get_cache_status(self) -> Dict[str, int]:
+        """
+        获取缓存状态
+
+        Returns:
+            {"total": 10, "candle": 5, "l2Book": 3, "trades": 1, "mid": 1}
+        """
+        with self.latest_data_lock:
+            stats = {"total": len(self.latest_data)}
+
+            # 统计各类型数量
+            for key in self.latest_data.keys():
+                if ":" in key:
+                    data_type = key.split(":")[1]
+                    stats[data_type] = stats.get(data_type, 0) + 1
+
+            return stats
+
+    def clear_cache(self) -> int:
+        """
+        清空缓存数据
+
+        Returns:
+            清空的数据条数
+        """
+        with self.latest_data_lock:
+            count = len(self.latest_data)
+            self.latest_data.clear()
+            logger.info(f"🗑️ 缓存已清空 | 清除条数: {count}")
+            return count
+
+    # =====================================================
+    # 连接状态检查
+    # =====================================================
+
+    def _is_connected(self) -> bool:
+        """检查 WebSocket 是否已连接（原生实现）"""
+        try:
+            if not self.ws:
+                return False
+
+            # 检查 WebSocket 运行状态
+            if not self.ws.keep_running:
+                return False
+
+            # 检查就绪标志
+            if not self.ws_ready_event.is_set():
+                return False
+
+            # 检查 WebSocket 线程存活
+            if not self.ws_thread or not self.ws_thread.is_alive():
+                return False
+
+            return True
+
+        except Exception as e:
+            logger.error(f"连接状态检查失败: {e}")
             return False
 
     def _wrapped_callback(self, msg: Dict):
-        """封装的消息回调（包含健康监控）"""
+        """封装的消息回调（包含健康监控 + 数据缓存 + 多回调触发）"""
         try:
             # 更新健康监控
             self.health_monitor.on_message()
 
-            # 调用用户回调
-            self.message_callback(msg)
+            # ⭐ 改进 #2: 缓存最新数据
+            self._cache_latest_data(msg)
+
+            # ⭐ 改进 #1: 触发所有回调
+            for callback in self.message_callbacks:
+                try:
+                    callback(msg)
+                except Exception as e:
+                    logger.error(f"回调执行失败: {e}", exc_info=True)
+
         except Exception as e:
-            logger.error(f"消息回调执行失败: {e}", exc_info=True)
+            logger.error(f"消息处理失败: {e}", exc_info=True)
 
     def _connect(self):
-        """建立 WebSocket 连接"""
+        """建立 WebSocket 连接（原生实现）"""
         try:
             self._update_state(ConnectionState.CONNECTING)
 
@@ -323,15 +548,29 @@ class EnhancedWebSocketManager:
                 # 重建active_subscriptions集合（去重）
                 self.active_subscriptions.clear()
 
-            # 使用 Info.subscribe() 方法订阅所有频道
-            for subscription in subscriptions_to_use:
-                self.info.subscribe(subscription, self._wrapped_callback)
-                # 记录订阅（用于去重）
-                sub_key = (subscription.get('type'), subscription.get('coin'), subscription.get('interval'))
-                self.active_subscriptions.add(sub_key)
+            # ✅ 创建原生 WebSocketApp（无 HTTP 依赖）
+            self.ws = websocket.WebSocketApp(
+                self.ws_url,
+                on_open=self._on_open,
+                on_message=self._on_message,
+                on_error=self._on_error,
+                on_close=self._on_close
+            )
+
+            # ✅ 在独立线程中运行 WebSocket
+            self.ws_thread = threading.Thread(
+                target=lambda: self.ws.run_forever(
+                    ping_interval=None,  # 禁用内置 ping，使用自定义
+                    sockopt=((socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1),)
+                ),
+                daemon=True,
+                name="ws-main-thread"
+            )
+            self.ws_thread.start()
 
             # 等待连接就绪
-            self.ws_ready_event.set()
+            if not self.ws_ready_event.wait(timeout=self.timeout):
+                raise TimeoutError(f"WebSocket 连接超时（{self.timeout} 秒）")
 
             # 验证连接
             time.sleep(WS_STATE_VALIDATION_DELAY)  # 给WebSocket一点时间完成握手
@@ -349,15 +588,113 @@ class EnhancedWebSocketManager:
             self._update_state(ConnectionState.FAILED, e)
             raise
 
+    def _on_open(self, ws):
+        """WebSocket 连接建立回调"""
+        logger.info("WebSocket 连接已建立")
+
+        # 获取待订阅列表
+        with self.subscriptions_lock:
+            subscriptions_to_use = list(self.subscriptions)
+            self.active_subscriptions.clear()
+
+        # 发送订阅消息
+        for subscription in subscriptions_to_use:
+            try:
+                msg = {"method": "subscribe", "subscription": subscription}
+                ws.send(json.dumps(msg))
+
+                # 记录订阅
+                sub_key = (
+                    subscription.get('type'),
+                    subscription.get('coin'),
+                    subscription.get('interval')
+                )
+                self.active_subscriptions.add(sub_key)
+                logger.debug(f"订阅成功: {subscription}")
+            except Exception as e:
+                logger.error(f"订阅失败: {subscription} | {e}")
+
+        # 启动 Ping 线程
+        self.stop_ping.clear()
+        self.ping_thread = threading.Thread(
+            target=self._ping_loop,
+            daemon=True,
+            name="ws-ping-thread"
+        )
+        self.ping_thread.start()
+
+        # 设置就绪标志
+        self.ws_ready_event.set()
+
+    def _on_message(self, ws, message):
+        """WebSocket 消息接收回调"""
+        try:
+            # 跳过系统消息
+            if message == "Websocket connection established.":
+                return
+
+            # 解析消息
+            msg = json.loads(message)
+
+            # 跳过内部协议消息（参考 strong-hyperliquid-websocket）
+            if isinstance(msg, dict):
+                # 跳过 pong（使用 method 字段，不是 channel）
+                if msg.get("method") == "pong":
+                    logger.debug("收到 pong")
+                    return
+                # 跳过订阅响应
+                if msg.get("channel") == "subscriptionResponse":
+                    logger.debug(f"订阅响应: {msg}")
+                    return
+
+            # 更新健康监控
+            self.health_monitor.on_message()
+
+            # 调用用户回调
+            self._wrapped_callback(msg)
+
+        except Exception as e:
+            logger.error(f"消息处理失败: {message} | {e}", exc_info=True)
+
+    def _on_error(self, ws, error):
+        """WebSocket 错误回调"""
+        logger.error(f"WebSocket 错误: {error}")
+
+    def _on_close(self, ws, close_status_code, close_msg):
+        """WebSocket 连接关闭回调"""
+        logger.info(f"WebSocket 连接已关闭 | 状态码: {close_status_code} | 消息: {close_msg}")
+        self.ws_ready_event.clear()
+
+        # 如果不是正常关闭(由stop()触发),则触发重连
+        if not self.stop_event.is_set() and self.state == ConnectionState.CONNECTED:
+            logger.warning("检测到非正常断开，触发重连")
+            # 在新线程中执行重连，避免阻塞回调
+            threading.Thread(target=self._reconnect, daemon=True, name="ws-reconnect-on-close").start()
+
+    def _ping_loop(self):
+        """Ping 保活循环（参考 strong-hyperliquid-websocket）"""
+        logger.debug("Ping 线程已启动")
+        while not self.stop_ping.wait(WS_PING_INTERVAL_MS / 1000):
+            # 安全检查：WebSocket 对象、运行状态、就绪标志
+            if not self.ws or not self.ws.keep_running or not self.ws_ready_event.is_set():
+                break
+            try:
+                self.ws.send(json.dumps({"method": "ping"}))
+                logger.debug("发送 ping")
+            except Exception as e:
+                logger.warning(f"Ping 失败: {e}")
+                break
+        logger.debug("Ping 线程已停止")
+
     def _force_cleanup_connection(self):
         """
-        强制清理WebSocket连接（修复连接泄漏问题）
+        强制清理WebSocket连接（原生实现，5步确定性清理）
 
-        清理步骤（5步确定性清理）:
+        清理步骤:
         1. 停止WebSocket运行循环
-        2. 调用官方disconnect方法
-        3. 强制关闭底层连接
-        4. 显式终止ping线程
+        2. 停止 Ping 线程
+        3. 关闭 WebSocket 连接
+        4. 等待 WebSocket 线程退出
         5. 清除引用确保GC回收
 
         设计原则:
@@ -368,64 +705,63 @@ class EnhancedWebSocketManager:
         logger.info("开始强制清理WebSocket连接...")
         cleanup_status = []
 
-        # Step 1: 停止WebSocket运行循环
+        # Step 1: 停止运行循环
         try:
-            if self.info.ws_manager and hasattr(self.info.ws_manager, 'ws') and self.info.ws_manager.ws:
-                self.info.ws_manager.ws.keep_running = False
+            if self.ws:
+                self.ws.keep_running = False
                 cleanup_status.append("✅ Step1: 停止运行循环")
             else:
-                cleanup_status.append("⏭️ Step1: 无运行循环")
+                cleanup_status.append("⏭️ Step1: 无 WebSocket 对象")
         except Exception as e:
             cleanup_status.append(f"❌ Step1: {e}")
             logger.warning(f"停止运行循环失败: {e}")
 
-        # Step 2: 调用官方disconnect方法
+        # Step 2: 停止 Ping 线程
         try:
-            if self.info.ws_manager:
-                self.info.disconnect_websocket()
-                cleanup_status.append("✅ Step2: 官方disconnect成功")
+            self.stop_ping.set()
+            if self.ping_thread and self.ping_thread.is_alive():
+                self.ping_thread.join(timeout=WS_PING_THREAD_SHUTDOWN_TIMEOUT)
+                if self.ping_thread.is_alive():
+                    cleanup_status.append(f"⚠️ Step2: ping 线程未在 {WS_PING_THREAD_SHUTDOWN_TIMEOUT} 秒内退出")
+                else:
+                    cleanup_status.append("✅ Step2: ping 线程已终止")
             else:
-                cleanup_status.append("⏭️ Step2: 无ws_manager")
+                cleanup_status.append("⏭️ Step2: 无活跃 ping 线程")
         except Exception as e:
             cleanup_status.append(f"❌ Step2: {e}")
-            logger.warning(f"官方disconnect失败: {e}")
+            logger.warning(f"终止 ping 线程失败: {e}")
 
-        # Step 3: 强制关闭底层连接
+        # Step 3: 关闭 WebSocket 连接
         try:
-            if self.info.ws_manager and hasattr(self.info.ws_manager, 'ws') and self.info.ws_manager.ws:
-                self.info.ws_manager.ws.close()
-                cleanup_status.append("✅ Step3: 底层连接已关闭")
+            if self.ws:
+                self.ws.close()
+                cleanup_status.append("✅ Step3: WebSocket 已关闭")
             else:
-                cleanup_status.append("⏭️ Step3: 无底层连接")
+                cleanup_status.append("⏭️ Step3: 无 WebSocket 连接")
         except Exception as e:
             cleanup_status.append(f"❌ Step3: {e}")
-            logger.warning(f"关闭底层连接失败: {e}")
+            logger.warning(f"关闭 WebSocket 失败: {e}")
 
-        # Step 4: 显式终止ping线程（如果存在）
+        # Step 4: 等待 WebSocket 线程退出
         try:
-            if self.info.ws_manager and hasattr(self.info.ws_manager, 'ping_thread'):
-                ping_thread = self.info.ws_manager.ping_thread
-                if ping_thread and ping_thread.is_alive():
-                    ping_thread.join(timeout=WS_PING_THREAD_SHUTDOWN_TIMEOUT)
-                    if ping_thread.is_alive():
-                        cleanup_status.append(f"⚠️ Step4: ping线程未在{WS_PING_THREAD_SHUTDOWN_TIMEOUT}秒内退出")
-                    else:
-                        cleanup_status.append("✅ Step4: ping线程已终止")
+            if self.ws_thread and self.ws_thread.is_alive():
+                self.ws_thread.join(timeout=2.0)
+                if self.ws_thread.is_alive():
+                    cleanup_status.append("⚠️ Step4: WebSocket 线程未在 2 秒内退出")
                 else:
-                    cleanup_status.append("⏭️ Step4: 无活跃ping线程")
+                    cleanup_status.append("✅ Step4: WebSocket 线程已退出")
             else:
-                cleanup_status.append("⏭️ Step4: 无ping线程")
+                cleanup_status.append("⏭️ Step4: 无活跃 WebSocket 线程")
         except Exception as e:
             cleanup_status.append(f"❌ Step4: {e}")
-            logger.warning(f"终止ping线程失败: {e}")
+            logger.warning(f"等待 WebSocket 线程退出失败: {e}")
 
-        # Step 5: 清除引用确保GC回收
+        # Step 5: 清除引用
         try:
-            if self.info.ws_manager:
-                self.info.ws_manager = None
-                cleanup_status.append("✅ Step5: 引用已清除")
-            else:
-                cleanup_status.append("⏭️ Step5: 无需清除")
+            self.ws = None
+            self.ws_thread = None
+            self.ping_thread = None
+            cleanup_status.append("✅ Step5: 引用已清除")
         except Exception as e:
             cleanup_status.append(f"❌ Step5: {e}")
             logger.warning(f"清除引用失败: {e}")
@@ -482,7 +818,10 @@ class EnhancedWebSocketManager:
                     # 如果连接已建立，立即订阅
                     if self._is_connected():
                         try:
-                            self.info.subscribe(subscription, self._wrapped_callback)
+                            # ✅ 直接发送订阅消息
+                            msg = {"method": "subscribe", "subscription": subscription}
+                            self.ws.send(json.dumps(msg))
+
                             self.active_subscriptions.add(sub_key)
                             added_count += 1
                             logger.info(f"✅ 动态订阅成功: {subscription.get('coin')} @ {subscription.get('interval')}")
@@ -527,14 +866,11 @@ class EnhancedWebSocketManager:
                 break
 
             try:
-                # 强制清理旧连接（修复连接泄漏）
-                if self.info.ws_manager:
+                # 强制清理旧连接（清理 WebSocket 对象）
+                if self.ws:
                     self._force_cleanup_connection()
 
-                # 重新创建 Info 对象（会自动创建新的 WebSocket 连接）
-                self.info = Info(constants.MAINNET_API_URL, skip_ws=False)
-
-                # 尝试重连
+                # ✅ 直接重连，无 HTTP 依赖
                 self._connect()
                 logger.info("✅ WebSocket重连成功")
                 return
@@ -671,8 +1007,8 @@ class EnhancedWebSocketManager:
         logger.info("停止WebSocket服务...")
         self.stop_event.set()
 
-        # 强制清理连接（修复连接泄漏）
-        if self.info.ws_manager:
+        # 强制清理连接
+        if self.ws:
             self._force_cleanup_connection()
 
         self._update_state(ConnectionState.DISCONNECTED)
