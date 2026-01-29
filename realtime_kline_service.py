@@ -1134,10 +1134,21 @@ class RealtimeKlineService:
                         # 数据不足，加入黑名单
                         with self.blacklist_lock:
                             self.new_coin_blacklist.add(symbol)
+
+                        # 🆕 取消该币种的所有订阅（避免继续接收无用数据）
+                        coin = symbol.split('/')[0]  # BTC/USDC:USDC → BTC
+                        subscriptions_to_remove = [
+                            {"type": "candle", "coin": coin, "interval": "5m"},
+                            {"type": "candle", "coin": coin, "interval": "1h"},
+                            {"type": "candle", "coin": coin, "interval": "4h"}
+                        ]
+                        unsubscribe_success = self.ws_manager.remove_subscriptions(subscriptions_to_remove)
+
                         logger.warning(
-                            f"新币数据不足，加入黑名单 | {symbol} @ {tf} | "
+                            f"新币数据不足，加入黑名单并取消订阅 | {symbol} @ {tf} | "
                             f"获取: {len(alt_klines)} 条 | 需要: {self.MIN_4H_DATA_POINTS} 条 | "
-                            f"此币种将不再进行分析"
+                            f"取消订阅: {'✅ 成功' if unsubscribe_success else '❌ 失败'} | "
+                            f"此币种将不再进行分析和接收数据"
                         )
                         # 直接返回，不继续后续分析
                         return
