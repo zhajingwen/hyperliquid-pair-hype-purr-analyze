@@ -107,9 +107,10 @@ class TerminalColors:
 class ValidationConfig:
     """验证配置"""
     timeframes: List[str] = None
-    lag_threshold_seconds: int = 60  # 延迟告警阈值（秒）
+    lag_threshold_seconds: int = 360  # 延迟告警阈值（秒）- 包含5m K线周期（300秒）+ 60秒处理余量
     coverage_threshold_pct: float = 95.0  # 覆盖率告警阈值（%）
     max_concurrent_queries: int = 3  # 最大并发查询数
+    kline_period_seconds: int = 300  # 5m K线周期（秒）- 用于计算真实延迟
 
     def __post_init__(self):
         if self.timeframes is None:
@@ -509,11 +510,17 @@ class DataConsistencyValidator:
                     'median_lag': result['median_lag']
                 }
 
-                # 检查阈值
-                if result['max_lag'] > self.config.lag_threshold_seconds:
+                # 检查阈值（注意：延迟包含K线周期）
+                real_avg_delay = result['avg_lag'] - self.config.kline_period_seconds
+                real_max_delay = result['max_lag'] - self.config.kline_period_seconds
+
+                if result['avg_lag'] > self.config.lag_threshold_seconds:
                     self.warnings.append(
-                        f"延迟过大: 最大延迟达到 {result['max_lag']:.1f} 秒"
+                        f"延迟过大: 平均延迟 {result['avg_lag']:.1f}秒 "
+                        f"(包含{self.config.kline_period_seconds}秒K线周期, 真实延迟约{real_avg_delay:.1f}秒)"
                     )
+                elif real_avg_delay < 60:
+                    logger.info(f"✅ 延迟正常: 真实延迟{real_avg_delay:.1f}秒")
 
                 return stat
             else:
@@ -870,11 +877,13 @@ class DataConsistencyValidator:
         else:
             missing_check = []
         
-        # 生成警告
+        # 生成警告（考虑K线周期）
         if lag_stats and lag_stats['max_delay']:
+            real_max_delay = lag_stats['max_delay'] - self.config.kline_period_seconds
             if lag_stats['max_delay'] > self.config.lag_threshold_seconds:
                 self.warnings.append(
-                    f"增量检测发现延迟过大: 最大 {lag_stats['max_delay']:.1f}秒"
+                    f"增量检测发现延迟过大: 最大 {lag_stats['max_delay']:.1f}秒 "
+                    f"(包含K线周期, 真实延迟约{real_max_delay:.1f}秒)"
                 )
         
         return {
@@ -1030,14 +1039,22 @@ class DataConsistencyValidator:
         # 1. 时间延迟统计（使用预存储字段）
         report_lines.append(self._colorize(f"1. 时间延迟统计（最近{hours}小时）", TerminalColors.bold))
         report_lines.append("-" * 60)
+        report_lines.append(self._colorize(f"   ℹ️  注意：延迟包含K线周期（5m={self.config.kline_period_seconds}秒），真实处理延迟需减去周期", TerminalColors.info))
+        report_lines.append("")
         lag_stats = metrics['lag_statistics']
 
         if lag_stats:
-            # 根据延迟大小选择颜色
-            avg_lag = lag_stats['avg_lag']
-            if avg_lag < self.config.lag_threshold_seconds:
+            # 计算真实延迟（减去K线周期）
+            real_avg_delay = lag_stats['avg_lag'] - self.config.kline_period_seconds
+            real_max_delay = lag_stats['max_lag'] - self.config.kline_period_seconds
+            real_min_delay = lag_stats['min_lag'] - self.config.kline_period_seconds
+            real_p95_delay = lag_stats['p95_lag'] - self.config.kline_period_seconds
+            real_median_delay = lag_stats['median_lag'] - self.config.kline_period_seconds
+
+            # 根据真实延迟选择颜色
+            if real_avg_delay < 60:
                 color_func = TerminalColors.success
-            elif avg_lag < self.config.lag_threshold_seconds * 5:
+            elif real_avg_delay < 180:
                 color_func = TerminalColors.warning
             else:
                 color_func = TerminalColors.error
@@ -1045,14 +1062,23 @@ class DataConsistencyValidator:
             delay_bar = self._format_delay_bar(lag_stats['avg_lag'])
             report_lines.append(
                 f"   总体延迟: {delay_bar} "
-                f"平均 {self._colorize(f'{lag_stats['avg_lag']:.2f}秒', color_func)}"
+                f"平均 {lag_stats['avg_lag']:.2f}秒 (包含K线周期)"
             )
-            report_lines.append(f"   统计详情:")
+            report_lines.append(f"   真实延迟: {self._colorize(f'平均 {real_avg_delay:.2f}秒', color_func)}")
+            report_lines.append("")
+            report_lines.append(f"   统计详情（包含K线周期）:")
             report_lines.append(f"     • 记录数量: {lag_stats['total_records']} 条")
             report_lines.append(f"     • 最小延迟: {lag_stats['min_lag']:.2f}秒")
             report_lines.append(f"     • 中位延迟: {lag_stats['median_lag']:.2f}秒")
             report_lines.append(f"     • P95延迟:  {lag_stats['p95_lag']:.2f}秒")
-            report_lines.append(f"     • 最大延迟: {self._colorize(f'{lag_stats['max_lag']:.2f}秒', TerminalColors.error if lag_stats['max_lag'] > self.config.lag_threshold_seconds else TerminalColors.success)}")
+            report_lines.append(f"     • 最大延迟: {lag_stats['max_lag']:.2f}秒")
+            report_lines.append("")
+            report_lines.append(f"   真实处理延迟（减去K线周期）:")
+            report_lines.append(f"     • 平均: {self._colorize(f'{real_avg_delay:.2f}秒', color_func)}")
+            report_lines.append(f"     • 最小: {real_min_delay:.2f}秒")
+            report_lines.append(f"     • 中位: {real_median_delay:.2f}秒")
+            report_lines.append(f"     • P95:  {real_p95_delay:.2f}秒")
+            report_lines.append(f"     • 最大: {self._colorize(f'{real_max_delay:.2f}秒', TerminalColors.error if real_max_delay > 60 else TerminalColors.success)}")
         else:
             report_lines.append(f"   {self._colorize('⚠️  无延迟统计数据', TerminalColors.warning)}")
 
@@ -1238,8 +1264,8 @@ def main():
     parser.add_argument(
         '--lag-threshold',
         type=int,
-        default=60,
-        help='延迟告警阈值（秒），默认60秒'
+        default=360,
+        help='延迟告警阈值（秒），默认360秒（包含300秒K线周期 + 60秒处理余量）'
     )
     parser.add_argument(
         '--coverage-threshold',
