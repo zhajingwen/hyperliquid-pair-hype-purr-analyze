@@ -42,7 +42,7 @@ QUEUE_CONFIG_GENERAL: Dict[str, int] = {'kline_buffer_size': 10000, 'analysis_qu
 QUEUE_CONFIG_HYPE: Dict[str, int] = {'kline_buffer_size': 1000, 'analysis_queue_size': 1000, 'analysis_result_buffer_size': 1000}
 
 # ============ 分析参数配置 ============
-MIN_4H_DATA_POINTS = 180  # 最小4H数据量（30天），降低新币种门槛
+MIN_4H_DATA_POINTS = 358
 MIN_DATA_POINTS = 100
 MIN_POINTS_FOR_CORRELATION = 20
 MIN_POINTS_FOR_ZSCORE = 19
