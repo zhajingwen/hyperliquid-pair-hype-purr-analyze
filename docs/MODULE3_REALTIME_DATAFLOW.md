@@ -1490,6 +1490,107 @@ class RealtimeKlineService:
 
 ---
 
+## 📊 监控与验证工具
+
+### validate_data_consistency.py (v2.0)
+
+**核心功能**：
+- 数据完整性验证（覆盖率、缺失检测、时区一致性）
+- 系统健康检查（延迟分布P50/P95/P99、死锁频率）
+- 性能指标统计（写入速率、查询性能）
+
+**v2.0核心特性**：
+
+1. **查询优化**：
+   - 缓存机制（避免重复查询，TTL=60秒）
+   - 分页查询（处理大数据集，每页1000条）
+   - 并发支持（ThreadPoolExecutor，可配置max_workers）
+
+2. **增量验证**：
+   - `--incremental N` 验证最近N分钟数据
+   - 适合定时健康检查（每小时/每天）
+   - 减少全量验证的时间开销
+
+3. **用户体验**：
+   - 彩色终端输出（自动TTY检测）
+   - 进度条显示（tqdm集成，可选依赖）
+   - JSON/文本双格式输出（--format参数）
+
+4. **高级功能**：
+   - 多周期延迟统计（P50/P95/P99百分位）
+   - 数据缺失检测（多周期K线完整性）
+   - 覆盖率分析（预期vs实际K线数量）
+   - 基线对比（与历史报告对比，跟踪趋势）
+
+**使用示例**：
+
+```bash
+# 增量验证（最近1小时）
+python validate_data_consistency.py --incremental 60
+
+# 完整验证（所有数据）
+python validate_data_consistency.py
+
+# JSON格式输出
+python validate_data_consistency.py --format json > report.json
+
+# 自定义阈值
+python validate_data_consistency.py --lag-threshold 10 --coverage-threshold 95
+
+# 并发执行（加速多周期查询）
+python validate_data_consistency.py --parallel --max-workers 5
+
+# 验证指定币种（24小时窗口）
+python validate_data_consistency.py --hours 24 --symbol "HYPE/USDC:USDC"
+
+# 基线对比模式
+python validate_data_consistency.py --baseline baseline_report.json
+```
+
+**验证指标**：
+- 数据覆盖率目标: ≥95%
+- 分析延迟P50: 5-7秒
+- 分析延迟P95: <15秒
+- 死锁频率: <5次/小时
+
+**命令行参数**：
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `--hours` | 延迟统计窗口（小时） | 1 |
+| `--days` | 覆盖率检查窗口（天） | 7 |
+| `--symbol` | 指定币种（可选） | 所有币种 |
+| `--format` | 输出格式（text/json） | text |
+| `--parallel` | 并发查询 | 禁用 |
+| `--incremental N` | 增量验证（分钟） | 禁用 |
+| `--lag-threshold` | 延迟告警阈值（秒） | 60 |
+| `--coverage-threshold` | 覆盖率告警阈值（%） | 95.0 |
+| `--max-workers` | 最大并发数 | 3 |
+| `--baseline FILE` | 基线对比文件 | 无 |
+
+**退出码**：
+- `0`: 验证通过，无告警
+- `1`: 验证失败或有告警
+- `130`: 用户中断（Ctrl+C）
+
+**自动化集成示例**：
+
+```bash
+# 定时任务（crontab）- 每小时增量验证
+0 * * * * cd /app && python validate_data_consistency.py --incremental 60 --format json > /var/log/validation_$(date +\%Y\%m\%d_\%H).json
+
+# CI/CD流水线 - 部署后完整验证
+python validate_data_consistency.py --hours 24 --parallel || exit 1
+
+# 监控告警脚本
+VALIDATION_OUTPUT=$(python validate_data_consistency.py --format json)
+WARNING_COUNT=$(echo "$VALIDATION_OUTPUT" | jq '.warnings | length')
+if [ "$WARNING_COUNT" -gt 0 ]; then
+    curl -X POST $ALERT_WEBHOOK -d "$VALIDATION_OUTPUT"
+fi
+```
+
+---
+
 ## ✅ 验收标准
 
 ### 基础功能

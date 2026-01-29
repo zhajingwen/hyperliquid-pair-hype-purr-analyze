@@ -23,7 +23,7 @@ Phase 1.5优化已全部完成并在生产环境验证，系统在可靠性、�
 #### 辅助工具
 - ✅ **KlineDataFillerLazy**: 懒加载数据填充器，自动补全缺失K线
 - ✅ **AlertFormatter**: 统一告警格式，飞书卡片支持
-- ✅ **监控验证工具**: 数据完整性检查、死锁监控、时区验证
+- ✅ **监控验证工具(v2.0)**: 查询优化 + 增量验证 + 彩色输出 + 并发支持
 
 ### 性能效果
 
@@ -133,6 +133,63 @@ kline_time = datetime.fromtimestamp(ts/1000, tz=timezone.utc)
 - [DEADLOCK_FIX_HYPE_SUMMARY.md](../DEADLOCK_FIX_HYPE_SUMMARY.md) - 死锁修复总结
 - [TIMEZONE_FIX_SUMMARY.md](../TIMEZONE_FIX_SUMMARY.md) - 时区修复总结
 - [BUG_FIX_SUMMARY.md](../BUG_FIX_SUMMARY.md) - Bug修复总结
+
+#### 5. 验证工具查询优化（v2.0）
+
+**核心优化技术**：
+
+1. **查询缓存机制**：
+```python
+def _cached_query(self, query: str, params: tuple, ttl_seconds: int = 60):
+    """
+    避免重复查询，特别是symbol列表查询
+    使用MD5哈希作为缓存键，TTL=60秒
+    """
+```
+
+2. **分页查询**：
+```python
+def _paginated_query(self, base_query: str, params: tuple, page_size: int = 1000):
+    """
+    避免大结果集内存溢出
+    每页1000条记录，自动迭代
+    """
+```
+
+3. **增量验证**：
+```python
+def validate_incremental(self, since_minutes: int = 60):
+    """
+    仅验证最近N分钟的数据
+    适合定时健康检查（每小时/每天）
+    """
+```
+
+4. **并发查询支持**：
+```python
+def calculate_lag_statistics(self, hours: int = 1, parallel: bool = True):
+    """
+    使用ThreadPoolExecutor并发执行多周期查询
+    max_workers可配置（默认3）
+    """
+```
+
+**功能特性**：
+- 增量验证模式：适合频繁健康检查（每小时/每天）
+- 查询缓存机制：减少重复数据库查询
+- 分页处理：处理大规模数据集时内存友好
+- 彩色终端输出：自动TTY检测，提升可读性
+- 进度条显示：tqdm集成（可选依赖）
+- JSON/文本双格式：灵活输出格式
+- 基线对比功能：与历史报告对比，跟踪趋势
+
+**使用场景**：
+- 定时健康检查：`--incremental 60` 每小时验证最近1小时
+- 完整数据验证：不带参数，验证全部数据
+- 自动化集成：`--format json` 输出结构化数据
+- 并发执行：`--parallel --max-workers 5` 加速多周期查询
+
+---
 
 ### 后续优化方向
 
