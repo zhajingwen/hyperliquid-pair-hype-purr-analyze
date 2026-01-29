@@ -844,6 +844,151 @@ class EnhancedWebSocketManager:
             logger.error(f"动态添加订阅失败: {e}", exc_info=True)
             return False
 
+    # =====================================================
+    # ⭐ 改进 #3: 取消订阅功能 (借鉴 hyperliquid-trading-bot)
+    # =====================================================
+
+    def remove_subscriptions(self, subscriptions_to_remove: List[Dict]) -> bool:
+        """
+        动态移除订阅（运行时热更新）
+
+        Args:
+            subscriptions_to_remove: 要移除的订阅列表
+
+        Returns:
+            bool: 移除是否成功
+
+        示例:
+            # 移除 BTC 5m K线订阅
+            manager.remove_subscriptions([
+                {"type": "candle", "coin": "BTC", "interval": "5m"}
+            ])
+        """
+        if not subscriptions_to_remove:
+            return True
+
+        try:
+            removed_count = 0
+            not_found_count = 0
+
+            with self.subscriptions_lock:
+                for subscription in subscriptions_to_remove:
+                    # 生成订阅唯一键
+                    sub_key = (
+                        subscription.get('type'),
+                        subscription.get('coin'),
+                        subscription.get('interval')
+                    )
+
+                    # 检查订阅是否存在
+                    if sub_key not in self.active_subscriptions:
+                        not_found_count += 1
+                        logger.debug(f"订阅不存在，跳过: {sub_key}")
+                        continue
+
+                    # 如果连接已建立，发送取消订阅消息
+                    if self._is_connected():
+                        try:
+                            msg = {"method": "unsubscribe", "subscription": subscription}
+                            self.ws.send(json.dumps(msg))
+                            logger.debug(f"发送取消订阅消息: {subscription}")
+                        except Exception as e:
+                            logger.error(f"发送取消订阅消息失败: {e}")
+
+                    # 从活跃订阅中移除
+                    self.active_subscriptions.remove(sub_key)
+
+                    # 从订阅列表中移除
+                    if subscription in self.subscriptions:
+                        self.subscriptions.remove(subscription)
+                    else:
+                        # 如果列表中找不到完全匹配的，按 key 查找并移除
+                        for sub in list(self.subscriptions):
+                            existing_key = (
+                                sub.get('type'),
+                                sub.get('coin'),
+                                sub.get('interval')
+                            )
+                            if existing_key == sub_key:
+                                self.subscriptions.remove(sub)
+                                break
+
+                    removed_count += 1
+                    logger.info(f"✅ 取消订阅成功: {subscription.get('coin')} @ {subscription.get('interval')}")
+
+            logger.info(
+                f"取消订阅完成: 移除 {removed_count} 个订阅，未找到 {not_found_count} 个 | "
+                f"剩余订阅数: {len(self.subscriptions)}"
+            )
+            return True
+
+        except Exception as e:
+            logger.error(f"取消订阅失败: {e}", exc_info=True)
+            return False
+
+    def clear_all_subscriptions(self) -> int:
+        """
+        清空所有订阅
+
+        Returns:
+            int: 清除的订阅数量
+        """
+        try:
+            with self.subscriptions_lock:
+                count = len(self.subscriptions)
+
+                # 如果连接已建立，发送取消订阅消息
+                if self._is_connected():
+                    for subscription in list(self.subscriptions):
+                        try:
+                            msg = {"method": "unsubscribe", "subscription": subscription}
+                            self.ws.send(json.dumps(msg))
+                        except Exception as e:
+                            logger.debug(f"发送取消订阅消息失败: {e}")
+
+                # 清空订阅列表
+                self.subscriptions.clear()
+                self.active_subscriptions.clear()
+
+                logger.info(f"🗑️ 所有订阅已清空 | 清除数量: {count}")
+                return count
+
+        except Exception as e:
+            logger.error(f"清空订阅失败: {e}", exc_info=True)
+            return 0
+
+    def get_subscriptions_status(self) -> Dict[str, Any]:
+        """
+        获取订阅状态
+
+        Returns:
+            {
+                "total": 5,
+                "active": 5,
+                "by_type": {"candle": 3, "l2Book": 2},
+                "by_coin": {"BTC": 2, "ETH": 2, "SOL": 1}
+            }
+        """
+        with self.subscriptions_lock:
+            stats = {
+                "total": len(self.subscriptions),
+                "active": len(self.active_subscriptions),
+                "by_type": {},
+                "by_coin": {}
+            }
+
+            for subscription in self.subscriptions:
+                # 统计类型
+                sub_type = subscription.get('type', 'unknown')
+                stats["by_type"][sub_type] = stats["by_type"].get(sub_type, 0) + 1
+
+                # 统计币种
+                coin = subscription.get('coin')
+                if coin:
+                    stats["by_coin"][coin] = stats["by_coin"].get(coin, 0) + 1
+
+            return stats
+
     def _reconnect(self):
         """重连逻辑（指数退避策略 + 告警机制）"""
         self._update_state(ConnectionState.RECONNECTING)
@@ -966,14 +1111,36 @@ class EnhancedWebSocketManager:
         )
 
     def get_stats(self) -> Dict:
-        """获取统计信息"""
+        """
+        获取统计信息 (增强版)
+
+        Returns:
+            包含连接状态、健康度、订阅、回调、缓存等信息的字典
+        """
         return {
+            # 基础信息
             'state': self.state.value,
+            'uptime_seconds': time.time() - self.start_time,
+            'last_error': str(self.last_error) if self.last_error else None,
+
+            # 健康监控
             'health_percentage': self.health_monitor.get_health_percentage(),
             'message_count': self.health_monitor.message_count,
+
+            # 重连信息
             'total_reconnections': self.reconnection_manager.total_reconnections,
-            'uptime_seconds': time.time() - self.start_time,
-            'last_error': str(self.last_error) if self.last_error else None
+            'current_retry_count': self.reconnection_manager.retry_count,
+
+            # ⭐ 订阅信息 (新增)
+            'subscriptions_total': len(self.subscriptions),
+            'subscriptions_active': len(self.active_subscriptions),
+            'subscriptions_detail': self.get_subscriptions_status(),
+
+            # ⭐ 回调信息 (新增)
+            'callbacks_count': len(self.message_callbacks),
+
+            # ⭐ 缓存信息 (新增)
+            'cache_status': self.get_cache_status(),
         }
 
     def start(self):
