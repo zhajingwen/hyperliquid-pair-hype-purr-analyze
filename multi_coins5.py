@@ -246,7 +246,7 @@ class DelayCorrelationAnalyzer:
             return pd.DataFrame(columns=["Open", "High", "Low", "Close", "Volume", "return", "volume_usd"])
 
         df = pd.DataFrame(all_rows, columns=["Timestamp", "Open", "High", "Low", "Close", "Volume"])
-        df["Timestamp"] = pd.to_datetime(df["Timestamp"], unit="ms", utc=True).dt.tz_convert(None)
+        df["Timestamp"] = pd.to_datetime(df["Timestamp"], unit="ms", utc=True)
         df = df.set_index("Timestamp").sort_index()
         df['return'] = df['Close'].pct_change().fillna(0)
         df['volume_usd'] = df['Volume'] * df['Close']
