@@ -334,6 +334,30 @@
 | **WebSocket延迟** | N/A | <500ms | N/A |
 | **内存占用** | ~500MB | ~512MB | 稳定 |
 
+### 性能监控增强（2026-01-29 新增）
+
+**时间链路追踪**:
+- `kline_time`: K线原始时间（数据源头）
+- `analysis_time`: 分析完成时间（处理结束）
+- `analysis_delay_seconds`: 端到端延迟监控
+
+**延迟分布目标**:
+- P50（中位数）：5-7秒
+- P95（95百分位）：< 15秒
+- P99（99百分位）：< 30秒
+- 超时告警：> 60秒
+
+**监控查询示例**:
+```sql
+-- 实时延迟监控
+SELECT
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY analysis_delay_seconds) as p50,
+    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY analysis_delay_seconds) as p95,
+    MAX(analysis_delay_seconds) as max_delay
+FROM analysis_results
+WHERE analysis_time > NOW() - INTERVAL '1 hour';
+```
+
 ## 🔍 质量标准
 
 ### 代码质量
@@ -388,6 +412,7 @@ docs/
 |------|------|------|
 | 2025-01-11 | v1.0 | 初始版本，模块化设计 |
 | 2025-01-12 | v2.0 | **重大架构调整**：<br>• 模块3从P1提升为P0，成为主分析引擎<br>• 新增utils/analysis_core.py公共分析模块<br>• WebSocket订阅仅5m/1h/4h（节省90%存储）<br>• 实时分析：每根K线闭合后立即分析<br>• 模块4降级为P1可选（multi_coins.py保持原样）<br>• 完全替代批量分析模式为实时分析模式 |
+| 2026-01-29 | v2.1 | **性能监控增强**：<br>• analysis_results表新增时间链路字段<br>• kline_time: K线原始时间<br>• analysis_delay_seconds: 分析延迟（秒）<br>• 支持完整时间链路追踪（K线→分析→延迟）<br>• 新增延迟分布统计索引（P50/P95/P99）<br>• 支持高延迟识别和系统瓶颈分析 |
 
 ---
 

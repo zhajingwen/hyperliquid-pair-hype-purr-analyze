@@ -810,12 +810,9 @@ class RealtimeKlineServiceHypePurr:
                         )
                         # 继续执行分析，使用批量写入的数据
 
-                # 提取K线时间用于延迟监控
-                kline_time = kline_data.get('time') if kline_data else None
-
                 # 执行分析（原 _analyze_and_alert 逻辑）
                 try:
-                    self._analyze_and_alert(symbol, timeframe, kline_time)
+                    self._analyze_and_alert(symbol, timeframe)
                     self.stats['analyses_completed'] += 1
 
                     # 【记录分析时间戳】分析成功后更新共享字典
@@ -866,7 +863,7 @@ class RealtimeKlineServiceHypePurr:
 
         logger.info(f"[{threading.current_thread().name}] 分析工作线程已停止")
 
-    def _analyze_and_alert(self, symbol: str, timeframe: str, kline_time: Optional[datetime] = None):
+    def _analyze_and_alert(self, symbol: str, timeframe: str):
         """
         实时多周期分析 + 飞书告警
 
@@ -1150,18 +1147,9 @@ class RealtimeKlineServiceHypePurr:
             corr_1h_30d = details.get(('1h', '30d'), {}).get('correlation')
             corr_4h_60d = details.get(('4h', '60d'), {}).get('correlation')
 
-            # 计算分析时刻和延迟
-            analysis_now = datetime.now()
-            delay_seconds = (analysis_now - kline_time).total_seconds() if kline_time else 0
-
             # 注意：字段需与数据库表 analysis_results 结构一致
             analysis_record = {
-                # ===== 时间链路字段 =====
-                'kline_time': kline_time,                    # K线原始时间（新增）
-                'analysis_time': analysis_now,               # 分析完成时间（系统本地时区）
-                'analysis_delay_seconds': delay_seconds,     # 分析延迟（新增）
-
-                # ===== 基本字段 =====
+                'analysis_time': datetime.now(),
                 'symbol': symbol,
                 'base_symbol': self.base_symbol,
 

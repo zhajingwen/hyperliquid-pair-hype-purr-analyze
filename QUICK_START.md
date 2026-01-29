@@ -2,18 +2,34 @@
 
 ## 🚀 服务重启（激活新功能）
 
-```bash
-# 1. 停止旧服务
-kill 17089
+### 方式1: 分别重启两个服务
 
-# 2. 启动新服务
+```bash
+# 服务1: realtime_kline_service.py
+kill 17089
 nohup uv run realtime_kline_service.py > realtime_kline_service.log 2>&1 &
 
+# 服务2: realtime_kline_service_hype.py
+kill 17884
+nohup uv run realtime_kline_service_hype.py > realtime_kline_service_hype.log 2>&1 &
+```
+
+### 方式2: 一起重启（推荐）
+
+```bash
+# 1. 停止所有服务
+kill 17089 17884
+
+# 2. 启动所有服务
+nohup uv run realtime_kline_service.py > realtime_kline_service.log 2>&1 &
+nohup uv run realtime_kline_service_hype.py > realtime_kline_service_hype.log 2>&1 &
+
 # 3. 确认服务运行
-ps aux | grep realtime_kline_service | grep -v grep
+ps aux | grep "realtime_kline_service" | grep -v grep
 
 # 4. 监控日志
 tail -f realtime_kline_service.log
+tail -f realtime_kline_service_hype.log
 ```
 
 ## ✅ 运行时验证（重启后10分钟执行）

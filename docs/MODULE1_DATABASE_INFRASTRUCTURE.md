@@ -129,6 +129,10 @@ CREATE TABLE analysis_results (
     symbol              VARCHAR(50) NOT NULL,
     base_symbol         VARCHAR(50) NOT NULL,
 
+    -- 时间链路字段（用于性能监控）
+    kline_time          TIMESTAMPTZ,
+    analysis_delay_seconds DOUBLE PRECISION,
+
     -- 相关系数数据
     corr_5m_7d          DOUBLE PRECISION,
     corr_1h_30d         DOUBLE PRECISION,
@@ -158,6 +162,10 @@ CREATE TABLE analysis_results (
 - **时间分区主键**: `(analysis_time, id)` 支持时间范围查询
 - **信号筛选**: `is_anomaly` 字段快速过滤套利机会
 - **多周期支持**: 存储5m、1h、4h三个周期的数据
+- **性能监控**: `kline_time` 和 `analysis_delay_seconds` 字段用于追踪完整时间链路和系统延迟
+  - `kline_time`: K线原始时间（触发分析的K线闭合时间）
+  - `analysis_delay_seconds`: 分析延迟（秒）= analysis_time - kline_time
+  - 支持延迟分布统计（P50/P95/P99）和高延迟识别
 
 **Hypertable配置**:
 ```sql
@@ -176,6 +184,15 @@ CREATE INDEX idx_analysis_symbol_time
 CREATE INDEX idx_anomaly_time
     ON analysis_results (is_anomaly, analysis_time DESC)
     WHERE is_anomaly = TRUE;
+
+-- 按 kline_time 查询索引（用于时间对齐验证）
+CREATE INDEX idx_analysis_kline_time
+    ON analysis_results (symbol, kline_time DESC);
+
+-- 延迟监控索引（仅索引高延迟记录）
+CREATE INDEX idx_analysis_delay
+    ON analysis_results (analysis_delay_seconds DESC)
+    WHERE analysis_delay_seconds > 5;
 ```
 
 **数据保留策略**:
