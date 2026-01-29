@@ -285,35 +285,12 @@ class TimescaleDBClient:
     def close(self):
         """关闭连接池"""
         if self._pool:
-            try:
-                self._pool.close()
-                logger.info("连接池已关闭")
-            except Exception as e:
-                # 忽略关闭时的异常（可能在解释器关闭阶段）
-                logger.debug(f"关闭连接池时出现异常（可忽略）: {e}")
+            self._pool.close()
+            logger.info("连接池已关闭")
 
     def __del__(self):
         """析构函数：确保连接池关闭"""
-        try:
-            # 在解释器关闭阶段，避免复杂的清理操作
-            if self._pool and hasattr(self._pool, 'close'):
-                # 使用非阻塞方式关闭
-                self._pool.close(timeout=0)
-        except (PythonFinalizationError, RuntimeError, AttributeError):
-            # 解释器关闭阶段的异常可以安全忽略
-            pass
-        except Exception:
-            # 其他异常也忽略，避免污染输出
-            pass
-
-    def __enter__(self):
-        """上下文管理器入口"""
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """上下文管理器出口"""
         self.close()
-        return False
 
 
 # =====================================================
