@@ -24,6 +24,7 @@ from typing import List, Dict, Optional, Any, Tuple
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, asdict
+from decimal import Decimal
 
 from utils.timescaledb import TimescaleDBClient
 from utils.logging_config import logger
@@ -472,10 +473,12 @@ class DataConsistencyValidator:
         """
         metrics = self.collect_all_metrics(hours, days, symbol, parallel)
 
-        # 转换datetime对象为字符串
+        # 转换特殊类型为JSON兼容类型
         def json_serializer(obj):
             if isinstance(obj, datetime):
                 return obj.isoformat()
+            elif isinstance(obj, Decimal):
+                return float(obj)
             raise TypeError(f"Type {type(obj)} not serializable")
 
         return json.dumps(metrics, indent=indent, default=json_serializer, ensure_ascii=False)
