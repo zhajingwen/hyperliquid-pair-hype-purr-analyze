@@ -827,8 +827,25 @@ class RealtimeKlineService:
                         self.analysis_queue.task_done()
                         continue
 
+                # 【恢复：分析前同步写入】确保最新K线已入库
+                kline_data = task.get('kline')
+                if kline_data:
+                    try:
+                        self._batch_upsert_with_retry(
+                            [kline_data],
+                            on_conflict='update'
+                        )
+                        logger.debug(
+                            f"分析前同步写入: {symbol} @ {timeframe} | "
+                            f"time={kline_data.get('time')}"
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            f"分析前同步写入失败: {symbol} @ {timeframe} | {e}"
+                        )
+                        # 继续执行分析，使用批量写入的数据
+
                 # 执行分析（原 _analyze_and_alert 逻辑）
-                # 注意：K线数据由 _batch_writer 独占写入，避免死锁
                 try:
                     self._analyze_and_alert(symbol, timeframe)
                     self.stats['analyses_completed'] += 1
