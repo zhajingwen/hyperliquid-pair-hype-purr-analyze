@@ -41,6 +41,25 @@ HYPE_CORR_THRESHOLD: float = 0.5
 QUEUE_CONFIG_GENERAL: Dict[str, int] = {'kline_buffer_size': 10000, 'analysis_queue_size': 15000, 'analysis_result_buffer_size': 10000}
 QUEUE_CONFIG_HYPE: Dict[str, int] = {'kline_buffer_size': 1000, 'analysis_queue_size': 1000, 'analysis_result_buffer_size': 1000}
 
+# ============ 工作线程配置 ============
+ANALYSIS_WORKERS_GENERAL = 15
+ANALYSIS_WORKERS_HYPE = 2
+
+# ============ 去重配置 ============
+ENQUEUE_DEDUP_WINDOWS: Dict[str, int] = {'5m': 30, '1h': 180, '4h': 600}
+DEDUP_WINDOWS: Dict[str, int] = {'5m': 60, '1h': 300, '4h': 900}
+CLEANUP_INTERVAL = 300
+MAX_RECENT_TASKS = 5000
+
+# ============ 批量写入配置 ============
+ANALYSIS_RESULT_BATCH_SIZE = 100
+ANALYSIS_RESULT_BATCH_TIMEOUT = 2.0
+ANALYSIS_USE_COPY_METHOD = False
+
+# ============ 监控配置 ============
+QUEUE_MONITOR_INTERVAL = 60
+QUEUE_WARNING_THRESHOLD = 0.8
+
 # ============ 分析参数配置 ============
 MIN_4H_DATA_POINTS = 358
 MIN_DATA_POINTS = 100
@@ -52,37 +71,21 @@ BETA_WINDOW: int = 100
 ZSCORE_WINDOW: int = 30
 COINTEGRATION_THRESHOLD: int = 2
 ZSCORE_THRESHOLDS: Dict[str, float] = {'long': 0.2, 'middle': 1.5, 'short': 1.8, 'strong': 2.5, 'medium': 2.0}
-
-# ============ 去重配置 ============
-ENQUEUE_DEDUP_WINDOWS: Dict[str, int] = {'5m': 30, '1h': 180, '4h': 600}
-DEDUP_WINDOWS: Dict[str, int] = {'5m': 60, '1h': 300, '4h': 900}
-CLEANUP_INTERVAL = 300
-MAX_RECENT_TASKS = 5000
-
-# ============ 工作线程配置 ============
-ANALYSIS_WORKERS_GENERAL = 15
-ANALYSIS_WORKERS_HYPE = 2
-
-# ============ 批量写入配置 ============
-ANALYSIS_RESULT_BATCH_SIZE = 100
-ANALYSIS_RESULT_BATCH_TIMEOUT = 2.0
-ANALYSIS_USE_COPY_METHOD = False
-
-# ============ 监控配置 ============
-QUEUE_MONITOR_INTERVAL = 60
-QUEUE_WARNING_THRESHOLD = 0.8
-
-# ============ OLS协整分析参数 ============
 MIN_POINTS_FOR_OLS = 30  # 最小样本数，避免 sklearn UndefinedMetricWarning
 ALPHA_SIGNIFICANCE_LEVEL = 0.05
 ALPHA_CROSS_ASSET_THRESHOLD = 5.0
 ALPHA_SAME_ASSET_THRESHOLD = 2.0
+CORRELATION_METHOD = 'pearson'  # 相关系数计算方法: pearson/kendall/spearman
+ADF_LAG_SELECTION_METHOD = 'AIC'  # ADF检验滞后选择: AIC/BIC/t-stat
 
 # ============ 健康监控参数 ============
 HEALTH_MONITOR_LONG_WINDOW: int = 200
 HEALTH_MONITOR_SHORT_WINDOW: int = 100
 HEALTH_MONITOR_STATE_THRESHOLDS: Tuple[int, int, int] = (18, 14, 10)
 HEALTH_MONITOR_PERIOD: Tuple[str, str] = ('4h', '60d')
+HEALTH_MONITOR_MAX_HALFLIFE: int = 30  # 半衰期上限(用于协整检查)
+HEALTH_MONITOR_MIN_HALFLIFE: int = 5  # 半衰期下限
+HEALTH_MONITOR_SCORE_WEIGHTS: Tuple[float, float, float] = (0.4, 0.3, 0.3)  # 得分权重(ADF,半衰期,稳定性)
 
 # ============ 多周期分析配置 ============
 REQUIRED_PERIODS = [('5m', '7d'), ('1h', '30d'), ('4h', '60d')]
@@ -96,16 +99,14 @@ ALERT_SCORE_DIFF: Dict[str, int] = {'high': 15, 'medium': 10, 'deteriorate': 5}
 ALERT_RISK_HIGH_HURST: float = 0.7
 ALERT_RISK_MID: Dict[str, float] = {'coint_min': 3, 'zscore_ratio': 3, 'beta_cv': 0.2}
 ALERT_RATING_COUNT_THRESHOLD: int = 2
+ALERT_PROGRESS_BAR_WIDTH = 10  # 进度条宽度
+ALERT_ZSCORE_MAX_VALUE = 3.0  # Z-score最大显示值
 
 # ============ WebSocket配置 ============
 WS_TIMEOUT = 30
 WS_MAX_RETRIES = None
 WS_ALERT_THRESHOLD = None
-
-# ============ WebSocket 连接配置 ============
 WS_URL = "wss://api.hyperliquid.xyz/ws"  # WebSocket连接地址
-
-# ============ WebSocket 高级配置 ============
 WS_PING_INTERVAL_MS = 60000  # Ping间隔(毫秒) - 每60秒心跳,防止会话过期
 WS_PING_THREAD_SHUTDOWN_TIMEOUT = 2.0  # Ping线程关闭超时(秒)
 WS_STATE_VALIDATION_DELAY = 1.0  # 状态验证延迟(秒)
@@ -115,19 +116,11 @@ WS_RECONNECT_INITIAL_DELAY = 1.0  # 重连初始延迟(秒)
 WS_RECONNECT_MAX_DELAY = 60.0  # 重连最大延迟(秒)
 WS_RECONNECT_MULTIPLIER = 2.0  # 重连延迟倍数
 WS_RECONNECT_JITTER = 0.25  # 重连抖动系数
-
-# ============ WebSocket 健康监控配置 ============
 WS_HEALTH_MONITOR_TIMEOUT = 30  # 健康监控超时阈值(秒) - 超过此时间未收到数据判定为假活
 WS_HEALTH_MONITOR_WARNING_THRESHOLD = 15  # 健康监控警告阈值(秒) - 超过此时间触发警告日志
 WS_HEALTH_REPORT_INTERVAL = 60  # 健康报告输出间隔(秒) - 定期输出健康统计信息
 WS_HEALTH_CHECK_INTERVAL = 5  # 健康检查循环间隔(秒) - 健康监控线程检查频率
-
-# ============ WebSocket 连接管理配置 ============
 WS_CLEANUP_DELAY = 0.5  # 强制清理连接延迟(秒) - 清理旧连接前的等待时间
-
-# ============ 分析算法高级配置 ============
-CORRELATION_METHOD = 'pearson'  # 相关系数计算方法: pearson/kendall/spearman
-ADF_LAG_SELECTION_METHOD = 'AIC'  # ADF检验滞后选择: AIC/BIC/t-stat
 
 # ============ K线数据补充器配置 ============
 KLINE_FILLER_COOLDOWN_SECONDS = 600  # 补充冷却时间(秒)
@@ -155,13 +148,3 @@ WORKER_THREAD_SHUTDOWN_TIMEOUT = 5.0  # 工作线程关闭超时(秒)
 MAIN_THREAD_SHUTDOWN_TIMEOUT = 10.0  # 主线程关闭超时(秒)
 CPU_CHECK_INTERVAL = 0.1  # CPU检查间隔(秒)
 DB_QUERY_LIMIT = 10000  # 数据库查询限制
-
-# ============ 协整健康监控参数扩展 ============
-# 注: HEALTH_MONITOR_LONG_WINDOW/SHORT_WINDOW等已在上方定义
-HEALTH_MONITOR_MAX_HALFLIFE: int = 30  # 半衰期上限(用于协整检查)
-HEALTH_MONITOR_MIN_HALFLIFE: int = 5  # 半衰期下限
-HEALTH_MONITOR_SCORE_WEIGHTS: Tuple[float, float, float] = (0.4, 0.3, 0.3)  # 得分权重(ADF,半衰期,稳定性)
-
-# ============ 告警格式化配置扩展 ============
-ALERT_PROGRESS_BAR_WIDTH = 10  # 进度条宽度
-ALERT_ZSCORE_MAX_VALUE = 3.0  # Z-score最大显示值
