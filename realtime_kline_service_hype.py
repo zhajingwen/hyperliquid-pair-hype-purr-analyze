@@ -43,6 +43,7 @@ import threading
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
+from cachetools import TTLCache
 
 from hyperliquid.info import Info
 import hyperliquid.utils.constants as constants
@@ -194,12 +195,17 @@ class RealtimeKlineServiceHypePurr:
         self.subscriptions = self._build_subscriptions()
         logger.info(f"订阅数量: {len(self.subscriptions)}")
 
+        # 修复PERF-01: 使用TTLCache防止内存泄漏
         # 入队去重字典（线程安全，避免重复入队）
-        self.recent_enqueue = {}  # {(symbol, timeframe): timestamp}
+        self.recent_enqueue = TTLCache(maxsize=10000, ttl=1800)  # 30分钟TTL
         self.recent_enqueue_lock = threading.Lock()
 
         # 分析去重字典（跨线程共享，避免重复分析）
-        self.recent_analysis = {}  # {(symbol, timeframe): timestamp}
+        # TTL = 最大去重窗口 × 2 = 900s × 2 = 1800s
+        self.recent_analysis = TTLCache(
+            maxsize=10000,
+            ttl=max(DEDUP_WINDOWS.values()) * 2
+        )
         self.recent_analysis_lock = threading.Lock()
 
         # K线缓冲队列（从配置读取 HYPE 专用大小）
@@ -402,6 +408,48 @@ class RealtimeKlineServiceHypePurr:
 
         return subscriptions
 
+    @staticmethod
+    def _safe_float(value, field_name='unknown', default=0.0) -> float:
+        """
+        修复QUAL-01: 安全的float转换，带日志和默认值
+
+        Args:
+            value: 要转换的值
+            field_name: 字段名称（用于日志）
+            default: 转换失败时的默认值
+
+        Returns:
+            float值或默认值
+        """
+        try:
+            if value is None or value == '':
+                return default
+            return float(value)
+        except (ValueError, TypeError) as e:
+            logger.error(f"类型转换失败: {field_name}={value} ({type(value).__name__}) | {e}")
+            return default
+
+    @staticmethod
+    def _safe_int(value, field_name='unknown', default=0) -> int:
+        """
+        修复QUAL-01: 安全的int转换，带日志和默认值
+
+        Args:
+            value: 要转换的值
+            field_name: 字段名称（用于日志）
+            default: 转换失败时的默认值
+
+        Returns:
+            int值或默认值
+        """
+        try:
+            if value is None or value == '':
+                return default
+            return int(value)
+        except (ValueError, TypeError) as e:
+            logger.error(f"类型转换失败: {field_name}={value} | {e}")
+            return default
+
     def _parse_kline(self, msg: Dict) -> Optional[Dict]:
         """
         解析 Hyperliquid K线数据为标准格式
@@ -433,15 +481,15 @@ class RealtimeKlineServiceHypePurr:
 
             data = msg.get("data", {})
 
-            # 提取字段
+            # 提取字段（使用安全类型转换）
             coin = data.get('s')  # HYPE
             timeframe = data.get('i')  # 5m
-            timestamp_ms = data.get('t')  # 1704067260000
-            open_price = float(data.get('o', 0))
-            high_price = float(data.get('h', 0))
-            low_price = float(data.get('l', 0))
-            close_price = float(data.get('c', 0))
-            volume = float(data.get('v', 0))
+            timestamp_ms = self._safe_int(data.get('t'), 'timestamp_ms')
+            open_price = self._safe_float(data.get('o'), 'open')
+            high_price = self._safe_float(data.get('h'), 'high')
+            low_price = self._safe_float(data.get('l'), 'low')
+            close_price = self._safe_float(data.get('c'), 'close')
+            volume = self._safe_float(data.get('v'), 'volume')
 
             # 构建币种符号: HYPE → HYPE/USDC:USDC
             symbol = f"{coin}/USDC:USDC"
@@ -956,7 +1004,7 @@ class RealtimeKlineServiceHypePurr:
             if symbol == self.base_symbol:
                 return
 
-            # ===== 新增：查询所有3个周期的数据（从配置读取）=====
+            # ===== 修复PERF-02: 单次查询 + 内存分组（优化N+1查询）=====
             window_map = {
                 '5m': timedelta(days=DATA_WINDOW_CONFIG['5m']),
                 '1h': timedelta(days=DATA_WINDOW_CONFIG['1h']),
@@ -967,26 +1015,44 @@ class RealtimeKlineServiceHypePurr:
             price_data_cache = {}
             end_time = datetime.now(timezone.utc)
 
+            # 计算最大时间窗口
+            max_window = max(window_map.values())
+            query_start_time = end_time - max_window
+
+            # 单次查询所有周期数据（timeframe=None）
+            base_klines_all = self.kline_repo.query_range(
+                self.base_symbol,
+                None,  # 查询所有timeframe
+                query_start_time,
+                end_time,
+                limit=30000  # 提高限制以容纳多周期数据
+            )
+
+            alt_klines_all = self.kline_repo.query_range(
+                symbol,
+                None,  # 查询所有timeframe
+                query_start_time,
+                end_time,
+                limit=30000
+            )
+
+            # 内存中按timeframe分组
+            base_by_tf = defaultdict(list)
+            alt_by_tf = defaultdict(list)
+
+            for kline in base_klines_all:
+                if kline['timeframe'] in window_map:
+                    base_by_tf[kline['timeframe']].append(kline)
+
+            for kline in alt_klines_all:
+                if kline['timeframe'] in window_map:
+                    alt_by_tf[kline['timeframe']].append(kline)
+
+            # 遍历每个周期处理数据
             for tf, window in window_map.items():
-                query_start_time = end_time - window
-
-                # 查询基准币种K线
-                base_klines = self.kline_repo.query_range(
-                    self.base_symbol,
-                    tf,
-                    query_start_time,
-                    end_time,
-                    limit=DB_QUERY_LIMIT
-                )
-
-                # 查询目标币种K线
-                alt_klines = self.kline_repo.query_range(
-                    symbol,
-                    tf,
-                    query_start_time,
-                    end_time,
-                    limit=DB_QUERY_LIMIT
-                )
+                # 从分组后的数据中获取当前周期的K线
+                base_klines = base_by_tf[tf]
+                alt_klines = alt_by_tf[tf]
 
                 # === 新增：K线数据连续性校验与自动补充 ===
                 need_refill = False
@@ -1047,21 +1113,27 @@ class RealtimeKlineServiceHypePurr:
                         if alt_filled > 0:
                             logger.info(f"目标币种数据补充完成 | {symbol} @ {tf} | 补充: {alt_filled} 条")
 
-                    # 重新查询数据
-                    base_klines = self.kline_repo.query_range(
+                    # 重新查询数据（仅查询当前周期）
+                    base_klines_refill = self.kline_repo.query_range(
                         self.base_symbol,
                         tf,
-                        query_start_time,
+                        end_time - window,
                         end_time,
                         limit=DB_QUERY_LIMIT
                     )
-                    alt_klines = self.kline_repo.query_range(
+                    alt_klines_refill = self.kline_repo.query_range(
                         symbol,
                         tf,
-                        query_start_time,
+                        end_time - window,
                         end_time,
                         limit=DB_QUERY_LIMIT
                     )
+
+                    # 更新内存分组数据
+                    base_by_tf[tf] = base_klines_refill
+                    alt_by_tf[tf] = alt_klines_refill
+                    base_klines = base_klines_refill
+                    alt_klines = alt_klines_refill
 
                     logger.info(
                         f"数据补充后重新查询 | {symbol} @ {tf} | "
@@ -1445,7 +1517,7 @@ class RealtimeKlineServiceHypePurr:
         if error:
             logger.error(f"WebSocket 错误: {error}")
 
-        # P0-2增强：FAILED状态发送紧急飞书告警
+        # P0-2增强：FAILED状态发送紧急飞书告警并退出服务
         if state == ConnectionState.FAILED:
             self._send_system_alert(
                 "🚨 WebSocket服务彻底失败",
@@ -1453,6 +1525,10 @@ class RealtimeKlineServiceHypePurr:
                 f"错误信息: {error or '未知'}\n"
                 f"请立即检查网络环境和服务状态，并重启服务！"
             )
+            # 修复STAB-01: 主动停止服务并退出进程
+            logger.critical("WebSocket彻底失败，主动停止服务")
+            self.stop()  # 停止所有工作线程
+            sys.exit(1)  # 退出进程，触发容器重启
 
     def get_stats(self) -> Dict:
         """
