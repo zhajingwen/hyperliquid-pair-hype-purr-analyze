@@ -544,7 +544,9 @@ class EnhancedWebSocketManager:
     def _connect(self):
         """建立 WebSocket 连接（原生实现）"""
         try:
-            self._update_state(ConnectionState.CONNECTING)
+            # 只在非重连场景设置 CONNECTING
+            if self.state != ConnectionState.RECONNECTING:
+                self._update_state(ConnectionState.CONNECTING)
 
             # 使用锁保护订阅列表访问（修复：动态订阅支持）
             with self.subscriptions_lock:
