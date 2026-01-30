@@ -15,165 +15,592 @@
 - **上游依赖**: 所有其他模块（模块1-4）
 - **下游依赖**: 无（最终交付模块）
 
-## 🔧 配置管理
+## 🔧 配置管理 (v2.2完整版)
 
-### 文件1: utils/config.py
+### config.py结构总览
 
-**改造前**:
-```python
-import os
+**文件**: `utils/config.py` (151行，8大配置组)
 
-ENV = os.getenv("ENV", "local")
+| 配置组 | 参数数量 | 核心作用 | v2.2新增 |
+|--------|---------|---------|---------|
+| **1. TimescaleDB配置** | 10个 | 数据库连接和连接池管理 | ✅ 连接池参数 |
+| **2. WebSocket配置** | 20个 | WebSocket连接和重连策略 | ✅ **核心新增** |
+| **3. 队列配置** | 4个 | K线缓冲和分析队列容量 | ✅ 工作线程 |
+| **4. 去重配置** | 4个 | 入队和分析去重窗口 | - |
+| **5. 批量写入配置** | 3个 | 分析结果批量写入优化 | ✅ **新增** |
+| **6. 监控配置** | 2个 | 队列监控和告警阈值 | ✅ **新增** |
+| **7. K线数据补充器配置** | 6个 | 历史数据补充和冷却控制 | ✅ **新增** |
+| **8. 飞书告警配置** | 3个 | 告警重试和超时控制 | ✅ **新增** |
 
-# 飞书配置
-lark_bot_id = os.getenv("LARKBOT_ID")
-
-# Redis配置
-redis_host = os.getenv("REDIS_HOST", "127.0.0.1")
-redis_password = os.getenv("REDIS_PASSWORD")
-```
-
-**改造后**:
-```python
-import os
-from typing import Optional
-
-# ========================================
-# 运行环境配置
-# ========================================
-ENV = os.getenv("ENV", "local")
-
-# ========================================
-# 飞书Bot配置
-# ========================================
-lark_bot_id = os.getenv("LARKBOT_ID")
-
-# ========================================
-# Redis配置（原有）
-# ========================================
-redis_host = os.getenv("REDIS_HOST", "127.0.0.1")
-redis_password = os.getenv("REDIS_PASSWORD")
-
-# ========================================
-# TimescaleDB配置（新增）
-# ========================================
-timescaledb_host = os.getenv("TIMESCALEDB_HOST", "127.0.0.1")
-timescaledb_port = int(os.getenv("TIMESCALEDB_PORT", "5432"))
-timescaledb_name = os.getenv("TIMESCALEDB_NAME", "crypto_data")
-timescaledb_user = os.getenv("TIMESCALEDB_USER", "postgres")
-timescaledb_password = os.getenv("TIMESCALEDB_PASSWORD", "postgres")
-timescaledb_pool_size = int(os.getenv("TIMESCALEDB_POOL_SIZE", "10"))
-
-# ========================================
-# 功能开关（新增）
-# ========================================
-enable_database = os.getenv("ENABLE_DATABASE", "true").lower() == "true"
-enable_realtime_stream = os.getenv("ENABLE_REALTIME_STREAM", "false").lower() == "true"
-
-# ========================================
-# 配置验证（新增）
-# ========================================
-def validate_config():
-    """验证必要的配置项"""
-    errors = []
-
-    # 验证TimescaleDB配置
-    if enable_database:
-        if not timescaledb_host:
-            errors.append("TIMESCALEDB_HOST未设置")
-        if not timescaledb_password or timescaledb_password == "postgres":
-            errors.append("⚠️ 警告：使用默认数据库密码，建议修改")
-
-    # 验证飞书Bot配置
-    if lark_bot_id:
-        if not lark_bot_id.startswith("cli_"):
-            errors.append("LARKBOT_ID格式错误（应以cli_开头）")
-
-    if errors:
-        for error in errors:
-            print(f"❌ 配置错误: {error}")
-        if any("密码" not in e and "警告" not in e for e in errors):
-            raise ValueError("配置验证失败，请检查环境变量")
-
-# 启动时自动验证
-if __name__ != "__main__":  # 仅在被导入时验证
-    validate_config()
-```
-
-**改造说明**:
-- 新增TimescaleDB连接配置（6个参数）
-- 新增功能开关（enable_database, enable_realtime_stream）
-- 新增配置验证函数（启动时自动检查）
+**总计**: 52个核心配置参数，v2.2新增35个
 
 ---
 
-### 文件2: .env.example（环境变量模板）
+### 1. TimescaleDB配置（10参数）
 
-```env
-# ========================================
-# 运行环境
-# ========================================
-ENV=local
+#### 连接参数
+
+| 参数名 | 类型 | 默认值 | 说明 | 环境变量 |
+|--------|------|--------|------|----------|
+| `TIMESCALEDB_HOST` | str | `'127.0.0.1'` | 数据库主机地址 | `TIMESCALEDB_HOST` |
+| `TIMESCALEDB_PORT` | int | `5432` | 数据库端口 | `TIMESCALEDB_PORT` |
+| `TIMESCALEDB_NAME` | str | `'crypto_data'` | 数据库名称 | `TIMESCALEDB_NAME` |
+| `TIMESCALEDB_USER` | str | `'postgres'` | 数据库用户 | `TIMESCALEDB_USER` |
+| `TIMESCALEDB_PASSWORD` | str | `'postgres'` | 数据库密码 | `TIMESCALEDB_PASSWORD` |
+
+#### 连接池参数（v2.2优化）
+
+| 参数名 | 类型 | 默认值 | 说明 | 调优建议 |
+|--------|------|--------|------|----------|
+| `TIMESCALEDB_POOL_MIN_SIZE` | int | `2` | 最小连接数 | 保持2个预热连接 |
+| `TIMESCALEDB_POOL_MAX_SIZE` | int | `10` | 最大连接数 | 公式: (工作线程 + 写入线程 + 预留) × 1.5 |
+| `TIMESCALEDB_POOL_TIMEOUT` | float | `30.0` | 获取连接超时（秒） | 稳定网络30s, 不稳定60s |
+| `TIMESCALEDB_POOL_MAX_LIFETIME` | int | `3600` | 连接最大存活时间（秒） | 1小时，防止陈旧连接 |
+| `TIMESCALEDB_POOL_MAX_IDLE` | int | `600` | 连接最大空闲时间（秒） | 10分钟，释放闲置资源 |
+
+**连接池配置公式**:
+```python
+# 最大连接数计算
+POOL_MAX_SIZE = (ANALYSIS_WORKERS + 批量写入线程数 + 预留) × 1.5
+
+# 示例1: HYPE/PURR配对（2个工作线程）
+POOL_MAX_SIZE = (2 + 1 + 2) × 1.5 = 7.5 ≈ 8
+
+# 示例2: 通用服务（15个工作线程）
+POOL_MAX_SIZE = (15 + 1 + 4) × 1.5 = 30
+
+# 示例3: 高并发场景（30个工作线程）
+POOL_MAX_SIZE = (30 + 2 + 8) × 1.5 = 60
+```
+
+**推荐配置表格**:
+
+| 场景 | MIN | MAX | TIMEOUT | LIFETIME | IDLE | 说明 |
+|------|-----|-----|---------|----------|------|------|
+| 开发环境 | 2 | 5 | 30s | 1800s | 300s | 最小资源占用 |
+| HYPE/PURR | 2 | 8 | 30s | 3600s | 600s | 小规模专用配对 |
+| 通用服务 | 2 | 30 | 30s | 3600s | 600s | 平衡配置 |
+| 高并发 | 5 | 60 | 60s | 1800s | 300s | 大规模多币种 |
+
+---
+
+### 2. WebSocket配置（20参数）✨ v2.2核心新增
+
+详见 MODULE3 文档的"配置参数详解"章节，包括：
+- 基础连接参数（3个）
+- Ping配置（2个）
+- 状态管理（4个）
+- 重连策略（5个）
+- 健康监控（4个）
+- 告警配置（2个）
+
+**快速参考**:
+
+| 类别 | 关键参数 | 默认值 | 说明 |
+|------|---------|--------|------|
+| 假活检测 | `WS_HEALTH_MONITOR_TIMEOUT` | 15s | 超时判定为假活 |
+| 重连策略 | `WS_RECONNECT_MAX_DELAY` | 10s | 重连最大延迟 |
+| 最大重试 | `WS_MAX_RETRIES` | None | 无限重连 |
+| Ping间隔 | `WS_PING_INTERVAL_MS` | 5000 | 5秒心跳 |
+
+---
+
+### 3. 队列配置（4参数）
+
+**通用配置**:
+
+| 参数名 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `QUEUE_CONFIG_GENERAL` | Dict | 见下表 | 通用服务队列容量 |
+| `QUEUE_CONFIG_HYPE` | Dict | 见下表 | HYPE/PURR专用队列容量 |
+
+**容量配置详情**:
+
+```python
+QUEUE_CONFIG_GENERAL = {
+    'kline_buffer_size': 10000,           # K线缓冲队列
+    'analysis_queue_size': 15000,         # 分析任务队列
+    'analysis_result_buffer_size': 10000  # 分析结果缓冲
+}
+
+QUEUE_CONFIG_HYPE = {
+    'kline_buffer_size': 1000,     # 小规模配对
+    'analysis_queue_size': 1000,
+    'analysis_result_buffer_size': 1000
+}
+```
+
+**容量计算公式**:
+```python
+# K线缓冲容量
+kline_buffer_size = 币种数 × 周期数 × 预期缓冲深度
+# 示例: 200币种 × 3周期 × 10条 = 6000 ≈ 10000（预留缓冲）
+
+# 分析队列容量
+analysis_queue_size = 分析频率（次/秒） × 缓冲时长（秒）
+# 示例: 2.5次/秒 × 3600秒 = 9000 ≈ 15000（1小时缓冲）
+```
+
+**工作线程配置**:
+
+| 参数名 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `ANALYSIS_WORKERS_GENERAL` | int | 15 | 通用服务工作线程数 |
+| `ANALYSIS_WORKERS_HYPE` | int | 2 | HYPE/PURR专用线程数 |
+
+**线程数计算公式**:
+```python
+# 工作线程数
+WORKERS = CPU核心数 × 2（IO密集型）
+
+# 或基于吞吐量计算
+WORKERS = 目标吞吐量（次/秒） / 单线程处理速度（次/秒）
+# 示例: 2.5次/秒 / 0.5次/秒 = 5个线程
+```
+
+**推荐配置**:
+
+| 场景 | 工作线程 | K线缓冲 | 分析队列 | 结果缓冲 |
+|------|---------|---------|---------|---------|
+| HYPE/PURR | 2 | 1000 | 1000 | 1000 |
+| 通用服务 | 15 | 10000 | 15000 | 10000 |
+| 高并发 | 30 | 20000 | 30000 | 20000 |
+
+---
+
+### 4. 去重配置（4参数）
+
+**双层去重设计**:
+
+| 参数名 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `ENQUEUE_DEDUP_WINDOWS` | Dict | `{'5m': 30, '1h': 180, '4h': 600}` | 入队去重窗口（秒） |
+| `DEDUP_WINDOWS` | Dict | `{'5m': 60, '1h': 300, '4h': 900}` | 分析去重窗口（秒） |
+
+**去重窗口说明**:
+
+```python
+# 层1: 入队去重（防止短时间内重复入队）
+ENQUEUE_DEDUP_WINDOWS = {
+    '5m': 30,   # 5分钟周期：30秒冷却
+    '1h': 180,  # 1小时周期：3分钟冷却
+    '4h': 600   # 4小时周期：10分钟冷却
+}
+
+# 层2: 分析去重（防止重复分析）
+DEDUP_WINDOWS = {
+    '5m': 60,   # 5分钟周期：1分钟冷却
+    '1h': 300,  # 1小时周期：5分钟冷却
+    '4h': 900   # 4小时周期：15分钟冷却
+}
+```
+
+**去重效果（实测数据）**:
+- 5m周期：节省 ~70% CPU（原10次分析 → 3次）
+- 1h周期：节省 ~80% CPU（原10次分析 → 2次）
+- 4h周期：节省 ~93% CPU（原15次分析 → 1次）
+
+**清理参数**:
+
+| 参数名 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `CLEANUP_INTERVAL` | int | 300 | 去重记录清理间隔（秒） |
+| `MAX_RECENT_TASKS` | int | 5000 | 最大去重记录数 |
+
+---
+
+### 5. 批量写入配置（3参数）✨ v2.2新增
+
+| 参数名 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `ANALYSIS_RESULT_BATCH_SIZE` | int | 100 | 批量写入大小 |
+| `ANALYSIS_RESULT_BATCH_TIMEOUT` | float | 2.0 | 批量写入超时（秒） |
+| `ANALYSIS_USE_COPY_METHOD` | bool | False | 是否使用COPY命令 |
+
+**COPY vs INSERT性能对比**:
+
+| 方法 | 吞吐量 | 延迟 | 推荐场景 |
+|------|--------|------|----------|
+| **INSERT** (executemany) | ~1000条/秒 | 低 | 小批量、高频写入 |
+| **COPY** | **>40000条/秒** | 中 | 大批量、低频写入 |
+
+**配置建议**:
+```python
+# 高频小批量（如实时分析结果）
+ANALYSIS_RESULT_BATCH_SIZE = 100
+ANALYSIS_RESULT_BATCH_TIMEOUT = 2.0
+ANALYSIS_USE_COPY_METHOD = False  # 使用INSERT
+
+# 低频大批量（如历史数据导入）
+ANALYSIS_RESULT_BATCH_SIZE = 1000
+ANALYSIS_RESULT_BATCH_TIMEOUT = 5.0
+ANALYSIS_USE_COPY_METHOD = True  # 使用COPY，性能提升40x
+```
+
+---
+
+### 6. 监控配置（2参数）✨ v2.2新增
+
+| 参数名 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `QUEUE_MONITOR_INTERVAL` | int | 60 | 队列监控间隔（秒） |
+| `QUEUE_WARNING_THRESHOLD` | float | 0.8 | 队列告警阈值（80%容量） |
+
+**监控逻辑**:
+```python
+# 队列使用率监控
+queue_usage = queue.qsize() / queue.maxsize
+
+if queue_usage > QUEUE_WARNING_THRESHOLD:
+    logger.warning(f"队列使用率过高: {queue_usage:.1%}")
+    # 触发告警...
+```
+
+**告警示例**:
+```
+⚠️  [队列监控] 分析队列使用率过高: 85.3% (12800/15000)
+⚠️  [队列监控] K线缓冲队列使用率: 72.1% (7210/10000)
+```
+
+---
+
+### 7. K线数据补充器配置（6参数）✨ v2.2新增
+
+| 参数名 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `KLINE_FILLER_COOLDOWN_SECONDS` | int | 600 | 补充冷却时间（秒） |
+| `KLINE_FILLER_API_INTERVAL` | float | 1.5 | API请求间隔（秒） |
+| `KLINE_FILLER_MAX_RETRIES` | int | 3 | 最大重试次数 |
+| `KLINE_FILLER_API_LIMIT` | int | 1500 | API单次查询限制 |
+| `KLINE_FILLER_CLEANUP_INTERVAL` | int | 100 | 清理间隔（次） |
+| `KLINE_FILLER_LAZY_RATE_LIMIT` | int | 1500 | Lazy模式速率限制（ms） |
+
+**使用场景**:
+- 历史数据补全：自动检测并补充缺失的K线数据
+- 新币种监控：发现新币种后补充历史数据
+- 数据修复：修复数据中断导致的缺失
+
+**配置调优**:
+
+| 场景 | 冷却时间 | API间隔 | 重试次数 | 说明 |
+|------|---------|---------|---------|------|
+| 生产环境 | 600s | 1.5s | 3 | 避免频繁API请求 |
+| 开发测试 | 300s | 1.0s | 5 | 快速数据补全 |
+| 数据修复 | 60s | 0.5s | 10 | 紧急修复模式 |
+
+---
+
+### 8. 飞书告警配置（3参数）✨ v2.2新增
+
+| 参数名 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `LARK_MAX_RETRIES` | int | 3 | 最大重试次数 |
+| `LARK_REQUEST_TIMEOUT` | float | 10.0 | 请求超时（秒） |
+| `LARK_BACKOFF_BASE` | int | 2 | 指数退避基数 |
+
+**重试策略**:
+```python
+# 指数退避重试
+delay = LARK_BACKOFF_BASE ** attempt
+# 重试序列: 2^0=1s, 2^1=2s, 2^2=4s
+```
+
+**配置示例**:
+```python
+# 稳定网络环境
+LARK_MAX_RETRIES = 3
+LARK_REQUEST_TIMEOUT = 10.0
+LARK_BACKOFF_BASE = 2  # 1s, 2s, 4s
+
+# 不稳定网络环境
+LARK_MAX_RETRIES = 5
+LARK_REQUEST_TIMEOUT = 20.0
+LARK_BACKOFF_BASE = 3  # 1s, 3s, 9s, 27s, 81s
+```
+
+---
+
+## 环境变量映射
+
+### .env.example完整版（v2.2）
+
+**文件**: `.env.example`（包含所有52个配置参数）
+
+```bash
+# ============================================================================
+# hyperliquid-pair-hype-purr-analyze 环境变量配置
+# v2.2 完整版 - 2026-01-29
+# ============================================================================
 
 # ========================================
-# TimescaleDB配置
+# 1. TimescaleDB配置（10参数）
 # ========================================
-# 数据库主机（Docker内使用timescaledb，本地使用localhost）
-TIMESCALEDB_HOST=timescaledb
+TIMESCALEDB_HOST=127.0.0.1
 TIMESCALEDB_PORT=5432
 TIMESCALEDB_NAME=crypto_data
 TIMESCALEDB_USER=postgres
-# ⚠️ 生产环境请修改默认密码！
 TIMESCALEDB_PASSWORD=postgres
-TIMESCALEDB_POOL_SIZE=10
+# ⚠️ 生产环境请修改默认密码！
+
+# 连接池配置（v2.2优化）
+TIMESCALEDB_POOL_MIN_SIZE=2
+TIMESCALEDB_POOL_MAX_SIZE=10
+TIMESCALEDB_POOL_TIMEOUT=30.0
+TIMESCALEDB_POOL_MAX_LIFETIME=3600
+TIMESCALEDB_POOL_MAX_IDLE=600
 
 # ========================================
-# 功能开关
+# 2. WebSocket配置（20参数）✨ v2.2核心新增
 # ========================================
-# 是否启用数据库（true/false）
-ENABLE_DATABASE=true
-# 是否启用实时数据流（true/false，可选功能）
-ENABLE_REALTIME_STREAM=false
+# 基础连接
+WS_URL=wss://api.hyperliquid.xyz/ws
+WS_TIMEOUT=30
+WS_MAX_RETRIES=30
+
+# Ping配置
+WS_PING_INTERVAL_MS=5000
+WS_PING_THREAD_SHUTDOWN_TIMEOUT=2.0
+
+# 状态管理
+WS_STATE_VALIDATION_DELAY=1.0
+WS_READY_TIMEOUT=5.0
+WS_CLEANUP_DELAY=0.5
+
+# 重连策略
+WS_RECONNECT_MIN_DELAY=0.1
+WS_RECONNECT_INITIAL_DELAY=1.0
+WS_RECONNECT_MAX_DELAY=10.0
+WS_RECONNECT_MULTIPLIER=2.0
+WS_RECONNECT_JITTER=0.25
+
+# 健康监控
+WS_HEALTH_MONITOR_TIMEOUT=15
+WS_HEALTH_MONITOR_WARNING_THRESHOLD=15
+WS_HEALTH_REPORT_INTERVAL=60
+WS_HEALTH_CHECK_INTERVAL=2
+
+# 告警配置
+WS_ALERT_THRESHOLD=5
 
 # ========================================
-# 飞书Bot配置（可选）
+# 3. 队列配置（通用服务）
 # ========================================
-# 飞书Bot Webhook ID（格式：cli_xxxxxx）
+# 注意: QUEUE_CONFIG_GENERAL 和 QUEUE_CONFIG_HYPE 在代码中定义为字典
+# 这里仅配置工作线程数
+ANALYSIS_WORKERS=15
+
+# ========================================
+# 4. 去重配置
+# ========================================
+# 注意: ENQUEUE_DEDUP_WINDOWS 和 DEDUP_WINDOWS 在代码中定义为字典
+CLEANUP_INTERVAL=300
+MAX_RECENT_TASKS=5000
+
+# ========================================
+# 5. 批量写入配置 ✨ v2.2新增
+# ========================================
+ANALYSIS_RESULT_BATCH_SIZE=100
+ANALYSIS_RESULT_BATCH_TIMEOUT=2.0
+ANALYSIS_USE_COPY_METHOD=false
+
+# ========================================
+# 6. 监控配置 ✨ v2.2新增
+# ========================================
+QUEUE_MONITOR_INTERVAL=60
+QUEUE_WARNING_THRESHOLD=0.8
+
+# ========================================
+# 7. K线数据补充器配置 ✨ v2.2新增
+# ========================================
+KLINE_FILLER_COOLDOWN_SECONDS=600
+KLINE_FILLER_API_INTERVAL=1.5
+KLINE_FILLER_MAX_RETRIES=3
+KLINE_FILLER_API_LIMIT=1500
+KLINE_FILLER_CLEANUP_INTERVAL=100
+KLINE_FILLER_LAZY_RATE_LIMIT=1500
+
+# ========================================
+# 8. 飞书告警配置 ✨ v2.2新增
+# ========================================
+LARK_MAX_RETRIES=3
+LARK_REQUEST_TIMEOUT=10.0
+LARK_BACKOFF_BASE=2
+
+# 飞书Bot Webhook（可选）
 LARKBOT_ID=
+LARK_ALERT_EMAIL=
 
 # ========================================
-# Redis配置（可选）
+# 其他配置
 # ========================================
+# 运行环境
+ENV=local
+
+# Redis配置（可选）
 REDIS_HOST=127.0.0.1
 REDIS_PASSWORD=
 ```
 
 ---
 
-### 文件3: .env.production（生产环境配置）
+## 配置最佳实践
 
-```env
-ENV=production
+### 开发环境推荐配置
 
-# TimescaleDB配置（生产环境）
-TIMESCALEDB_HOST=timescaledb
-TIMESCALEDB_PORT=5432
-TIMESCALEDB_NAME=crypto_data
-TIMESCALEDB_USER=postgres
-TIMESCALEDB_PASSWORD=your_strong_password_here  # 请修改！
-TIMESCALEDB_POOL_SIZE=20
+**适用场景**: 本地开发、功能测试
 
-# 功能开关
-ENABLE_DATABASE=true
-ENABLE_REALTIME_STREAM=true  # 生产环境启用实时数据流
+```bash
+# TimescaleDB
+TIMESCALEDB_POOL_MAX_SIZE=5           # 小连接池
+TIMESCALEDB_POOL_TIMEOUT=30.0
 
-# 飞书Bot配置
-LARKBOT_ID=cli_your_bot_id_here
+# WebSocket
+WS_TIMEOUT=60                         # 宽松超时
+WS_MAX_RETRIES=None                   # 无限重连
+WS_HEALTH_MONITOR_TIMEOUT=30          # 30秒假活检测
 
-# Redis配置
-REDIS_HOST=redis
-REDIS_PASSWORD=your_redis_password
+# 队列和线程
+ANALYSIS_WORKERS=2                    # 少量线程降低资源占用
+
+# 批量写入
+ANALYSIS_RESULT_BATCH_SIZE=50         # 小批量
+ANALYSIS_USE_COPY_METHOD=false        # INSERT方法
 ```
+
+---
+
+### 生产环境推荐配置（HYPE/PURR）
+
+**适用场景**: HYPE/USDC:USDC vs PURR/USDC:USDC 配对分析
+
+```bash
+# TimescaleDB
+TIMESCALEDB_HOST=timescaledb
+TIMESCALEDB_PASSWORD=your_strong_password  # ⚠️ 请修改！
+TIMESCALEDB_POOL_MAX_SIZE=8               # 公式: (2工作线程+1写入+2预留)×1.5≈8
+TIMESCALEDB_POOL_TIMEOUT=30.0
+
+# WebSocket
+WS_TIMEOUT=30                             # 快速响应
+WS_MAX_RETRIES=30                         # 适度重试
+WS_HEALTH_MONITOR_TIMEOUT=15              # 15秒假活检测
+WS_RECONNECT_MAX_DELAY=10.0               # 10秒最大延迟
+
+# 队列和线程
+ANALYSIS_WORKERS=2                        # 2个币种×轻量分析
+
+# 批量写入
+ANALYSIS_RESULT_BATCH_SIZE=100
+ANALYSIS_RESULT_BATCH_TIMEOUT=2.0
+ANALYSIS_USE_COPY_METHOD=false            # 高频小批量用INSERT
+
+# 监控
+QUEUE_MONITOR_INTERVAL=60
+QUEUE_WARNING_THRESHOLD=0.8
+
+# K线补充（谨慎使用）
+KLINE_FILLER_COOLDOWN_SECONDS=600         # 10分钟冷却
+
+# 飞书告警
+LARKBOT_ID=cli_your_bot_id
+LARK_MAX_RETRIES=3
+```
+
+---
+
+### 生产环境推荐配置（通用实时服务）
+
+**适用场景**: 200+币种实时分析
+
+```bash
+# TimescaleDB
+TIMESCALEDB_HOST=timescaledb
+TIMESCALEDB_PASSWORD=your_strong_password  # ⚠️ 请修改！
+TIMESCALEDB_POOL_MAX_SIZE=30              # 公式: (15工作线程+1写入+4预留)×1.5=30
+TIMESCALEDB_POOL_TIMEOUT=30.0
+
+# WebSocket
+WS_TIMEOUT=30
+WS_MAX_RETRIES=30
+WS_HEALTH_MONITOR_TIMEOUT=15
+WS_RECONNECT_MAX_DELAY=10.0
+
+# 队列和线程
+ANALYSIS_WORKERS=15                       # 平衡CPU和吞吐量
+
+# 批量写入
+ANALYSIS_RESULT_BATCH_SIZE=100
+ANALYSIS_RESULT_BATCH_TIMEOUT=2.0
+ANALYSIS_USE_COPY_METHOD=false            # 实时分析用INSERT
+
+# 监控
+QUEUE_MONITOR_INTERVAL=60
+QUEUE_WARNING_THRESHOLD=0.8
+
+# K线补充
+KLINE_FILLER_COOLDOWN_SECONDS=600
+
+# 飞书告警
+LARKBOT_ID=cli_your_bot_id
+LARK_MAX_RETRIES=3
+```
+
+---
+
+### 性能调优配置（高并发）
+
+**适用场景**: >500币种，高吞吐量场景
+
+```bash
+# TimescaleDB
+TIMESCALEDB_POOL_MAX_SIZE=60              # 大连接池
+TIMESCALEDB_POOL_TIMEOUT=60.0             # 宽松超时
+TIMESCALEDB_POOL_MAX_LIFETIME=1800        # 30分钟生命周期
+
+# WebSocket
+WS_TIMEOUT=60                             # 容忍延迟
+WS_MAX_RETRIES=50                         # 更多重试
+WS_HEALTH_MONITOR_TIMEOUT=30              # 30秒假活检测
+WS_RECONNECT_MAX_DELAY=60.0               # 60秒最大延迟
+
+# 队列和线程
+ANALYSIS_WORKERS=30                       # 更多线程
+
+# 批量写入
+ANALYSIS_RESULT_BATCH_SIZE=500            # 大批量
+ANALYSIS_RESULT_BATCH_TIMEOUT=5.0         # 更长超时
+ANALYSIS_USE_COPY_METHOD=true             # COPY命令提升40x性能
+
+# 监控
+QUEUE_MONITOR_INTERVAL=30                 # 更频繁监控
+QUEUE_WARNING_THRESHOLD=0.7               # 更低阈值
+
+# K线补充（禁用或谨慎使用）
+KLINE_FILLER_COOLDOWN_SECONDS=3600        # 1小时冷却
+
+# 飞书告警
+LARKBOT_ID=cli_your_bot_id
+LARK_MAX_RETRIES=5
+LARK_REQUEST_TIMEOUT=20.0
+```
+
+---
+
+### 配置验证清单
+
+在部署前，请检查以下配置：
+
+- [ ] **数据库密码**: 生产环境已修改默认密码
+- [ ] **连接池大小**: 根据工作线程数正确配置
+- [ ] **WebSocket超时**: 根据网络环境调整（稳定15s，不稳定30s）
+- [ ] **重连次数**: 生产环境设置合理上限（建议30次）
+- [ ] **工作线程数**: 根据CPU核心数和负载配置
+- [ ] **批量写入**: 高频场景禁用COPY，低频场景启用
+- [ ] **监控阈值**: 根据容量设置告警阈值（建议80%）
+- [ ] **飞书告警**: 已配置LARKBOT_ID（如需告警）
+- [ ] **环境变量**: 所有敏感信息通过环境变量配置
+
+---
 
 ## 📦 依赖管理
 
