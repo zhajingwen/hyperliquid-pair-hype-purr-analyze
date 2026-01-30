@@ -1071,6 +1071,9 @@ class EnhancedWebSocketManager:
                 logger.error(f"发送紧急告警失败: {alert_err}")
 
         self._update_state(ConnectionState.FAILED)
+        # 修复STAB-01: 通知所有监听线程停止
+        self.stop_event.set()
+        logger.critical("🚨 WebSocket重连耗尽，已设置stop_event，服务即将终止")
 
     def _monitor_health(self):
         """健康监控主循环"""

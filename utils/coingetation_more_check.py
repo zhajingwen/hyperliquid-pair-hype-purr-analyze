@@ -507,7 +507,8 @@ class CointegrationHealthMonitor:
                 try:
                     _, pvalue, *_ = adfuller(sub_spread, autolag="AIC")
                     adf_results.append(int(pvalue < 0.05))
-                except:
+                except Exception as e:
+                    # 修复QUAL-02: 只捕获Exception，避免拦截系统信号
                     continue
 
             if len(adf_results) == 0:
