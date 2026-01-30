@@ -589,7 +589,9 @@ class EnhancedWebSocketManager:
 
         except Exception as e:
             logger.error(f"WebSocket连接失败: {e}", exc_info=True)
-            self._update_state(ConnectionState.FAILED, e)
+            # 只在初始连接时设置FAILED,重连过程中保持RECONNECTING
+            if self.state != ConnectionState.RECONNECTING:
+                self._update_state(ConnectionState.FAILED, e)
             raise
 
     def _on_open(self, ws):
