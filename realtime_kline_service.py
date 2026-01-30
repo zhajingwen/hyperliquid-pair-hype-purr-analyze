@@ -1063,7 +1063,7 @@ class RealtimeKlineService:
             if symbol == self.base_symbol:
                 return
 
-            # ===== 修复PERF-02: 单次查询 + 内存分组（优化N+1查询）=====
+            # ===== 新增：查询所有3个周期的数据（从配置读取）=====
             window_map = {
                 '5m': timedelta(days=DATA_WINDOW_CONFIG['5m']),
                 '1h': timedelta(days=DATA_WINDOW_CONFIG['1h']),
@@ -1074,44 +1074,26 @@ class RealtimeKlineService:
             price_data_cache = {}
             end_time = datetime.now(timezone.utc)
 
-            # 计算最大时间窗口
-            max_window = max(window_map.values())
-            query_start_time = end_time - max_window
-
-            # 单次查询所有周期数据（timeframe=None）
-            base_klines_all = self.kline_repo.query_range(
-                self.base_symbol,
-                None,  # 查询所有timeframe
-                query_start_time,
-                end_time,
-                limit=30000  # 提高限制以容纳多周期数据
-            )
-
-            alt_klines_all = self.kline_repo.query_range(
-                symbol,
-                None,  # 查询所有timeframe
-                query_start_time,
-                end_time,
-                limit=30000
-            )
-
-            # 内存中按timeframe分组
-            base_by_tf = defaultdict(list)
-            alt_by_tf = defaultdict(list)
-
-            for kline in base_klines_all:
-                if kline['timeframe'] in window_map:
-                    base_by_tf[kline['timeframe']].append(kline)
-
-            for kline in alt_klines_all:
-                if kline['timeframe'] in window_map:
-                    alt_by_tf[kline['timeframe']].append(kline)
-
-            # 遍历每个周期处理数据
             for tf, window in window_map.items():
-                # 从分组后的数据中获取当前周期的K线
-                base_klines = base_by_tf[tf]
-                alt_klines = alt_by_tf[tf]
+                query_start_time = end_time - window
+
+                # 查询基准币种K线
+                base_klines = self.kline_repo.query_range(
+                    self.base_symbol,
+                    tf,
+                    query_start_time,
+                    end_time,
+                    limit=DB_QUERY_LIMIT
+                )
+
+                # 查询目标币种K线
+                alt_klines = self.kline_repo.query_range(
+                    symbol,
+                    tf,
+                    query_start_time,
+                    end_time,
+                    limit=DB_QUERY_LIMIT
+                )
 
                 # === 新增：K线数据连续性校验与自动补充 ===
                 need_refill = False
@@ -1172,27 +1154,21 @@ class RealtimeKlineService:
                         if alt_filled > 0:
                             logger.info(f"目标币种数据补充完成 | {symbol} @ {tf} | 补充: {alt_filled} 条")
 
-                    # 重新查询数据（仅查询当前周期）
-                    base_klines_refill = self.kline_repo.query_range(
+                    # 重新查询数据
+                    base_klines = self.kline_repo.query_range(
                         self.base_symbol,
                         tf,
-                        end_time - window,
+                        query_start_time,
                         end_time,
                         limit=DB_QUERY_LIMIT
                     )
-                    alt_klines_refill = self.kline_repo.query_range(
+                    alt_klines = self.kline_repo.query_range(
                         symbol,
                         tf,
-                        end_time - window,
+                        query_start_time,
                         end_time,
                         limit=DB_QUERY_LIMIT
                     )
-
-                    # 更新内存分组数据
-                    base_by_tf[tf] = base_klines_refill
-                    alt_by_tf[tf] = alt_klines_refill
-                    base_klines = base_klines_refill
-                    alt_klines = alt_klines_refill
 
                     logger.info(
                         f"数据补充后重新查询 | {symbol} @ {tf} | "
