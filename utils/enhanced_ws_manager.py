@@ -924,10 +924,19 @@ class EnhancedWebSocketManager:
                     removed_count += 1
                     logger.info(f"✅ 取消订阅成功: {subscription.get('coin')} @ {subscription.get('interval')}")
 
-            logger.info(
-                f"取消订阅完成: 移除 {removed_count} 个订阅，未找到 {not_found_count} 个 | "
-                f"剩余订阅数: {len(self.subscriptions)}"
-            )
+            # 根据实际情况调整日志级别
+            if not_found_count > 0:
+                # 降级为 debug，因为这在并发环境下是正常现象
+                logger.debug(
+                    f"取消订阅完成: 移除 {removed_count} 个订阅，"
+                    f"未找到 {not_found_count} 个 (可能已被其他线程移除) | "
+                    f"剩余订阅数: {len(self.subscriptions)}"
+                )
+            else:
+                logger.info(
+                    f"取消订阅完成: 移除 {removed_count} 个订阅 | "
+                    f"剩余订阅数: {len(self.subscriptions)}"
+                )
             return True
 
         except Exception as e:

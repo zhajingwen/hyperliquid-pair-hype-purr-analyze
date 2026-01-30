@@ -1131,11 +1131,19 @@ class RealtimeKlineService:
                 if tf == '4h':
                     # 验证目标币种4H数据是否充足（补充后仍需检查）
                     if len(alt_klines) < self.MIN_4H_DATA_POINTS:
-                        # 数据不足，加入黑名单
+                        # 双重检查锁定: 防止多线程重复处理同一币种
                         with self.blacklist_lock:
+                            # 第二次检查，确保没有其他线程已处理
+                            if symbol in self.new_coin_blacklist:
+                                logger.debug(
+                                    f"币种已被其他线程加入黑名单，跳过处理: {symbol} @ {tf}"
+                                )
+                                return  # 直接返回，避免重复取消订阅
+
+                            # 数据不足，加入黑名单
                             self.new_coin_blacklist.add(symbol)
 
-                        # 🆕 取消该币种的所有订阅（避免继续接收无用数据）
+                        # 取消该币种的所有订阅（在锁外执行，避免阻塞）
                         coin = symbol.split('/')[0]  # BTC/USDC:USDC → BTC
                         subscriptions_to_remove = [
                             {"type": "candle", "coin": coin, "interval": "5m"},
