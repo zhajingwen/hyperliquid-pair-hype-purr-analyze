@@ -59,11 +59,6 @@ DEDUP_WINDOWS: Dict[str, int] = {'5m': 60, '1h': 300, '4h': 900}
 CLEANUP_INTERVAL = 300
 MAX_RECENT_TASKS = 5000
 
-# ============ WebSocket配置 ============
-WS_TIMEOUT = 30
-WS_MAX_RETRIES = 30
-WS_ALERT_THRESHOLD = 5
-
 # ============ 工作线程配置 ============
 ANALYSIS_WORKERS_GENERAL = 15
 ANALYSIS_WORKERS_HYPE = 2
@@ -101,6 +96,11 @@ ALERT_SCORE_DIFF: Dict[str, int] = {'high': 15, 'medium': 10, 'deteriorate': 5}
 ALERT_RISK_HIGH_HURST: float = 0.7
 ALERT_RISK_MID: Dict[str, float] = {'coint_min': 3, 'zscore_ratio': 3, 'beta_cv': 0.2}
 ALERT_RATING_COUNT_THRESHOLD: int = 2
+
+# ============ WebSocket配置 ============
+WS_TIMEOUT = 30
+WS_MAX_RETRIES = None
+WS_ALERT_THRESHOLD = None
 
 # ============ WebSocket 连接配置 ============
 WS_URL = "wss://api.hyperliquid.xyz/ws"  # WebSocket连接地址
