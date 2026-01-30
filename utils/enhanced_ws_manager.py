@@ -27,11 +27,11 @@ from utils.config import (
     WS_PING_INTERVAL_MS, WS_PING_THREAD_SHUTDOWN_TIMEOUT,
     WS_STATE_VALIDATION_DELAY, WS_READY_TIMEOUT,
     WS_RECONNECT_MIN_DELAY, WS_RECONNECT_INITIAL_DELAY,
-    WS_RECONNECT_MAX_DELAY, WS_RECONNECT_MULTIPLIER, WS_RECONNECT_JITTER
+    WS_RECONNECT_MAX_DELAY, WS_RECONNECT_MULTIPLIER, WS_RECONNECT_JITTER,
+    WS_URL, WS_TIMEOUT, WS_MAX_RETRIES, WS_ALERT_THRESHOLD,
+    WS_HEALTH_MONITOR_TIMEOUT, WS_HEALTH_MONITOR_WARNING_THRESHOLD,
+    WS_CLEANUP_DELAY, WS_HEALTH_REPORT_INTERVAL, WS_HEALTH_CHECK_INTERVAL
 )
-
-# WebSocket URL 常量
-WS_URL = "wss://api.hyperliquid.xyz/ws"
 
 
 # =====================================================
@@ -63,7 +63,11 @@ class HealthMonitor:
     设计参考: strong-hyperliquid-websocket 的 HealthMonitor
     """
 
-    def __init__(self, timeout: int = 30, warning_threshold: int = 15):
+    def __init__(
+        self,
+        timeout: int = WS_HEALTH_MONITOR_TIMEOUT,
+        warning_threshold: int = WS_HEALTH_MONITOR_WARNING_THRESHOLD
+    ):
         """
         初始化健康监控器
 
@@ -207,11 +211,11 @@ class EnhancedWebSocketManager:
         subscriptions: List[Dict],
         message_callback: Optional[Callable[[Dict], None]] = None,
         on_state_change: Optional[Callable[[ConnectionState, Optional[Exception]], None]] = None,
-        timeout: int = 30,
+        timeout: int = WS_TIMEOUT,
         skip_disconnects: bool = False,
         alert_callback: Optional[Callable[[str, str], None]] = None,
-        max_retries: int = 30,
-        alert_threshold: int = 5
+        max_retries: int = WS_MAX_RETRIES,
+        alert_threshold: int = WS_ALERT_THRESHOLD
     ):
         """
         初始化增强型 WebSocket 管理器
@@ -767,7 +771,7 @@ class EnhancedWebSocketManager:
             logger.warning(f"清除引用失败: {e}")
 
         # 等待资源释放
-        time.sleep(0.5)
+        time.sleep(WS_CLEANUP_DELAY)
 
         # 汇总日志
         logger.info(f"强制清理完成: {' | '.join(cleanup_status)}")
@@ -1088,14 +1092,14 @@ class EnhancedWebSocketManager:
                         break
                     continue
 
-                # 定期健康报告（每60秒）
-                if int(time.time() - self.start_time) % 60 == 0:
+                # 定期健康报告
+                if int(time.time() - self.start_time) % WS_HEALTH_REPORT_INTERVAL == 0:
                     self._log_health_report()
 
             except Exception as e:
                 logger.error(f"健康监控异常: {e}", exc_info=True)
 
-            time.sleep(5)  # 每5秒检查一次
+            time.sleep(WS_HEALTH_CHECK_INTERVAL)  # 健康检查间隔
 
         logger.info("健康监控线程已停止")
 

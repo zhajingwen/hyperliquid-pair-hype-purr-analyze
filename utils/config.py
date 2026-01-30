@@ -102,8 +102,11 @@ ALERT_RISK_HIGH_HURST: float = 0.7
 ALERT_RISK_MID: Dict[str, float] = {'coint_min': 3, 'zscore_ratio': 3, 'beta_cv': 0.2}
 ALERT_RATING_COUNT_THRESHOLD: int = 2
 
+# ============ WebSocket 连接配置 ============
+WS_URL = "wss://api.hyperliquid.xyz/ws"  # WebSocket连接地址
+
 # ============ WebSocket 高级配置 ============
-WS_PING_INTERVAL_MS = 60000  # Ping间隔(毫秒) - 每60秒心跳，防止会话过期
+WS_PING_INTERVAL_MS = 60000  # Ping间隔(毫秒) - 每60秒心跳,防止会话过期
 WS_PING_THREAD_SHUTDOWN_TIMEOUT = 2.0  # Ping线程关闭超时(秒)
 WS_STATE_VALIDATION_DELAY = 1.0  # 状态验证延迟(秒)
 WS_READY_TIMEOUT = 5.0  # WebSocket就绪超时(秒)
@@ -112,6 +115,15 @@ WS_RECONNECT_INITIAL_DELAY = 1.0  # 重连初始延迟(秒)
 WS_RECONNECT_MAX_DELAY = 60.0  # 重连最大延迟(秒)
 WS_RECONNECT_MULTIPLIER = 2.0  # 重连延迟倍数
 WS_RECONNECT_JITTER = 0.25  # 重连抖动系数
+
+# ============ WebSocket 健康监控配置 ============
+WS_HEALTH_MONITOR_TIMEOUT = 30  # 健康监控超时阈值(秒) - 超过此时间未收到数据判定为假活
+WS_HEALTH_MONITOR_WARNING_THRESHOLD = 15  # 健康监控警告阈值(秒) - 超过此时间触发警告日志
+WS_HEALTH_REPORT_INTERVAL = 60  # 健康报告输出间隔(秒) - 定期输出健康统计信息
+WS_HEALTH_CHECK_INTERVAL = 5  # 健康检查循环间隔(秒) - 健康监控线程检查频率
+
+# ============ WebSocket 连接管理配置 ============
+WS_CLEANUP_DELAY = 0.5  # 强制清理连接延迟(秒) - 清理旧连接前的等待时间
 
 # ============ 分析算法高级配置 ============
 CORRELATION_METHOD = 'pearson'  # 相关系数计算方法: pearson/kendall/spearman
